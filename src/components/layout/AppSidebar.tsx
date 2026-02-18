@@ -14,26 +14,22 @@ import {
   BarChart3,
   ChevronRight,
   X,
+  Users,
 } from "lucide-react";
 import logoHorizontal from "@/assets/logo-horizontal.png";
 import logoIcon from "@/assets/logo-icon.svg";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 type NavChild = { title: string; url: string; icon: React.ElementType };
 type NavItem =
   | { title: string; url: string; icon: React.ElementType; children?: never }
   | { title: string; icon: React.ElementType; url?: never; children: NavChild[] };
 
-const navItems: NavItem[] = [
+// ── Nav items per role ─────────────────────────────────────────────────────────
+const superAdminNavItems: NavItem[] = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  {
-    title: "Penjualan",
-    icon: ShoppingCart,
-    children: [
-      { title: "POS", url: "/pos", icon: Monitor },
-      { title: "Transaksi", url: "/transaksi", icon: Receipt },
-    ],
-  },
+  { title: "Manajemen Admin", url: "/manajemen-admin", icon: Users },
   {
     title: "Produk & Inventory",
     icon: Package,
@@ -42,6 +38,36 @@ const navItems: NavItem[] = [
       { title: "Stok IMEI", url: "/stok-imei", icon: Barcode },
       { title: "Stok Opname", url: "/stok-opname", icon: ClipboardList },
       { title: "Katalog", url: "/katalog", icon: BookOpen },
+    ],
+  },
+  {
+    title: "Penjualan",
+    icon: ShoppingCart,
+    children: [
+      { title: "POS", url: "/pos", icon: Monitor },
+      { title: "Transaksi", url: "/transaksi", icon: Receipt },
+    ],
+  },
+  { title: "Laporan & Analitika", url: "/laporan", icon: BarChart3 },
+];
+
+const adminNavItems: NavItem[] = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  {
+    title: "Produk & Inventory",
+    icon: Package,
+    children: [
+      { title: "Stok IMEI", url: "/stok-imei", icon: Barcode },
+      { title: "Stok Opname", url: "/stok-opname", icon: ClipboardList },
+      { title: "Katalog", url: "/katalog", icon: BookOpen },
+    ],
+  },
+  {
+    title: "Penjualan",
+    icon: ShoppingCart,
+    children: [
+      { title: "POS", url: "/pos", icon: Monitor },
+      { title: "Transaksi", url: "/transaksi", icon: Receipt },
     ],
   },
   { title: "Laporan & Analitika", url: "/laporan", icon: BarChart3 },
@@ -55,9 +81,13 @@ interface AppSidebarProps {
 export function AppSidebar({ mobileSidebarOpen = false, onMobileClose }: AppSidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [openGroups, setOpenGroups] = useState<string[]>([
-    "Penjualan",
     "Produk & Inventory",
+    "Penjualan",
   ]);
+  const { role } = useAuth();
+  const isSuperAdmin = role === "super_admin";
+
+  const navItems = isSuperAdmin ? superAdminNavItems : adminNavItems;
 
   const toggleGroup = (title: string) => {
     setOpenGroups((prev) =>
@@ -67,7 +97,6 @@ export function AppSidebar({ mobileSidebarOpen = false, onMobileClose }: AppSide
 
   const location = useLocation();
 
-  // Returns true if any child of a group matches the current pathname
   const isGroupActive = (children: NavChild[]) =>
     children.some((c) => location.pathname === c.url || location.pathname.startsWith(c.url + "/"));
 
@@ -78,7 +107,9 @@ export function AppSidebar({ mobileSidebarOpen = false, onMobileClose }: AppSide
         <img
           src={isMobile ? logoHorizontal : isExpanded ? logoHorizontal : logoIcon}
           alt="Ivalora Gadget"
-          className={`object-contain transition-all duration-300 ${isMobile ? "h-8 max-w-[160px]" : isExpanded ? "h-8 max-w-[160px]" : "w-8 h-8"}`}
+          className={`object-contain transition-all duration-300 ${
+            isMobile ? "h-8 max-w-[160px]" : isExpanded ? "h-8 max-w-[160px]" : "w-8 h-8"
+          }`}
         />
         {isMobile && (
           <button

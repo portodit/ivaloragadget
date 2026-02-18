@@ -15,6 +15,8 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import MasterProductsPage from "./pages/MasterProductsPage";
 import StockIMEIPage from "./pages/StockIMEIPage";
 import StokOpnamePage from "./pages/StokOpnamePage";
+import ManajemenAdminPage from "./pages/ManajemenAdminPage";
+import LaporanPage from "./pages/LaporanPage";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +40,8 @@ const App = () => (
             <Route path="/master-produk" element={<ProtectedRoute><MasterProductsPage /></ProtectedRoute>} />
             <Route path="/stok-imei" element={<ProtectedRoute><StockIMEIPage /></ProtectedRoute>} />
             <Route path="/stok-opname" element={<ProtectedRoute><StokOpnamePage /></ProtectedRoute>} />
+            <Route path="/manajemen-admin" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
+            <Route path="/laporan" element={<ProtectedRoute><LaporanPage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -126,6 +126,8 @@ function SessionListView({
   const [adminList, setAdminList] = useState<AdminProfile[]>([]);
   const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>([]);
   const [assignModalSession, setAssignModalSession] = useState<SessionWithAssignees | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchAdmins = useCallback(async () => {
     const { data: roles } = await supabase
@@ -261,6 +263,23 @@ function SessionListView({
     fetchSessions();
   };
 
+  const handleDeleteSession = async (sessionId: string) => {
+    setDeleting(true);
+    // Delete related data first
+    await supabase.from("opname_session_assignments" as never).delete().eq("session_id" as never, sessionId);
+    await supabase.from("opname_scanned_items" as never).delete().eq("session_id" as never, sessionId);
+    await supabase.from("opname_snapshot_items").delete().eq("session_id", sessionId);
+    const { error } = await supabase.from("opname_sessions").delete().eq("id", sessionId);
+    if (error) {
+      toast({ title: "Gagal menghapus sesi", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Sesi berhasil dihapus." });
+    }
+    setDeleteConfirmId(null);
+    setDeleting(false);
+    fetchSessions();
+  };
+
   const toggleAdminSelect = (id: string, list: string[], setList: (v: string[]) => void) => {
     setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   };
@@ -317,11 +336,11 @@ function SessionListView({
                   <tr className="border-b border-border bg-muted/40">
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tanggal</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jenis</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:table-cell">Assigned</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:table-cell">Petugas</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">Match</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Selisih</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Status</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Aksi</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -336,36 +355,38 @@ function SessionListView({
                           <p className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(s.started_at))}</p>
                         </td>
                         <td className="px-4 py-3"><SessionTypeBadge type={s.session_type} /></td>
+
+                        {/* Kolom petugas — selalu bisa assign meski belum ada */}
                         <td className="px-4 py-3 hidden md:table-cell">
-                          {s.assignees && s.assignees.length > 0 ? (
-                            <div className="flex items-center gap-1">
-                              <div className="flex -space-x-1">
-                                {s.assignees.slice(0, 3).map((a) => (
-                                  <div key={a.id} title={a.full_name ?? a.email} className="w-6 h-6 rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-[9px] font-bold flex items-center justify-center ring-2 ring-card">
-                                    {(a.full_name ?? a.email).slice(0, 2).toUpperCase()}
-                                  </div>
-                                ))}
-                              </div>
-                              {s.assignees.length > 3 && (
-                                <span className="text-[10px] text-muted-foreground">+{s.assignees.length - 3}</span>
-                              )}
-                              {isSuperAdmin && (
-                                <button onClick={() => setAssignModalSession(s)} className="ml-1 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
-                                  <UserCheck className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5">
+                            {s.assignees && s.assignees.length > 0 ? (
+                              <>
+                                <div className="flex -space-x-1">
+                                  {s.assignees.slice(0, 3).map((a) => (
+                                    <div key={a.id} title={a.full_name ?? a.email} className="w-6 h-6 rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-[9px] font-bold flex items-center justify-center ring-2 ring-card">
+                                      {(a.full_name ?? a.email).slice(0, 2).toUpperCase()}
+                                    </div>
+                                  ))}
+                                </div>
+                                {s.assignees.length > 3 && (
+                                  <span className="text-[10px] text-muted-foreground">+{s.assignees.length - 3}</span>
+                                )}
+                              </>
+                            ) : (
                               <span className="text-xs text-muted-foreground italic">Belum ada</span>
-                              {isSuperAdmin && (
-                                <button onClick={() => setAssignModalSession(s)} className="ml-1 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
-                                  <UserCheck className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          )}
+                            )}
+                            {isSuperAdmin && (
+                              <button
+                                onClick={() => setAssignModalSession(s)}
+                                title="Atur petugas"
+                                className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
+
                         <td className="px-4 py-3 text-sm text-[hsl(var(--status-available-fg))] font-medium hidden sm:table-cell">{s.total_match}</td>
                         <td className="px-4 py-3">
                           {selisih > 0 ? (
@@ -377,20 +398,31 @@ function SessionListView({
                           )}
                         </td>
                         <td className="px-4 py-3"><SessionStatusBadge status={s.session_status} /></td>
-                        <td className="px-4 py-3 text-right">
-                          {canScan ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 text-xs gap-1"
-                              onClick={() => onViewDetail(s.id, s.session_status)}
-                            >
-                              {s.session_status === "draft" ? "Lanjut Scan" : "Lihat Detail"}
-                              <ChevronRight className="w-3 h-3" />
-                            </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground italic">Tidak ada akses</span>
-                          )}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {canScan ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-1"
+                                onClick={() => onViewDetail(s.id, s.session_status)}
+                              >
+                                {s.session_status === "draft" ? "Lanjut Scan" : "Lihat Detail"}
+                                <ChevronRight className="w-3 h-3" />
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">Tidak ada akses</span>
+                            )}
+                            {isSuperAdmin && (
+                              <button
+                                onClick={() => setDeleteConfirmId(s.id)}
+                                title="Hapus sesi"
+                                className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -509,6 +541,40 @@ function SessionListView({
           onClose={() => setAssignModalSession(null)}
           onSave={(ids) => handleSaveAssignees(assignModalSession.id, ids)}
         />
+      )}
+
+      {/* ── Delete confirmation modal ── */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40" onClick={() => !deleting && setDeleteConfirmId(null)} />
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-destructive" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Hapus Sesi?</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Semua data scan dan snapshot di sesi ini akan ikut terhapus. Tindakan ini tidak bisa dibatalkan.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => setDeleteConfirmId(null)} disabled={deleting}>
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 h-9 text-sm gap-1.5"
+                onClick={() => handleDeleteSession(deleteConfirmId)}
+                disabled={deleting}
+              >
+                {deleting ? <div className="w-3.5 h-3.5 border border-destructive-foreground/30 border-t-destructive-foreground rounded-full animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Ya, Hapus
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </DashboardLayout>
   );
