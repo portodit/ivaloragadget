@@ -106,6 +106,31 @@ export default function StokOpnamePage() {
 interface AdminProfile { id: string; full_name: string | null; email: string }
 interface SessionWithAssignees extends OpnameSession { assignees?: AdminProfile[] }
 
+// ─── Helpers: group sessions by calendar date ─────────────────────────────────
+function groupByDate(sessions: SessionWithAssignees[]): { dateKey: string; label: string; sessions: SessionWithAssignees[] }[] {
+  const map = new Map<string, SessionWithAssignees[]>();
+  for (const s of sessions) {
+    const key = s.started_at.slice(0, 10); // YYYY-MM-DD
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(s);
+  }
+  return Array.from(map.entries()).map(([dateKey, sessions]) => ({
+    dateKey,
+    label: new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(dateKey)),
+    sessions,
+  }));
+}
+
+function isTodayStr(dateStr: string) {
+  const today = new Date().toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" });
+  const d = new Date(dateStr).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" });
+  return today === d;
+}
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // ─── SessionListView ──────────────────────────────────────────────────────────
 function SessionListView({
   userId, isSuperAdmin, onStartScan, onViewDetail, toast,
@@ -116,6 +141,8 @@ function SessionListView({
   onViewDetail: (id: string, status: SessionStatus) => void;
   toast: ReturnType<typeof useToast>["toast"];
 }) {
+  // tab: "terkini" | "lampau"
+  const [activeTab, setActiveTab] = useState<"terkini" | "lampau">("terkini");
   const [sessions, setSessions] = useState<SessionWithAssignees[]>([]);
   const [loading, setLoading] = useState(true);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
@@ -130,55 +157,32 @@ function SessionListView({
   const [deleting, setDeleting] = useState(false);
 
   const fetchAdmins = useCallback(async () => {
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "admin");
+    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
     if (!roles || roles.length === 0) { setAdminList([]); return; }
     const ids = roles.map((r) => r.user_id);
-    const { data: profiles } = await supabase
-      .from("user_profiles")
-      .select("id, full_name, email")
-      .in("id", ids)
-      .eq("status", "active");
+    const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", ids).eq("status", "active");
     setAdminList((profiles ?? []) as AdminProfile[]);
   }, []);
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
-    const { data: sessData } = await supabase
-      .from("opname_sessions")
-      .select("*")
-      .order("started_at", { ascending: false });
-
-    const sessions = (sessData as OpnameSession[]) ?? [];
-
-    // Fetch assignees for each session
-    const sessionsWithAssignees: SessionWithAssignees[] = await Promise.all(
-      sessions.map(async (s) => {
-        const { data: assignments } = await supabase
-          .from("opname_session_assignments" as never)
-          .select("admin_id")
-          .eq("session_id", s.id);
+    const { data: sessData } = await supabase.from("opname_sessions").select("*").order("started_at", { ascending: false });
+    const list = (sessData as OpnameSession[]) ?? [];
+    const withAssignees: SessionWithAssignees[] = await Promise.all(
+      list.map(async (s) => {
+        const { data: assignments } = await supabase.from("opname_session_assignments" as never).select("admin_id").eq("session_id", s.id);
         if (!assignments || (assignments as { admin_id: string }[]).length === 0) return { ...s, assignees: [] };
         const adminIds = (assignments as { admin_id: string }[]).map((a) => a.admin_id);
-        const { data: profiles } = await supabase
-          .from("user_profiles")
-          .select("id, full_name, email")
-          .in("id", adminIds);
+        const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", adminIds);
         return { ...s, assignees: (profiles ?? []) as AdminProfile[] };
       })
     );
-
-    setSessions(sessionsWithAssignees);
+    setSessions(withAssignees);
     setLoading(false);
   }, []);
 
   const fetchExpected = useCallback(async () => {
-    const { count } = await supabase
-      .from("stock_units")
-      .select("*", { count: "exact", head: true })
-      .in("stock_status", ["available", "reserved"]);
+    const { count } = await supabase.from("stock_units").select("*", { count: "exact", head: true }).in("stock_status", ["available", "reserved"]);
     setExpectedCount(count ?? 0);
   }, []);
 
@@ -187,61 +191,33 @@ function SessionListView({
   const handleCreateSession = async () => {
     if (!userId) return;
     setCreating(true);
-
     const { data: sess, error: sessErr } = await supabase
       .from("opname_sessions")
       .insert({ session_type: newType, notes: newNotes || null, created_by: userId, total_expected: expectedCount } as never)
-      .select()
-      .single();
-
+      .select().single();
     if (sessErr || !sess) {
       toast({ title: "Gagal membuat sesi", description: sessErr?.message, variant: "destructive" });
       setCreating(false);
       return;
     }
     const sessionId = (sess as { id: string }).id;
-
-    // Assign selected admins
     if (selectedAdminIds.length > 0) {
-      const assignRows = selectedAdminIds.map((adminId) => ({
-        session_id: sessionId,
-        admin_id: adminId,
-        assigned_by: userId,
-      }));
+      const assignRows = selectedAdminIds.map((adminId) => ({ session_id: sessionId, admin_id: adminId, assigned_by: userId }));
       await supabase.from("opname_session_assignments" as never).insert(assignRows as never);
     }
-
-    // Take snapshot
     const { data: units } = await supabase
       .from("stock_units")
       .select("id, imei, stock_status, selling_price, cost_price, master_products(series, storage_gb, color, warranty_type)")
       .in("stock_status", ["available", "reserved"]);
-
     if (units && units.length > 0) {
       const snapshotRows = (units as never[]).map((u: never) => {
-        const unit = u as {
-          id: string; imei: string; stock_status: string;
-          selling_price: number | null; cost_price: number | null;
-          master_products?: { series?: string; storage_gb?: number; color?: string; warranty_type?: string };
-        };
+        const unit = u as { id: string; imei: string; stock_status: string; selling_price: number | null; cost_price: number | null; master_products?: { series?: string; storage_gb?: number; color?: string; warranty_type?: string } };
         const mp = unit.master_products;
-        const label = mp
-          ? `${mp.series} ${mp.storage_gb}GB — ${mp.color} (${(mp.warranty_type ?? "").replace(/_/g, " ")})`
-          : unit.imei;
-        return {
-          session_id: sessionId,
-          unit_id: unit.id,
-          imei: unit.imei,
-          product_label: label,
-          selling_price: unit.selling_price,
-          cost_price: unit.cost_price,
-          stock_status: unit.stock_status,
-          scan_result: "missing",
-        };
+        const label = mp ? `${mp.series} ${mp.storage_gb}GB — ${mp.color} (${(mp.warranty_type ?? "").replace(/_/g, " ")})` : unit.imei;
+        return { session_id: sessionId, unit_id: unit.id, imei: unit.imei, product_label: label, selling_price: unit.selling_price, cost_price: unit.cost_price, stock_status: unit.stock_status, scan_result: "missing" };
       });
       await supabase.from("opname_snapshot_items").insert(snapshotRows as never);
     }
-
     toast({ title: "Snapshot stok berhasil dibuat.", description: `Sesi ${SESSION_TYPE_LABELS[newType]} dimulai.` });
     setCreating(false);
     setNewSessionOpen(false);
@@ -252,7 +228,6 @@ function SessionListView({
 
   const handleSaveAssignees = async (sessionId: string, adminIds: string[]) => {
     if (!userId) return;
-    // Remove existing then re-insert
     await supabase.from("opname_session_assignments" as never).delete().eq("session_id" as never, sessionId);
     if (adminIds.length > 0) {
       const rows = adminIds.map((aid) => ({ session_id: sessionId, admin_id: aid, assigned_by: userId }));
@@ -265,16 +240,12 @@ function SessionListView({
 
   const handleDeleteSession = async (sessionId: string) => {
     setDeleting(true);
-    // Delete related data first
     await supabase.from("opname_session_assignments" as never).delete().eq("session_id" as never, sessionId);
     await supabase.from("opname_scanned_items" as never).delete().eq("session_id" as never, sessionId);
     await supabase.from("opname_snapshot_items").delete().eq("session_id", sessionId);
     const { error } = await supabase.from("opname_sessions").delete().eq("id", sessionId);
-    if (error) {
-      toast({ title: "Gagal menghapus sesi", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Sesi berhasil dihapus." });
-    }
+    if (error) toast({ title: "Gagal menghapus sesi", description: error.message, variant: "destructive" });
+    else toast({ title: "Sesi berhasil dihapus." });
     setDeleteConfirmId(null);
     setDeleting(false);
     fetchSessions();
@@ -283,6 +254,92 @@ function SessionListView({
   const toggleAdminSelect = (id: string, list: string[], setList: (v: string[]) => void) => {
     setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   };
+
+  // ── Derived: split sessions ──────────────────────────────────────────────────
+  const todayKey = getTodayKey();
+  const todaySessions = sessions.filter((s) => isTodayStr(s.started_at));
+  const pastSessions  = sessions.filter((s) => !isTodayStr(s.started_at));
+  const todayHasOpening = todaySessions.some((s) => s.session_type === "opening");
+  const todayHasClosing = todaySessions.some((s) => s.session_type === "closing");
+  const pastGroups = groupByDate(pastSessions);
+
+  // ── Session row renderer ─────────────────────────────────────────────────────
+  const renderSessionRow = (s: SessionWithAssignees) => {
+    const selisih = s.total_missing + s.total_unregistered;
+    const isAssignedToMe = s.assignees?.some((a) => a.id === userId);
+    const canScan = isSuperAdmin || isAssignedToMe;
+    return (
+      <tr key={s.id} className="hover:bg-accent/30 transition-colors">
+        <td className="px-4 py-3">
+          <p className="text-sm text-foreground">{new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(s.started_at))}</p>
+        </td>
+        <td className="px-4 py-3"><SessionTypeBadge type={s.session_type} /></td>
+        <td className="px-4 py-3 hidden md:table-cell">
+          <div className="flex items-center gap-1.5">
+            {s.assignees && s.assignees.length > 0 ? (
+              <>
+                <div className="flex -space-x-1">
+                  {s.assignees.slice(0, 3).map((a) => (
+                    <div key={a.id} title={a.full_name ?? a.email} className="w-6 h-6 rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-[9px] font-bold flex items-center justify-center ring-2 ring-card">
+                      {(a.full_name ?? a.email).slice(0, 2).toUpperCase()}
+                    </div>
+                  ))}
+                </div>
+                {s.assignees.length > 3 && <span className="text-[10px] text-muted-foreground">+{s.assignees.length - 3}</span>}
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground italic">Belum ada</span>
+            )}
+            {isSuperAdmin && (
+              <button onClick={() => setAssignModalSession(s)} title="Atur petugas" className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                <UserCheck className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3 text-sm text-[hsl(var(--status-available-fg))] font-medium hidden sm:table-cell">{s.total_match}</td>
+        <td className="px-4 py-3">
+          {selisih > 0 ? (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-[hsl(var(--status-minus-fg))]">
+              <AlertTriangle className="w-3 h-3" /> {selisih}
+            </span>
+          ) : (
+            <span className="text-xs text-[hsl(var(--status-available-fg))]">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3"><SessionStatusBadge status={s.session_status} /></td>
+        <td className="px-4 py-3">
+          <div className="flex items-center justify-end gap-1.5">
+            {canScan ? (
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => onViewDetail(s.id, s.session_status)}>
+                {s.session_status === "draft" ? "Lanjut Scan" : "Lihat Detail"}
+                <ChevronRight className="w-3 h-3" />
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground italic">Tidak ada akses</span>
+            )}
+            {isSuperAdmin && (
+              <button onClick={() => setDeleteConfirmId(s.id)} title="Hapus sesi" className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const sessionTableCols = (
+    <tr className="border-b border-border bg-muted/40">
+      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jam</th>
+      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jenis</th>
+      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:table-cell">Petugas</th>
+      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">Match</th>
+      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Selisih</th>
+      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Status</th>
+      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground text-right">Aksi</th>
+    </tr>
+  );
 
   return (
     <DashboardLayout pageTitle="Stok Opname">
@@ -306,133 +363,169 @@ function SessionListView({
           </div>
         </div>
 
-        {/* Sessions table */}
+        {/* Tab switcher */}
+        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl w-fit">
+          {(["terkini", "lampau"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-xs font-medium transition-all",
+                activeTab === tab
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab === "terkini" ? "Terkini" : "Lampau"}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="bg-card rounded-xl border border-border p-4 space-y-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted rounded-lg animate-pulse" />)}
           </div>
-        ) : sessions.length === 0 ? (
-          <div className="bg-card rounded-xl border border-border p-16 text-center space-y-4">
-            <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center mx-auto">
-              <ClipboardList className="w-6 h-6 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">Belum ada sesi stok opname.</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isSuperAdmin ? "Mulai sesi pertama untuk memverifikasi stok secara fisik." : "Belum ada sesi yang ditugaskan ke Anda."}
-              </p>
-            </div>
+        ) : activeTab === "terkini" ? (
+          /* ─── TERKINI view ─────────────────────────────────────── */
+          <div className="space-y-4">
+            {/* Daily prompt cards for super admin */}
             {isSuperAdmin && (
-              <Button size="sm" className="gap-1.5" onClick={() => setNewSessionOpen(true)}>
-                <Plus className="w-3.5 h-3.5" /> Mulai Sesi Pertama
-              </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Opening prompt */}
+                <div className={cn(
+                  "rounded-xl border p-4 flex items-start gap-3",
+                  todayHasOpening
+                    ? "bg-[hsl(var(--status-available-bg))] border-[hsl(var(--status-available))]/30"
+                    : "bg-[hsl(var(--status-reserved-bg))] border-[hsl(var(--status-reserved))]/30"
+                )}>
+                  <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                    todayHasOpening ? "bg-[hsl(var(--status-available))]/20" : "bg-[hsl(var(--status-reserved))]/20"
+                  )}>
+                    {todayHasOpening
+                      ? <CheckCircle2 className="w-4.5 h-4.5 text-[hsl(var(--status-available-fg))]" />
+                      : <CalendarClock className="w-4.5 h-4.5 text-[hsl(var(--status-reserved-fg))]" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn("text-xs font-semibold", todayHasOpening ? "text-[hsl(var(--status-available-fg))]" : "text-[hsl(var(--status-reserved-fg))]")}>
+                      Sesi Opening Hari Ini
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {todayHasOpening ? "Sudah dibuat." : "Belum ada sesi opening hari ini."}
+                    </p>
+                    {!todayHasOpening && (
+                      <button
+                        onClick={() => { setNewType("opening"); setNewSessionOpen(true); }}
+                        className="mt-2 text-xs font-medium text-[hsl(var(--status-reserved-fg))] underline underline-offset-2 hover:opacity-80 transition-opacity"
+                      >
+                        + Buat sekarang
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {/* Closing prompt */}
+                <div className={cn(
+                  "rounded-xl border p-4 flex items-start gap-3",
+                  todayHasClosing
+                    ? "bg-[hsl(var(--status-available-bg))] border-[hsl(var(--status-available))]/30"
+                    : "bg-muted border-border"
+                )}>
+                  <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                    todayHasClosing ? "bg-[hsl(var(--status-available))]/20" : "bg-muted-foreground/10"
+                  )}>
+                    {todayHasClosing
+                      ? <CheckCircle2 className="w-4.5 h-4.5 text-[hsl(var(--status-available-fg))]" />
+                      : <Lock className="w-4.5 h-4.5 text-muted-foreground" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn("text-xs font-semibold", todayHasClosing ? "text-[hsl(var(--status-available-fg))]" : "text-muted-foreground")}>
+                      Sesi Closing Hari Ini
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {todayHasClosing ? "Sudah dibuat." : "Belum ada sesi closing hari ini."}
+                    </p>
+                    {!todayHasClosing && (
+                      <button
+                        onClick={() => { setNewType("closing"); setNewSessionOpen(true); }}
+                        className="mt-2 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+                      >
+                        + Buat sekarang
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Today's sessions table */}
+            {todaySessions.length === 0 ? (
+              <div className="bg-card rounded-xl border border-border p-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto">
+                  <ClipboardList className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Belum ada sesi hari ini.</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isSuperAdmin ? "Gunakan prompt di atas untuk membuat sesi opening atau closing." : "Belum ada sesi yang ditugaskan hari ini."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-card rounded-xl border border-border overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-2">
+                  <CalendarClock className="w-3.5 h-3.5 text-muted-foreground" />
+                  <p className="text-xs font-semibold text-foreground">
+                    {new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(todayKey))}
+                  </p>
+                  <span className="ml-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">Hari ini</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>{sessionTableCols}</thead>
+                    <tbody className="divide-y divide-border">
+                      {todaySessions.map(renderSessionRow)}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-4 py-2.5 border-t border-border">
+                  <p className="text-xs text-muted-foreground">{todaySessions.length} sesi hari ini</p>
+                </div>
+              </div>
             )}
           </div>
         ) : (
-          <div className="bg-card rounded-xl border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tanggal</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jenis</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:table-cell">Petugas</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">Match</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Selisih</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Status</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {sessions.map((s) => {
-                    const selisih = s.total_missing + s.total_unregistered;
-                    const isAssignedToMe = s.assignees?.some((a) => a.id === userId);
-                    const canScan = isSuperAdmin || isAssignedToMe;
-                    return (
-                      <tr key={s.id} className="hover:bg-accent/30 transition-colors">
-                        <td className="px-4 py-3">
-                          <p className="text-sm text-foreground">{formatDateShort(s.started_at)}</p>
-                          <p className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(s.started_at))}</p>
-                        </td>
-                        <td className="px-4 py-3"><SessionTypeBadge type={s.session_type} /></td>
-
-                        {/* Kolom petugas — selalu bisa assign meski belum ada */}
-                        <td className="px-4 py-3 hidden md:table-cell">
-                          <div className="flex items-center gap-1.5">
-                            {s.assignees && s.assignees.length > 0 ? (
-                              <>
-                                <div className="flex -space-x-1">
-                                  {s.assignees.slice(0, 3).map((a) => (
-                                    <div key={a.id} title={a.full_name ?? a.email} className="w-6 h-6 rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-[9px] font-bold flex items-center justify-center ring-2 ring-card">
-                                      {(a.full_name ?? a.email).slice(0, 2).toUpperCase()}
-                                    </div>
-                                  ))}
-                                </div>
-                                {s.assignees.length > 3 && (
-                                  <span className="text-[10px] text-muted-foreground">+{s.assignees.length - 3}</span>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-xs text-muted-foreground italic">Belum ada</span>
-                            )}
-                            {isSuperAdmin && (
-                              <button
-                                onClick={() => setAssignModalSession(s)}
-                                title="Atur petugas"
-                                className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3 text-sm text-[hsl(var(--status-available-fg))] font-medium hidden sm:table-cell">{s.total_match}</td>
-                        <td className="px-4 py-3">
-                          {selisih > 0 ? (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-[hsl(var(--status-minus-fg))]">
-                              <AlertTriangle className="w-3 h-3" /> {selisih}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-[hsl(var(--status-available-fg))]">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3"><SessionStatusBadge status={s.session_status} /></td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {canScan ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 text-xs gap-1"
-                                onClick={() => onViewDetail(s.id, s.session_status)}
-                              >
-                                {s.session_status === "draft" ? "Lanjut Scan" : "Lihat Detail"}
-                                <ChevronRight className="w-3 h-3" />
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-muted-foreground italic">Tidak ada akses</span>
-                            )}
-                            {isSuperAdmin && (
-                              <button
-                                onClick={() => setDeleteConfirmId(s.id)}
-                                title="Hapus sesi"
-                                className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-4 py-2.5 border-t border-border">
-              <p className="text-xs text-muted-foreground">{sessions.length} sesi tercatat</p>
-            </div>
+          /* ─── LAMPAU view ──────────────────────────────────────── */
+          <div className="space-y-4">
+            {pastGroups.length === 0 ? (
+              <div className="bg-card rounded-xl border border-border p-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto">
+                  <Layers className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Belum ada riwayat sesi.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Sesi dari hari-hari sebelumnya akan muncul di sini.</p>
+                </div>
+              </div>
+            ) : (
+              pastGroups.map((group) => (
+                <div key={group.dateKey} className="bg-card rounded-xl border border-border overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-2">
+                    <CalendarClock className="w-3.5 h-3.5 text-muted-foreground" />
+                    <p className="text-xs font-semibold text-foreground">{group.label}</p>
+                    <span className="ml-auto text-[10px] text-muted-foreground">{group.sessions.length} sesi</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>{sessionTableCols}</thead>
+                      <tbody className="divide-y divide-border">
+                        {group.sessions.map(renderSessionRow)}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
@@ -441,27 +534,30 @@ function SessionListView({
       {newSessionOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={() => setNewSessionOpen(false)} />
-          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md p-6 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between">
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* Modal header */}
+            <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-border">
               <div>
                 <h2 className="text-base font-semibold text-foreground">Mulai Sesi Baru</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Snapshot diambil dari unit Available & Reserved saat sesi dimulai.</p>
               </div>
-              <button onClick={() => setNewSessionOpen(false)} className="p-1 rounded-lg hover:bg-accent">
+              <button onClick={() => setNewSessionOpen(false)} className="p-1 rounded-lg hover:bg-accent shrink-0 ml-3">
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
 
-            <div className="rounded-xl bg-[hsl(var(--status-available-bg))] border border-[hsl(var(--status-available))]/20 px-4 py-3 flex items-center gap-3">
-              <Info className="w-4 h-4 text-[hsl(var(--status-available-fg))] shrink-0" />
-              <div>
-                <p className="text-xs font-medium text-[hsl(var(--status-available-fg))]">Estimasi Unit Expected</p>
-                <p className="text-xl font-bold text-foreground">{expectedCount} unit</p>
-                <p className="text-[10px] text-muted-foreground">Status: Available + Reserved saat ini</p>
+            <div className="px-6 py-5 space-y-5">
+              {/* Expected count info */}
+              <div className="rounded-xl bg-[hsl(var(--status-available-bg))] border border-[hsl(var(--status-available))]/20 px-4 py-3 flex items-center gap-3">
+                <Info className="w-4 h-4 text-[hsl(var(--status-available-fg))] shrink-0" />
+                <div>
+                  <p className="text-xs font-medium text-[hsl(var(--status-available-fg))]">Estimasi Unit Expected</p>
+                  <p className="text-xl font-bold text-foreground">{expectedCount} unit</p>
+                  <p className="text-[10px] text-muted-foreground">Status: Available + Reserved saat ini</p>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-3">
+              {/* Jenis sesi */}
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Jenis Sesi</label>
                 <Select value={newType} onValueChange={(v) => setNewType(v as SessionType)}>
@@ -474,15 +570,29 @@ function SessionListView({
                 </Select>
               </div>
 
-              {/* Admin assignment */}
-              <div>
-                <label className="text-xs font-medium text-foreground block mb-1.5 flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5" /> Assign Admin (opsional, bisa lebih dari 1)
-                </label>
+              {/* Assign admin — dedicated section */}
+              <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center shrink-0">
+                    <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">Penugasan Admin</p>
+                    <p className="text-[10px] text-muted-foreground">Opsional — bisa lebih dari satu admin</p>
+                  </div>
+                  {selectedAdminIds.length > 0 && (
+                    <span className="ml-auto px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+                      {selectedAdminIds.length} dipilih
+                    </span>
+                  )}
+                </div>
                 {adminList.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic px-1">Belum ada admin aktif.</p>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border">
+                    <Info className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <p className="text-xs text-muted-foreground">Belum ada admin aktif di sistem.</p>
+                  </div>
                 ) : (
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
                     {adminList.map((admin) => {
                       const checked = selectedAdminIds.includes(admin.id);
                       return (
@@ -491,17 +601,23 @@ function SessionListView({
                           type="button"
                           onClick={() => toggleAdminSelect(admin.id, selectedAdminIds, setSelectedAdminIds)}
                           className={cn(
-                            "w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-sm text-left transition-all",
+                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all",
                             checked
-                              ? "border-primary bg-primary/5 text-foreground"
-                              : "border-border bg-background text-foreground hover:bg-accent",
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card hover:bg-accent"
                           )}
                         >
-                          <div className={cn("w-4 h-4 rounded border-2 flex items-center justify-center shrink-0", checked ? "bg-primary border-primary" : "border-muted-foreground/40")}>
-                            {checked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                          <div className={cn(
+                            "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                            checked ? "bg-primary border-primary" : "border-muted-foreground/40 bg-card"
+                          )}>
+                            {checked && <CheckCircle2 className="w-2.5 h-2.5 text-primary-foreground" />}
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-xs truncate">{admin.full_name ?? admin.email}</p>
+                          <div className="w-7 h-7 rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-[9px] font-bold flex items-center justify-center shrink-0">
+                            {(admin.full_name ?? admin.email).slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-xs text-foreground truncate">{admin.full_name ?? admin.email}</p>
                             <p className="text-[10px] text-muted-foreground truncate">{admin.email}</p>
                           </div>
                         </button>
@@ -511,18 +627,15 @@ function SessionListView({
                 )}
               </div>
 
+              {/* Catatan */}
               <div>
-                <label className="text-xs font-medium text-foreground block mb-1.5">Catatan (opsional)</label>
-                <Input
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Tambahkan catatan sesi…"
-                  className="h-9 text-sm"
-                />
+                <label className="text-xs font-medium text-foreground block mb-1.5">Catatan <span className="text-muted-foreground font-normal">(opsional)</span></label>
+                <Input value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Tambahkan catatan sesi…" className="h-9 text-sm" />
               </div>
             </div>
 
-            <div className="flex gap-2 pt-1">
+            {/* Modal footer */}
+            <div className="flex gap-2 px-6 pb-6">
               <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => setNewSessionOpen(false)}>Batal</Button>
               <Button className="flex-1 h-9 text-sm gap-1.5" onClick={handleCreateSession} disabled={creating}>
                 {creating ? <div className="w-3.5 h-3.5 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
@@ -554,21 +667,12 @@ function SessionListView({
               </div>
               <div>
                 <h2 className="text-base font-semibold text-foreground">Hapus Sesi?</h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Semua data scan dan snapshot di sesi ini akan ikut terhapus. Tindakan ini tidak bisa dibatalkan.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Semua data scan dan snapshot di sesi ini akan ikut terhapus. Tindakan ini tidak bisa dibatalkan.</p>
               </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => setDeleteConfirmId(null)} disabled={deleting}>
-                Batal
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 h-9 text-sm gap-1.5"
-                onClick={() => handleDeleteSession(deleteConfirmId)}
-                disabled={deleting}
-              >
+              <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => setDeleteConfirmId(null)} disabled={deleting}>Batal</Button>
+              <Button variant="destructive" className="flex-1 h-9 text-sm gap-1.5" onClick={() => handleDeleteSession(deleteConfirmId)} disabled={deleting}>
                 {deleting ? <div className="w-3.5 h-3.5 border border-destructive-foreground/30 border-t-destructive-foreground rounded-full animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 Ya, Hapus
               </Button>
