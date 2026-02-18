@@ -15,7 +15,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-import logoFull from "@/assets/logo-full.svg";
+import logoHorizontal from "@/assets/logo-horizontal.png";
 import logoIcon from "@/assets/logo-icon.svg";
 import { cn } from "@/lib/utils";
 
@@ -76,9 +76,9 @@ export function AppSidebar({ mobileSidebarOpen = false, onMobileClose }: AppSide
       {/* Logo area */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border shrink-0 overflow-hidden">
         <img
-          src={isMobile ? logoFull : isExpanded ? logoFull : logoIcon}
+          src={isMobile ? logoHorizontal : isExpanded ? logoHorizontal : logoIcon}
           alt="Ivalora Gadget"
-          className={`object-contain transition-all duration-300 ${isMobile ? "h-7" : isExpanded ? "h-7" : "w-8 h-8"}`}
+          className={`object-contain transition-all duration-300 ${isMobile ? "h-8 max-w-[160px]" : isExpanded ? "h-8 max-w-[160px]" : "w-8 h-8"}`}
         />
         {isMobile && (
           <button

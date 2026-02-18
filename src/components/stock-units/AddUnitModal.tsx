@@ -219,8 +219,8 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="available">Tersedia (Available)</SelectItem>
-                <SelectItem value="coming_soon">Coming Soon</SelectItem>
+                <SelectItem value="available">Tersedia</SelectItem>
+                <SelectItem value="coming_soon">Akan Datang</SelectItem>
               </SelectContent>
             </Select>
           </div>

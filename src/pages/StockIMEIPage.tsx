@@ -123,7 +123,51 @@ export default function StockIMEIPage() {
               className="h-9 gap-1.5 text-xs"
               onClick={() => {
                 if (units.length === 0) { setExportEmptyOpen(true); return; }
-                // TODO: actual export
+                // Build CSV
+                const headers = isSuperAdmin
+                  ? ["IMEI", "Produk", "Storage", "Warna", "Garansi", "Kondisi", "Harga Jual", "Harga Beli", "Status", "Supplier", "Batch", "Tanggal Masuk"]
+                  : ["Produk", "Storage", "Warna", "Garansi", "Kondisi", "Harga Jual", "Status", "Tanggal Masuk"];
+                const rows = units.map((u) => {
+                  const base = [
+                    u.master_products?.series ?? "",
+                    u.master_products?.storage_gb ? `${u.master_products.storage_gb}GB` : "",
+                    u.master_products?.color ?? "",
+                    u.master_products?.warranty_type?.replace(/_/g, " ") ?? "",
+                    u.condition_status === "no_minus" ? "No Minus" : "Ada Minus",
+                    u.selling_price != null ? u.selling_price.toString() : "",
+                    u.stock_status,
+                    u.received_at ? new Date(u.received_at).toLocaleDateString("id-ID") : "",
+                  ];
+                  if (isSuperAdmin) return [u.imei, ...base.slice(0, 1), ...base.slice(1, 3), ...base.slice(3), u.cost_price?.toString() ?? "", u.supplier ?? "", u.batch_code ?? ""].join(",");
+                  return base.join(",");
+                });
+                // Redo rows properly for superadmin
+                const csvRows = units.map((u) => {
+                  const prod = `${u.master_products?.series ?? ""} ${u.master_products?.storage_gb ? u.master_products.storage_gb + "GB" : ""}`.trim();
+                  const color = u.master_products?.color ?? "";
+                  const warranty = u.master_products?.warranty_type?.replace(/_/g, " ") ?? "";
+                  const kondisi = u.condition_status === "no_minus" ? "No Minus" : "Ada Minus";
+                  const hargaJual = u.selling_price != null ? u.selling_price.toString() : "";
+                  const status = u.stock_status;
+                  const tanggal = u.received_at ? new Date(u.received_at).toLocaleDateString("id-ID") : "";
+                  if (isSuperAdmin) {
+                    return [u.imei, prod, color, warranty, kondisi, hargaJual, u.cost_price?.toString() ?? "", status, u.supplier ?? "", u.batch_code ?? "", tanggal].join(",");
+                  }
+                  return [prod, color, warranty, kondisi, hargaJual, status, tanggal].join(",");
+                });
+                const csvHeaders = isSuperAdmin
+                  ? ["IMEI", "Produk", "Warna", "Garansi", "Kondisi", "Harga Jual", "Harga Beli", "Status", "Supplier", "Batch", "Tanggal Masuk"]
+                  : ["Produk", "Warna", "Garansi", "Kondisi", "Harga Jual", "Status", "Tanggal Masuk"];
+                const csv = [csvHeaders.join(","), ...csvRows].join("\n");
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `stok-imei-${new Date().toISOString().slice(0, 10)}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
               }}
             >
               <Download className="w-3.5 h-3.5" />
