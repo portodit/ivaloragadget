@@ -1,25 +1,31 @@
 import { useState } from "react";
-import { ChevronDown, Settings, LogOut, User } from "lucide-react";
-
-// Mock user - akan diganti dengan auth session nanti
-const mockUser = {
-  name: "Ahmad Fauzi",
-  role: "Super Admin",
-  avatar: null as string | null,
-};
+import { ChevronDown, Settings, LogOut, User, Shield } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export function TopNavbar({ pageTitle }: { pageTitle?: string }) {
+  const { user, role, signOut } = useAuth();
+  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const initials = mockUser.name
+  const fullName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "Admin";
+  const displayRole = role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin" : "—";
+
+  const initials = fullName
     .split(" ")
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
 
+  const handleSignOut = async () => {
+    setDropdownOpen(false);
+    await signOut();
+    navigate("/login");
+  };
+
   return (
-    <header className="fixed top-0 right-0 left-[72px] h-16 z-30 flex items-center justify-between px-6 bg-card border-b border-border shadow-sm transition-all duration-300">
+    <header className="fixed top-0 right-0 left-[72px] h-16 z-30 flex items-center justify-between px-6 bg-card border-b border-border transition-all duration-300">
       {/* Page title */}
       <div>
         <h1 className="text-base font-semibold text-foreground">
@@ -37,26 +43,14 @@ export function TopNavbar({ pageTitle }: { pageTitle?: string }) {
           className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-accent transition-colors duration-150"
         >
           {/* Avatar */}
-          <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-semibold shrink-0">
-            {mockUser.avatar ? (
-              <img
-                src={mockUser.avatar}
-                alt={mockUser.name}
-                className="w-full h-full rounded-full object-cover"
-              />
-            ) : (
-              initials
-            )}
+          <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center text-background text-xs font-bold shrink-0">
+            {initials}
           </div>
 
           {/* Name & Role */}
           <div className="text-left hidden sm:block">
-            <p className="text-sm font-medium text-foreground leading-tight">
-              {mockUser.name}
-            </p>
-            <p className="text-xs text-muted-foreground leading-tight">
-              {mockUser.role}
-            </p>
+            <p className="text-sm font-medium text-foreground leading-tight">{fullName}</p>
+            <p className="text-xs text-muted-foreground leading-tight">{displayRole}</p>
           </div>
 
           <ChevronDown
@@ -68,16 +62,18 @@ export function TopNavbar({ pageTitle }: { pageTitle?: string }) {
         {/* Dropdown */}
         {dropdownOpen && (
           <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 z-10"
-              onClick={() => setDropdownOpen(false)}
-            />
+            <div className="fixed inset-0 z-10" onClick={() => setDropdownOpen(false)} />
             <div className="absolute right-0 top-full mt-2 w-56 bg-card border border-border rounded-xl shadow-lg z-20 overflow-hidden py-1">
               {/* User info header */}
               <div className="px-4 py-3 border-b border-border">
-                <p className="text-sm font-semibold text-foreground">{mockUser.name}</p>
-                <p className="text-xs text-muted-foreground">{mockUser.role}</p>
+                <p className="text-sm font-semibold text-foreground">{fullName}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+                {role === "super_admin" && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Shield className="w-3 h-3 text-foreground" />
+                    <span className="text-[11px] font-medium text-foreground">{displayRole}</span>
+                  </div>
+                )}
               </div>
 
               {/* Menu items */}
@@ -92,7 +88,10 @@ export function TopNavbar({ pageTitle }: { pageTitle?: string }) {
 
               <div className="border-t border-border my-1" />
 
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-destructive hover:bg-destructive/5 transition-colors duration-150">
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-destructive hover:bg-destructive/5 transition-colors duration-150"
+              >
                 <LogOut className="w-4 h-4" />
                 Keluar
               </button>
