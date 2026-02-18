@@ -33,6 +33,16 @@ function getSiteKey(): Promise<string | null> {
 export function useRecaptcha() {
   const scriptLoaded = useRef(false);
 
+  const showBadge = useCallback(() => {
+    const badge = document.querySelector(".grecaptcha-badge");
+    if (badge) badge.classList.add("recaptcha-visible");
+  }, []);
+
+  const hideBadge = useCallback(() => {
+    const badge = document.querySelector(".grecaptcha-badge");
+    if (badge) badge.classList.remove("recaptcha-visible");
+  }, []);
+
   const ensureScript = useCallback(async () => {
     if (scriptLoaded.current) return;
     const key = await getSiteKey();
@@ -41,6 +51,8 @@ export function useRecaptcha() {
 
     if (document.getElementById("recaptcha-script")) {
       scriptLoaded.current = true;
+      // Badge may already exist, show it
+      showBadge();
       return;
     }
 
@@ -51,16 +63,29 @@ export function useRecaptcha() {
       script.async = true;
       script.onload = () => {
         scriptLoaded.current = true;
+        // Give Google's script time to inject the badge
+        setTimeout(showBadge, 500);
         resolve();
       };
       script.onerror = () => resolve();
       document.head.appendChild(script);
     });
-  }, []);
+  }, [showBadge]);
 
   useEffect(() => {
-    ensureScript();
-  }, [ensureScript]);
+    ensureScript().then(() => {
+      // Show badge when auth page mounts
+      if (scriptLoaded.current) showBadge();
+      // Poll briefly in case badge isn't injected yet
+      const timer = setTimeout(showBadge, 800);
+      return () => clearTimeout(timer);
+    });
+
+    // Hide badge when auth page unmounts (navigating to dashboard)
+    return () => {
+      hideBadge();
+    };
+  }, [ensureScript, showBadge, hideBadge]);
 
   const getToken = useCallback(async (action: string): Promise<string | null> => {
     await ensureScript();

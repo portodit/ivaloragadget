@@ -67,15 +67,15 @@ All colors MUST be HSL.
   }
 }
 
-/* Hide reCAPTCHA badge on non-auth pages */
+/* reCAPTCHA badge — hidden by default, toggled via JS in use-recaptcha hook */
 .grecaptcha-badge {
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-/* Show reCAPTCHA badge only on auth pages */
-.auth-page .grecaptcha-badge {
+.grecaptcha-badge.recaptcha-visible {
   visibility: visible !important;
   opacity: 1 !important;
   pointer-events: auto !important;
