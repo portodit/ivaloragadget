@@ -1,1 +1,13 @@
 project_id = "kmbckriozzpsuxblzhot"
+
+[functions.verify-recaptcha]
+verify_jwt = false
+
+[functions.get-recaptcha-sitekey]
+verify_jwt = false
+
+[functions.bootstrap-superadmin]
+verify_jwt = false
+
+[functions.approve-admin]
+verify_jwt = false

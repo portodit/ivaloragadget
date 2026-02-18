@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRecaptcha } from "@/hooks/use-recaptcha";
 import logoFull from "@/assets/logo-full.svg";
 import storeFront from "@/assets/store-front.webp";
 
@@ -21,6 +22,7 @@ type FormData = z.infer<typeof schema>;
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { getToken, verifyToken } = useRecaptcha();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -32,6 +34,17 @@ export default function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     setServerError(null);
+
+    // reCAPTCHA v3 check
+    const rcToken = await getToken("login");
+    if (rcToken) {
+      const ok = await verifyToken(rcToken, "login");
+      if (!ok) {
+        setServerError("Verifikasi keamanan gagal. Coba lagi.");
+        return;
+      }
+    }
+
     const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,

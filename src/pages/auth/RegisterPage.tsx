@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRecaptcha } from "@/hooks/use-recaptcha";
 import logoFull from "@/assets/logo-full.svg";
 import storeFront from "@/assets/store-front.webp";
 
@@ -34,7 +35,7 @@ const steps = [
 ];
 
 export default function RegisterPage() {
-  const navigate = useNavigate();
+  const { getToken, verifyToken } = useRecaptcha();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -46,6 +47,17 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: FormData) => {
     setServerError(null);
+
+    // reCAPTCHA v3 check
+    const rcToken = await getToken("register");
+    if (rcToken) {
+      const ok = await verifyToken(rcToken, "register");
+      if (!ok) {
+        setServerError("Verifikasi keamanan gagal. Coba lagi.");
+        return;
+      }
+    }
+
     const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
