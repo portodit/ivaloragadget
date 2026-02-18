@@ -117,9 +117,15 @@ export function useRecaptcha() {
       const { data, error } = await supabase.functions.invoke("verify-recaptcha", {
         body: { token, action },
       });
-      if (error || !data?.success) return false;
-      return true;
-    } catch {
+      // "browser-error" is expected in preview/localhost — treat as soft failure
+      if (error) {
+        console.debug("[reCAPTCHA] Verification skipped (preview or domain mismatch):", error.message);
+        return false;
+      }
+      return !!data?.success;
+    } catch (e) {
+      // Silently swallow — reCAPTCHA is informational only, never blocks login
+      console.debug("[reCAPTCHA] Verification error (ignored):", e);
       return false;
     }
   }, []);
