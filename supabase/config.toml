@@ -1,5 +1,12 @@
 project_id = "kmbckriozzpsuxblzhot"
 
+[auth.hook.send_email]
+enabled = true
+uri = "https://kmbckriozzpsuxblzhot.supabase.co/functions/v1/custom-email"
+
+[functions.custom-email]
+verify_jwt = false
+
 [functions.verify-recaptcha]
 verify_jwt = false
 
