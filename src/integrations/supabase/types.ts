@@ -56,6 +56,121 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_unit_logs: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          field_changed: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          reason: string | null
+          unit_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          field_changed: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+          unit_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          field_changed?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_unit_logs_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "stock_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_units: {
+        Row: {
+          batch_code: string | null
+          condition_status: Database["public"]["Enums"]["condition_status"]
+          cost_price: number | null
+          created_at: string
+          id: string
+          imei: string
+          minus_description: string | null
+          notes: string | null
+          product_id: string
+          received_at: string
+          reserved_at: string | null
+          selling_price: number | null
+          sold_at: string | null
+          sold_channel: Database["public"]["Enums"]["sold_channel"] | null
+          sold_reference_id: string | null
+          status_changed_at: string
+          stock_status: Database["public"]["Enums"]["stock_status"]
+          supplier: string | null
+          updated_at: string
+        }
+        Insert: {
+          batch_code?: string | null
+          condition_status?: Database["public"]["Enums"]["condition_status"]
+          cost_price?: number | null
+          created_at?: string
+          id?: string
+          imei: string
+          minus_description?: string | null
+          notes?: string | null
+          product_id: string
+          received_at?: string
+          reserved_at?: string | null
+          selling_price?: number | null
+          sold_at?: string | null
+          sold_channel?: Database["public"]["Enums"]["sold_channel"] | null
+          sold_reference_id?: string | null
+          status_changed_at?: string
+          stock_status?: Database["public"]["Enums"]["stock_status"]
+          supplier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batch_code?: string | null
+          condition_status?: Database["public"]["Enums"]["condition_status"]
+          cost_price?: number | null
+          created_at?: string
+          id?: string
+          imei?: string
+          minus_description?: string | null
+          notes?: string | null
+          product_id?: string
+          received_at?: string
+          reserved_at?: string | null
+          selling_price?: number | null
+          sold_at?: string | null
+          sold_channel?: Database["public"]["Enums"]["sold_channel"] | null
+          sold_reference_id?: string | null
+          status_changed_at?: string
+          stock_status?: Database["public"]["Enums"]["stock_status"]
+          supplier?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_units_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "master_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           created_at: string
@@ -157,7 +272,17 @@ export type Database = {
     Enums: {
       account_status: "pending" | "active" | "suspended" | "rejected"
       app_role: "super_admin" | "admin"
+      condition_status: "no_minus" | "minus"
       product_category: "iphone" | "ipad" | "accessory"
+      sold_channel: "pos" | "ecommerce" | "manual"
+      stock_status:
+        | "available"
+        | "reserved"
+        | "coming_soon"
+        | "service"
+        | "sold"
+        | "return"
+        | "lost"
       warranty_type: "resmi_bc" | "ibox" | "inter" | "whitelist" | "digimap"
     }
     CompositeTypes: {
@@ -288,7 +413,18 @@ export const Constants = {
     Enums: {
       account_status: ["pending", "active", "suspended", "rejected"],
       app_role: ["super_admin", "admin"],
+      condition_status: ["no_minus", "minus"],
       product_category: ["iphone", "ipad", "accessory"],
+      sold_channel: ["pos", "ecommerce", "manual"],
+      stock_status: [
+        "available",
+        "reserved",
+        "coming_soon",
+        "service",
+        "sold",
+        "return",
+        "lost",
+      ],
       warranty_type: ["resmi_bc", "ibox", "inter", "whitelist", "digimap"],
     },
   },
