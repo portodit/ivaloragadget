@@ -14,6 +14,7 @@ import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import MasterProductsPage from "./pages/MasterProductsPage";
 import StockIMEIPage from "./pages/StockIMEIPage";
+import StokOpnamePage from "./pages/StokOpnamePage";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/master-produk" element={<ProtectedRoute><MasterProductsPage /></ProtectedRoute>} />
             <Route path="/stok-imei" element={<ProtectedRoute><StockIMEIPage /></ProtectedRoute>} />
+            <Route path="/stok-opname" element={<ProtectedRoute><StokOpnamePage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

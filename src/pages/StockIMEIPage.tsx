@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, LayoutGrid, List, X, RefreshCw, Download } from "lucide-react";
+import { Plus, Search, LayoutGrid, List, X, RefreshCw, Download, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -47,6 +47,7 @@ export default function StockIMEIPage() {
   // Modals
   const [addOpen, setAddOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<StockUnit | null>(null);
+  const [exportEmptyOpen, setExportEmptyOpen] = useState(false);
 
   const fetchUnits = useCallback(async () => {
     setLoading(true);
@@ -116,7 +117,15 @@ export default function StockIMEIPage() {
               <RefreshCw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Segarkan</span>
             </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs"
+              onClick={() => {
+                if (units.length === 0) { setExportEmptyOpen(true); return; }
+                // TODO: actual export
+              }}
+            >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Ekspor</span>
             </Button>
@@ -356,6 +365,40 @@ export default function StockIMEIPage() {
       {/* Modals */}
       <AddUnitModal open={addOpen} onClose={() => setAddOpen(false)} onSuccess={handleRefresh} />
       <UnitDetailDrawer unit={selectedUnit} onClose={() => setSelectedUnit(null)} onUpdate={handleRefresh} />
+
+      {/* Export empty-state modal */}
+      {exportEmptyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setExportEmptyOpen(false)} />
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="w-10 h-10 rounded-xl bg-[hsl(var(--status-minus-bg))] flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-[hsl(var(--status-minus-fg))]" />
+              </div>
+              <button onClick={() => setExportEmptyOpen(false)} className="p-1 rounded-lg hover:bg-accent">
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Ekspor Tidak Dapat Dilakukan</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Tidak ada data yang dapat diekspor saat ini. Pastikan terdapat unit yang sesuai dengan filter aktif, atau reset filter untuk menampilkan semua unit.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              {hasActiveFilters && (
+                <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => { resetFilters(); setExportEmptyOpen(false); }}>
+                  Reset Filter
+                </Button>
+              )}
+              <Button className="flex-1 h-9 text-sm" onClick={() => setExportEmptyOpen(false)}>
+                Mengerti
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
+

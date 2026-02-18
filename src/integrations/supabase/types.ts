@@ -56,6 +56,174 @@ export type Database = {
         }
         Relationships: []
       }
+      opname_scanned_items: {
+        Row: {
+          action_notes: string | null
+          action_taken: string | null
+          id: string
+          imei: string
+          scan_result: string
+          scanned_at: string
+          session_id: string
+        }
+        Insert: {
+          action_notes?: string | null
+          action_taken?: string | null
+          id?: string
+          imei: string
+          scan_result: string
+          scanned_at?: string
+          session_id: string
+        }
+        Update: {
+          action_notes?: string | null
+          action_taken?: string | null
+          id?: string
+          imei?: string
+          scan_result?: string
+          scanned_at?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opname_scanned_items_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "opname_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opname_sessions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          locked_at: string | null
+          notes: string | null
+          session_status: string
+          session_type: string
+          started_at: string
+          total_expected: number
+          total_match: number
+          total_missing: number
+          total_scanned: number
+          total_unregistered: number
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          locked_at?: string | null
+          notes?: string | null
+          session_status?: string
+          session_type: string
+          started_at?: string
+          total_expected?: number
+          total_match?: number
+          total_missing?: number
+          total_scanned?: number
+          total_unregistered?: number
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          locked_at?: string | null
+          notes?: string | null
+          session_status?: string
+          session_type?: string
+          started_at?: string
+          total_expected?: number
+          total_match?: number
+          total_missing?: number
+          total_scanned?: number
+          total_unregistered?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      opname_snapshot_items: {
+        Row: {
+          action_notes: string | null
+          action_taken: string | null
+          cost_price: number | null
+          created_at: string
+          id: string
+          imei: string
+          product_label: string
+          scan_result: string | null
+          selling_price: number | null
+          session_id: string
+          sold_reference_id: string | null
+          stock_status: string
+          unit_id: string
+        }
+        Insert: {
+          action_notes?: string | null
+          action_taken?: string | null
+          cost_price?: number | null
+          created_at?: string
+          id?: string
+          imei: string
+          product_label: string
+          scan_result?: string | null
+          selling_price?: number | null
+          session_id: string
+          sold_reference_id?: string | null
+          stock_status: string
+          unit_id: string
+        }
+        Update: {
+          action_notes?: string | null
+          action_taken?: string | null
+          cost_price?: number | null
+          created_at?: string
+          id?: string
+          imei?: string
+          product_label?: string
+          scan_result?: string | null
+          selling_price?: number | null
+          session_id?: string
+          sold_reference_id?: string | null
+          stock_status?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opname_snapshot_items_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "opname_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opname_snapshot_items_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "stock_units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opname_snapshot_items_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "stock_units_sales_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_unit_logs: {
         Row: {
           changed_at: string
