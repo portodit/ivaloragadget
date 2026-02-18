@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, RefreshCw, ClipboardList, Clock, CheckCircle2,
   Lock, ChevronRight, AlertTriangle, Search, Trash2,
-  ArrowLeft, ShieldCheck, X, Info,
+  ArrowLeft, ShieldCheck, X, Info, Layers, ScanLine,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -378,13 +379,18 @@ function ScanView({
 }) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [session, setSession] = useState<OpnameSession | null>(null);
   const [snapshot, setSnapshot] = useState<OpnameSnapshotItem[]>([]);
   const [scanned, setScanned] = useState<OpnameScannedItem[]>([]);
   const [imeiInput, setImeiInput] = useState("");
+  const [bulkInput, setBulkInput] = useState("");
+  const [scanMode, setScanMode] = useState<"single" | "bulk">("single");
   const [scanning, setScanning] = useState(false);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [alertMsg, setAlertMsg] = useState<{ text: string; type: "info" | "warn" | "ok" } | null>(null);
+  const [bulkResults, setBulkResults] = useState<{ imei: string; result: "match" | "unregistered" | "duplicate" | "invalid" }[]>([]);
 
   const fetchAll = useCallback(async () => {
     const [{ data: sess }, { data: snap }, { data: sc }] = await Promise.all([
@@ -400,11 +406,19 @@ function ScanView({
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // Refocus based on current mode
+  const refocusInput = useCallback(() => {
+    setTimeout(() => {
+      if (scanMode === "single") inputRef.current?.focus();
+    }, 50);
+  }, [scanMode]);
+
   // Derived stats
   const match = scanned.filter((s) => s.scan_result === "match").length;
   const unregistered = scanned.filter((s) => s.scan_result === "unregistered").length;
   const missing = snapshot.length - match;
 
+  // ── single scan ──────────────────────────────────────────────────────────────
   const handleScan = async () => {
     const imei = imeiInput.trim();
     if (!imei) return;
@@ -412,7 +426,6 @@ function ScanView({
       setAlertMsg({ text: "IMEI minimal 15 digit.", type: "warn" });
       return;
     }
-    // Duplicate check
     if (scanned.some((s) => s.imei === imei)) {
       setAlertMsg({ text: "IMEI sudah discan dalam sesi ini.", type: "warn" });
       setImeiInput("");
@@ -435,7 +448,6 @@ function ScanView({
       return;
     }
 
-    // Update snapshot if match
     if (isInSnapshot) {
       await supabase.from("opname_snapshot_items")
         .update({ scan_result: "match" } as never)
@@ -443,7 +455,6 @@ function ScanView({
         .eq("imei", imei);
     }
 
-    // Update session counters
     const newScannedCount = scanned.length + 1;
     const newMatch = match + (isInSnapshot ? 1 : 0);
     const newUnregistered = unregistered + (isInSnapshot ? 0 : 1);
@@ -459,7 +470,75 @@ function ScanView({
     setImeiInput("");
     fetchAll();
     setScanning(false);
-    setTimeout(() => inputRef.current?.focus(), 50);
+    refocusInput();
+  };
+
+  // ── bulk scan ─────────────────────────────────────────────────────────────────
+  const handleBulkScan = async () => {
+    const lines = bulkInput.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) return;
+
+    setBulkProcessing(true);
+    setBulkResults([]);
+    setAlertMsg(null);
+
+    const results: { imei: string; result: "match" | "unregistered" | "duplicate" | "invalid" }[] = [];
+    let currentScanned = [...scanned];
+    let currentMatch = match;
+    let currentUnregistered = unregistered;
+
+    for (const imei of lines) {
+      if (imei.length < 15) {
+        results.push({ imei, result: "invalid" });
+        continue;
+      }
+      if (currentScanned.some((s) => s.imei === imei)) {
+        results.push({ imei, result: "duplicate" });
+        continue;
+      }
+      const isInSnapshot = snapshot.some((s) => s.imei === imei);
+      const scanResult: "match" | "unregistered" = isInSnapshot ? "match" : "unregistered";
+
+      const { error } = await supabase.from("opname_scanned_items").insert({
+        session_id: sessionId,
+        imei,
+        scan_result: scanResult,
+      } as never);
+
+      if (error) continue;
+
+      if (isInSnapshot) {
+        await supabase.from("opname_snapshot_items")
+          .update({ scan_result: "match" } as never)
+          .eq("session_id", sessionId)
+          .eq("imei", imei);
+        currentMatch++;
+      } else {
+        currentUnregistered++;
+      }
+
+      currentScanned = [...currentScanned, { id: "", session_id: sessionId, imei, scan_result: scanResult, action_taken: null, action_notes: null, scanned_at: new Date().toISOString() }];
+      results.push({ imei, result: scanResult });
+    }
+
+    const newMissing = snapshot.length - currentMatch;
+    await supabase.from("opname_sessions").update({
+      total_scanned: currentScanned.length,
+      total_match: currentMatch,
+      total_missing: newMissing,
+      total_unregistered: currentUnregistered,
+    } as never).eq("id", sessionId);
+
+    setBulkResults(results);
+    setBulkInput("");
+    fetchAll();
+    setBulkProcessing(false);
+
+    const successCount = results.filter((r) => r.result === "match" || r.result === "unregistered").length;
+    toast({
+      title: `Bulk scan selesai: ${successCount} dari ${lines.length} IMEI diproses.`,
+      description: results.filter((r) => r.result === "duplicate").length > 0 ? `${results.filter((r) => r.result === "duplicate").length} IMEI sudah ada (dilewati).` : undefined,
+    });
   };
 
   const handleDeleteScan = async (id: string) => {
@@ -520,35 +599,133 @@ function ScanView({
           <div className="lg:col-span-2 space-y-4">
             {/* IMEI input */}
             <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Input IMEI</p>
-              <div className="flex gap-2">
-                <Input
-                  ref={inputRef}
-                  value={imeiInput}
-                  onChange={(e) => { setImeiInput(e.target.value); setAlertMsg(null); }}
-                  onKeyDown={(e) => e.key === "Enter" && handleScan()}
-                  placeholder="Scan atau masukkan IMEI…"
-                  className="h-10 text-sm font-mono"
-                  disabled={scanning}
-                  autoFocus
-                />
-                <Button className="h-10 px-4 text-sm" onClick={handleScan} disabled={scanning || !imeiInput.trim()}>
-                  {scanning ? <div className="w-3.5 h-3.5 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : "Scan"}
-                </Button>
-              </div>
-              {alertMsg && (
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium",
-                  alertMsg.type === "ok" && "bg-[hsl(var(--status-available-bg))] text-[hsl(var(--status-available-fg))]",
-                  alertMsg.type === "warn" && "bg-[hsl(var(--status-minus-bg))] text-[hsl(var(--status-minus-fg))]",
-                  alertMsg.type === "info" && "bg-muted text-muted-foreground",
-                )}>
-                  {alertMsg.type === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
-                  {alertMsg.text}
+              {/* Mode toggle header */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Input IMEI</p>
+                <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted border border-border">
+                  <button
+                    onClick={() => { setScanMode("single"); setBulkResults([]); setAlertMsg(null); setTimeout(() => inputRef.current?.focus(), 50); }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all",
+                      scanMode === "single"
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <ScanLine className="w-3 h-3" />
+                    Satu per Satu
+                  </button>
+                  <button
+                    onClick={() => { setScanMode("bulk"); setAlertMsg(null); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all",
+                      scanMode === "bulk"
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Layers className="w-3 h-3" />
+                    Bulk Scan
+                  </button>
                 </div>
+              </div>
+
+              {/* ── Single mode ── */}
+              {scanMode === "single" && (
+                <>
+                  <div className="flex gap-2">
+                    <Input
+                      ref={inputRef}
+                      value={imeiInput}
+                      onChange={(e) => { setImeiInput(e.target.value); setAlertMsg(null); }}
+                      onKeyDown={(e) => e.key === "Enter" && handleScan()}
+                      placeholder="Scan atau masukkan IMEI…"
+                      className="h-10 text-sm font-mono"
+                      disabled={scanning}
+                      autoFocus
+                    />
+                    <Button className="h-10 px-4 text-sm" onClick={handleScan} disabled={scanning || !imeiInput.trim()}>
+                      {scanning ? <div className="w-3.5 h-3.5 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : "Scan"}
+                    </Button>
+                  </div>
+                  {alertMsg && (
+                    <div className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium",
+                      alertMsg.type === "ok" && "bg-[hsl(var(--status-available-bg))] text-[hsl(var(--status-available-fg))]",
+                      alertMsg.type === "warn" && "bg-[hsl(var(--status-minus-bg))] text-[hsl(var(--status-minus-fg))]",
+                      alertMsg.type === "info" && "bg-muted text-muted-foreground",
+                    )}>
+                      {alertMsg.type === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                      {alertMsg.text}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">Tekan Enter atau klik Scan setelah setiap IMEI. Data tersimpan otomatis.</p>
+                </>
               )}
-              <p className="text-[10px] text-muted-foreground">Tekan Enter setelah scan. Data tersimpan otomatis ke sesi aktif.</p>
+
+              {/* ── Bulk mode ── */}
+              {scanMode === "bulk" && (
+                <>
+                  <Textarea
+                    ref={textareaRef}
+                    value={bulkInput}
+                    onChange={(e) => setBulkInput(e.target.value)}
+                    placeholder={"Scan semua IMEI di sini — setiap scan akan menambah baris baru.\nSetelah selesai, klik tombol Proses Semua."}
+                    className="text-sm font-mono min-h-[140px] resize-y leading-relaxed"
+                    disabled={bulkProcessing}
+                    autoFocus
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] text-muted-foreground">
+                      {bulkInput.split("\n").filter((l) => l.trim()).length} IMEI siap diproses. Enter = baris baru, scan akan otomatis menambah baris.
+                    </p>
+                    <Button
+                      className="h-9 px-4 text-sm shrink-0 gap-1.5"
+                      onClick={handleBulkScan}
+                      disabled={bulkProcessing || !bulkInput.trim()}
+                    >
+                      {bulkProcessing
+                        ? <><div className="w-3.5 h-3.5 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />Memproses…</>
+                        : <><Layers className="w-3.5 h-3.5" />Proses Semua</>
+                      }
+                    </Button>
+                  </div>
+
+                  {/* Bulk results summary */}
+                  {bulkResults.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Hasil Proses Terakhir</p>
+                      <div className="max-h-36 overflow-y-auto space-y-1">
+                        {bulkResults.map((r, i) => (
+                          <div key={i} className={cn(
+                            "flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-mono",
+                            r.result === "match" && "bg-[hsl(var(--status-available-bg))] text-[hsl(var(--status-available-fg))]",
+                            r.result === "unregistered" && "bg-[hsl(var(--status-minus-bg))] text-[hsl(var(--status-minus-fg))]",
+                            r.result === "duplicate" && "bg-muted text-muted-foreground",
+                            r.result === "invalid" && "bg-muted text-muted-foreground",
+                          )}>
+                            <span className="shrink-0">
+                              {r.result === "match" && "✓"}
+                              {r.result === "unregistered" && "⚠"}
+                              {r.result === "duplicate" && "↩"}
+                              {r.result === "invalid" && "✗"}
+                            </span>
+                            <span className="flex-1 truncate">{r.imei}</span>
+                            <span className="text-[10px] font-sans shrink-0">
+                              {r.result === "match" && "Match"}
+                              {r.result === "unregistered" && "Unregistered"}
+                              {r.result === "duplicate" && "Sudah ada"}
+                              {r.result === "invalid" && "IMEI tidak valid"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
+
 
             {/* Scanned list */}
             <div className="bg-card rounded-xl border border-border overflow-hidden">
