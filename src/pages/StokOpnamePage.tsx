@@ -589,6 +589,11 @@ function AssignAdminModal({
 
 
 // ─── ScanView ─────────────────────────────────────────────────────────────────
+interface ScannedItemWithScanner extends OpnameScannedItem {
+  scanned_by?: string | null;
+  scanner_name?: string | null;
+}
+
 function ScanView({
   sessionId, onBack, onComplete,
 }: {
@@ -602,7 +607,8 @@ function ScanView({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [session, setSession] = useState<OpnameSession | null>(null);
   const [snapshot, setSnapshot] = useState<OpnameSnapshotItem[]>([]);
-  const [scanned, setScanned] = useState<OpnameScannedItem[]>([]);
+  const [scanned, setScanned] = useState<ScannedItemWithScanner[]>([]);
+  const [scannerNames, setScannerNames] = useState<Record<string, string>>({});
   const [imeiInput, setImeiInput] = useState("");
   const [bulkInput, setBulkInput] = useState("");
   const [scanMode, setScanMode] = useState<"single" | "bulk">("single");
@@ -616,11 +622,28 @@ function ScanView({
     const [{ data: sess }, { data: snap }, { data: sc }] = await Promise.all([
       supabase.from("opname_sessions").select("*").eq("id", sessionId).single(),
       supabase.from("opname_snapshot_items").select("*").eq("session_id", sessionId),
-      supabase.from("opname_scanned_items").select("*").eq("session_id", sessionId).order("scanned_at", { ascending: false }),
+      supabase.from("opname_scanned_items" as never).select("*").eq("session_id", sessionId).order("scanned_at", { ascending: false }),
     ]);
     setSession(sess as OpnameSession);
     setSnapshot((snap as OpnameSnapshotItem[]) ?? []);
-    setScanned((sc as OpnameScannedItem[]) ?? []);
+    const scannedData = (sc as ScannedItemWithScanner[]) ?? [];
+    setScanned(scannedData);
+
+    // Fetch scanner names from user_profiles
+    const scannerIds = [...new Set(scannedData.map((s) => s.scanned_by).filter(Boolean))] as string[];
+    if (scannerIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("user_profiles")
+        .select("id, full_name, email")
+        .in("id", scannerIds);
+      if (profiles) {
+        const nameMap: Record<string, string> = {};
+        for (const p of profiles as { id: string; full_name: string | null; email: string }[]) {
+          nameMap[p.id] = p.full_name ?? p.email;
+        }
+        setScannerNames(nameMap);
+      }
+    }
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [sessionId]);
 
@@ -656,10 +679,11 @@ function ScanView({
     const isInSnapshot = snapshot.some((s) => s.imei === imei);
     const scanResult: "match" | "unregistered" = isInSnapshot ? "match" : "unregistered";
 
-    const { error } = await supabase.from("opname_scanned_items").insert({
+    const { error } = await supabase.from("opname_scanned_items" as never).insert({
       session_id: sessionId,
       imei,
       scan_result: scanResult,
+      scanned_by: user?.id ?? null,
     } as never);
 
     if (error) {
@@ -719,10 +743,11 @@ function ScanView({
       const isInSnapshot = snapshot.some((s) => s.imei === imei);
       const scanResult: "match" | "unregistered" = isInSnapshot ? "match" : "unregistered";
 
-      const { error } = await supabase.from("opname_scanned_items").insert({
+      const { error } = await supabase.from("opname_scanned_items" as never).insert({
         session_id: sessionId,
         imei,
         scan_result: scanResult,
+        scanned_by: user?.id ?? null,
       } as never);
 
       if (error) continue;
@@ -972,15 +997,22 @@ function ScanView({
                 </div>
               ) : (
                 <div className="divide-y divide-border max-h-80 overflow-y-auto">
-                  {scanned.map((s) => (
+                  {scanned.map((s) => {
+                    const scannerName = s.scanned_by ? (scannerNames[s.scanned_by] ?? "Admin") : null;
+                    return (
                     <div key={s.id} className="flex items-center gap-3 px-4 py-2.5">
                       <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", s.scan_result === "match" ? "bg-[hsl(var(--status-available))]" : "bg-[hsl(var(--status-minus))]")} />
-                      <p className="text-xs font-mono text-foreground flex-1">{s.imei}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-mono text-foreground">{s.imei}</p>
+                        {scannerName && (
+                          <p className="text-[10px] text-muted-foreground truncate">oleh {scannerName}</p>
+                        )}
+                      </div>
                       <span className={cn(
-                        "text-[10px] font-medium px-1.5 py-0.5 rounded",
+                        "text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0",
                         s.scan_result === "match" ? "bg-[hsl(var(--status-available-bg))] text-[hsl(var(--status-available-fg))]" : "bg-[hsl(var(--status-minus-bg))] text-[hsl(var(--status-minus-fg))]",
                       )}>
-                        {s.scan_result === "match" ? "Match" : "Unregistered"}
+                        {s.scan_result === "match" ? "Cocok" : "Tidak Terdaftar"}
                       </span>
                       <p className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:block">
                         {new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(s.scanned_at))}
@@ -989,7 +1021,8 @@ function ScanView({
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1394,18 +1427,89 @@ function DetailView({
   onBack: () => void;
   onGoToResults: (id: string) => void;
 }) {
+  const { toast } = useToast();
+  const { user } = useAuth();
   const [session, setSession] = useState<OpnameSession | null>(null);
+  const [assignees, setAssignees] = useState<AdminProfile[]>([]);
+  const [adminList, setAdminList] = useState<AdminProfile[]>([]);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [scannedItems, setScannedItems] = useState<ScannedItemWithScanner[]>([]);
+  const [scannerNames, setScannerNames] = useState<Record<string, string>>({});
+
+  const fetchDetail = useCallback(async () => {
+    const [{ data: sess }, { data: assignments }, { data: sc }] = await Promise.all([
+      supabase.from("opname_sessions").select("*").eq("id", sessionId).single(),
+      supabase.from("opname_session_assignments" as never).select("admin_id").eq("session_id", sessionId),
+      supabase.from("opname_scanned_items" as never).select("*").eq("session_id", sessionId).order("scanned_at", { ascending: false }),
+    ]);
+    setSession(sess as OpnameSession);
+
+    const scannedData = (sc as ScannedItemWithScanner[]) ?? [];
+    setScannedItems(scannedData);
+
+    // Fetch assignee profiles
+    const assigneeIds = ((assignments as { admin_id: string }[]) ?? []).map((a) => a.admin_id);
+    if (assigneeIds.length > 0) {
+      const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", assigneeIds);
+      setAssignees((profiles ?? []) as AdminProfile[]);
+    } else {
+      setAssignees([]);
+    }
+
+    // Fetch scanner names
+    const scannerIds = [...new Set(scannedData.map((s) => s.scanned_by).filter(Boolean))] as string[];
+    if (scannerIds.length > 0) {
+      const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", scannerIds);
+      if (profiles) {
+        const nameMap: Record<string, string> = {};
+        for (const p of profiles as { id: string; full_name: string | null; email: string }[]) {
+          nameMap[p.id] = p.full_name ?? p.email;
+        }
+        setScannerNames(nameMap);
+      }
+    }
+  }, [sessionId]);
+
+  const fetchAdmins = useCallback(async () => {
+    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+    if (!roles || roles.length === 0) { setAdminList([]); return; }
+    const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", roles.map((r) => r.user_id)).eq("status", "active");
+    setAdminList((profiles ?? []) as AdminProfile[]);
+  }, []);
 
   useEffect(() => {
-    supabase.from("opname_sessions").select("*").eq("id", sessionId).single()
-      .then(({ data }) => setSession(data as OpnameSession));
-  }, [sessionId]);
+    fetchDetail();
+    if (isSuperAdmin) fetchAdmins();
+  }, [fetchDetail, fetchAdmins, isSuperAdmin]);
+
+  const handleSaveAssignees = async (ids: string[]) => {
+    if (!user) return;
+    await supabase.from("opname_session_assignments" as never).delete().eq("session_id" as never, sessionId);
+    if (ids.length > 0) {
+      const rows = ids.map((aid) => ({ session_id: sessionId, admin_id: aid, assigned_by: user.id }));
+      await supabase.from("opname_session_assignments" as never).insert(rows as never);
+    }
+    toast({ title: "Penugasan admin berhasil disimpan." });
+    setShowAssignModal(false);
+    fetchDetail();
+  };
 
   if (!session) return (
     <DashboardLayout pageTitle="Detail Sesi">
       <div className="p-8 text-center"><div className="w-8 h-8 rounded-full border-2 border-border border-t-primary animate-spin mx-auto" /></div>
     </DashboardLayout>
   );
+
+  // Breakdown by scanner
+  const scannerBreakdown: Record<string, { name: string; count: number; match: number }> = {};
+  for (const item of scannedItems) {
+    const key = item.scanned_by ?? "__unknown";
+    const name = item.scanned_by ? (scannerNames[item.scanned_by] ?? "Admin") : "Tidak diketahui";
+    if (!scannerBreakdown[key]) scannerBreakdown[key] = { name, count: 0, match: 0 };
+    scannerBreakdown[key].count++;
+    if (item.scan_result === "match") scannerBreakdown[key].match++;
+  }
+  const scannerEntries = Object.values(scannerBreakdown);
 
   return (
     <DashboardLayout pageTitle="Detail Sesi Opname">
@@ -1427,11 +1531,77 @@ function DetailView({
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <InfoCard label="Expected" value={session.total_expected.toString()} />
           <InfoCard label="Discan" value={session.total_scanned.toString()} />
-          <InfoCard label="Match" value={session.total_match.toString()} />
+          <InfoCard label="Cocok" value={session.total_match.toString()} />
           <InfoCard label="Missing" value={session.total_missing.toString()} />
-          <InfoCard label="Unregistered" value={session.total_unregistered.toString()} />
+          <InfoCard label="Tidak Terdaftar" value={session.total_unregistered.toString()} />
           <InfoCard label="Dimulai" value={formatDateShort(session.started_at)} />
         </div>
+
+        {/* ── Admin yang ditugaskan ── */}
+        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5" /> Admin yang Ditugaskan
+            </p>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowAssignModal(true)}
+                className="flex items-center gap-1 text-xs text-foreground hover:underline font-medium"
+              >
+                <UserCheck className="w-3 h-3" />
+                {assignees.length === 0 ? "Assign Admin" : "Ubah Penugasan"}
+              </button>
+            )}
+          </div>
+
+          {assignees.length === 0 ? (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--status-minus-bg))] border border-[hsl(var(--status-minus))]/20">
+              <AlertTriangle className="w-4 h-4 text-[hsl(var(--status-minus-fg))] shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-[hsl(var(--status-minus-fg))]">Sesi ini belum memiliki admin yang ditugaskan.</p>
+                {isSuperAdmin && <p className="text-[10px] text-muted-foreground mt-0.5">Klik "Assign Admin" untuk menambahkan penugasan.</p>}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {assignees.map((a) => (
+                <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+                  <div className="w-7 h-7 rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {(a.full_name ?? a.email).slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{a.full_name ?? a.email}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{a.email}</p>
+                  </div>
+                  <UserCheck className="w-3.5 h-3.5 text-[hsl(var(--status-available-fg))] shrink-0 ml-auto" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Breakdown scanner ── */}
+        {scannerEntries.length > 0 && (
+          <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+              <ScanLine className="w-3.5 h-3.5" /> Rekap Scan per Admin
+            </p>
+            <div className="space-y-2">
+              {scannerEntries.map((entry, i) => (
+                <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+                  <div className="w-7 h-7 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {entry.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{entry.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{entry.count} scan · {entry.match} cocok</p>
+                  </div>
+                  <span className="text-xs font-bold text-foreground tabular-nums">{entry.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {session.notes && (
           <div className="bg-card rounded-xl border border-border p-4">
@@ -1443,7 +1613,7 @@ function DetailView({
         {/* Audit trail */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-            <CalendarClock className="w-3.5 h-3.5" /> Audit Trail Sesi
+            <CalendarClock className="w-3.5 h-3.5" /> Jejak Sesi
           </p>
           <AuditRow label="Sesi dimulai" date={session.started_at} />
           {session.completed_at && <AuditRow label="Sesi diselesaikan" date={session.completed_at} />}
@@ -1455,6 +1625,16 @@ function DetailView({
           Lihat Detail Hasil & Tindakan
         </Button>
       </div>
+
+      {/* Assign modal */}
+      {showAssignModal && (
+        <AssignAdminModal
+          session={{ ...session, assignees }}
+          adminList={adminList}
+          onClose={() => setShowAssignModal(false)}
+          onSave={handleSaveAssignees}
+        />
+      )}
     </DashboardLayout>
   );
 }

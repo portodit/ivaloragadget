@@ -64,6 +64,7 @@ export type Database = {
           imei: string
           scan_result: string
           scanned_at: string
+          scanned_by: string | null
           session_id: string
         }
         Insert: {
@@ -73,6 +74,7 @@ export type Database = {
           imei: string
           scan_result: string
           scanned_at?: string
+          scanned_by?: string | null
           session_id: string
         }
         Update: {
@@ -82,6 +84,7 @@ export type Database = {
           imei?: string
           scan_result?: string
           scanned_at?: string
+          scanned_by?: string | null
           session_id?: string
         }
         Relationships: [
