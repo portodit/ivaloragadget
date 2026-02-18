@@ -51,7 +51,6 @@ export function useRecaptcha() {
 
     if (document.getElementById("recaptcha-script")) {
       scriptLoaded.current = true;
-      // Badge may already exist, show it
       showBadge();
       return;
     }
@@ -63,8 +62,6 @@ export function useRecaptcha() {
       script.async = true;
       script.onload = () => {
         scriptLoaded.current = true;
-        // Give Google's script time to inject the badge
-        setTimeout(showBadge, 500);
         resolve();
       };
       script.onerror = () => resolve();
@@ -73,16 +70,27 @@ export function useRecaptcha() {
   }, [showBadge]);
 
   useEffect(() => {
-    ensureScript().then(() => {
-      // Show badge when auth page mounts
-      if (scriptLoaded.current) showBadge();
-      // Poll briefly in case badge isn't injected yet
-      const timer = setTimeout(showBadge, 800);
-      return () => clearTimeout(timer);
-    });
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
-    // Hide badge when auth page unmounts (navigating to dashboard)
+    // Load script then show badge — properly handle async + cleanup
+    ensureScript()
+      .then(() => {
+        if (cancelled) return;
+        showBadge();
+        // Badge may need extra time to be injected by Google's script
+        timer = setTimeout(() => {
+          if (!cancelled) showBadge();
+        }, 600);
+      })
+      .catch(() => {
+        // Silently ignore reCAPTCHA errors
+      });
+
+    // Cleanup: cancel pending ops and hide badge on unmount (navigating to dashboard)
     return () => {
+      cancelled = true;
+      clearTimeout(timer);
       hideBadge();
     };
   }, [ensureScript, showBadge, hideBadge]);
