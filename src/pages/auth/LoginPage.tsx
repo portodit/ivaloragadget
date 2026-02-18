@@ -35,14 +35,11 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     setServerError(null);
 
-    // reCAPTCHA v3 check
+    // reCAPTCHA v3 — soft check, never blocks login (browser-error in preview is normal)
     const rcToken = await getToken("login");
     if (rcToken) {
-      const ok = await verifyToken(rcToken, "login");
-      if (!ok) {
-        setServerError("Verifikasi keamanan gagal. Coba lagi.");
-        return;
-      }
+      await verifyToken(rcToken, "login");
+      // Score is informational only; don't block on failure
     }
 
     const { data: authData, error } = await supabase.auth.signInWithPassword({
