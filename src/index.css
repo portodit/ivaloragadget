@@ -53,8 +53,65 @@ All colors MUST be HSL.
     /* Navbar */
     --navbar-background: 0 0% 100%;
     --navbar-border: 214 32% 91%;
+
+    /* ── Status / State semantic colors ────────────────────────────────── */
+    /* Available — hijau emerald */
+    --status-available: 142 71% 45%;
+    --status-available-bg: 142 71% 95%;
+    --status-available-fg: 142 71% 28%;
+
+    /* Coming Soon — biru langit */
+    --status-coming-soon: 210 90% 52%;
+    --status-coming-soon-bg: 210 90% 95%;
+    --status-coming-soon-fg: 210 90% 30%;
+
+    /* Reserved — kuning amber */
+    --status-reserved: 38 92% 50%;
+    --status-reserved-bg: 38 92% 95%;
+    --status-reserved-fg: 38 92% 28%;
+
+    /* Service / Repair — ungu violet */
+    --status-service: 262 60% 55%;
+    --status-service-bg: 262 60% 95%;
+    --status-service-fg: 262 60% 35%;
+
+    /* Sold — abu netral */
+    --status-sold: 215 16% 55%;
+    --status-sold-bg: 215 16% 94%;
+    --status-sold-fg: 215 16% 30%;
+
+    /* Lost — merah */
+    --status-lost: 0 72% 51%;
+    --status-lost-bg: 0 72% 95%;
+    --status-lost-fg: 0 72% 30%;
+
+    /* Return — oranye */
+    --status-return: 24 95% 53%;
+    --status-return-bg: 24 95% 95%;
+    --status-return-fg: 24 95% 30%;
+
+    /* Condition: No Minus — hijau */
+    --status-no-minus: 142 71% 45%;
+    --status-no-minus-bg: 142 71% 95%;
+    --status-no-minus-fg: 142 71% 28%;
+
+    /* Condition: Ada Minus — oranye */
+    --status-minus: 24 95% 53%;
+    --status-minus-bg: 24 95% 95%;
+    --status-minus-fg: 24 95% 30%;
+
+    /* Active (generic) — hijau */
+    --status-active: 142 71% 45%;
+    --status-active-bg: 142 71% 95%;
+    --status-active-fg: 142 71% 28%;
+
+    /* Inactive / Pending — abu */
+    --status-inactive: 215 16% 55%;
+    --status-inactive-bg: 215 16% 94%;
+    --status-inactive-fg: 215 16% 30%;
   }
 }
+
 
 @layer base {
   * {
