@@ -12,6 +12,7 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import WaitingApprovalPage from "./pages/auth/WaitingApprovalPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
+import MasterProductsPage from "./pages/MasterProductsPage";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Index />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/master-produk"
+              element={
+                <ProtectedRoute>
+                  <MasterProductsPage />
                 </ProtectedRoute>
               }
             />

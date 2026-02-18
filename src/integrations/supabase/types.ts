@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      master_products: {
+        Row: {
+          base_price: number | null
+          category: Database["public"]["Enums"]["product_category"]
+          color: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          is_active: boolean
+          series: string
+          storage_gb: number
+          updated_at: string
+          warranty_type: Database["public"]["Enums"]["warranty_type"]
+        }
+        Insert: {
+          base_price?: number | null
+          category: Database["public"]["Enums"]["product_category"]
+          color: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          series: string
+          storage_gb: number
+          updated_at?: string
+          warranty_type: Database["public"]["Enums"]["warranty_type"]
+        }
+        Update: {
+          base_price?: number | null
+          category?: Database["public"]["Enums"]["product_category"]
+          color?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          series?: string
+          storage_gb?: number
+          updated_at?: string
+          warranty_type?: Database["public"]["Enums"]["warranty_type"]
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           created_at: string
@@ -82,6 +124,8 @@ export type Database = {
     Enums: {
       account_status: "pending" | "active" | "suspended" | "rejected"
       app_role: "super_admin" | "admin"
+      product_category: "iphone" | "ipad" | "accessory"
+      warranty_type: "resmi_bc" | "ibox" | "inter" | "whitelist" | "digimap"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -211,6 +255,8 @@ export const Constants = {
     Enums: {
       account_status: ["pending", "active", "suspended", "rejected"],
       app_role: ["super_admin", "admin"],
+      product_category: ["iphone", "ipad", "accessory"],
+      warranty_type: ["resmi_bc", "ibox", "inter", "whitelist", "digimap"],
     },
   },
 } as const

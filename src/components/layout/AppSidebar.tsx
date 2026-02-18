@@ -35,7 +35,7 @@ const navItems: NavItem[] = [
     title: "Produk & Inventory",
     icon: Package,
     children: [
-      { title: "Master Data", url: "/master-data", icon: Database },
+      { title: "Master Produk", url: "/master-produk", icon: Database },
       { title: "Stok IMEI", url: "/stok-imei", icon: Barcode },
       { title: "Stok Opname", url: "/stok-opname", icon: ClipboardList },
       { title: "Katalog", url: "/katalog", icon: BookOpen },
@@ -165,7 +165,7 @@ export function AppSidebar() {
       {/* Bottom status */}
       <div className="px-4 py-3 border-t border-sidebar-border overflow-hidden">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-primary/60 shrink-0" />
           <span
             className="text-xs text-sidebar-foreground/50 whitespace-nowrap transition-all duration-300"
             style={{ opacity: isExpanded ? 1 : 0 }}
