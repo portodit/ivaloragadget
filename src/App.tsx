@@ -13,6 +13,7 @@ import WaitingApprovalPage from "./pages/auth/WaitingApprovalPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import MasterProductsPage from "./pages/MasterProductsPage";
+import StockIMEIPage from "./pages/StockIMEIPage";
 
 const queryClient = new QueryClient();
 
@@ -32,22 +33,9 @@ const App = () => (
             <Route path="/waiting-approval" element={<WaitingApprovalPage />} />
 
             {/* Protected dashboard routes */}
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/master-produk"
-              element={
-                <ProtectedRoute>
-                  <MasterProductsPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/master-produk" element={<ProtectedRoute><MasterProductsPage /></ProtectedRoute>} />
+            <Route path="/stok-imei" element={<ProtectedRoute><StockIMEIPage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
@@ -59,3 +47,4 @@ const App = () => (
 );
 
 export default App;
+

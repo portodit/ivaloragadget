@@ -347,9 +347,9 @@ export default function MasterProductsPage() {
                 products.map((p) => (
                   <TableRow key={p.id} className="hover:bg-muted/30 transition-colors">
                     <TableCell>
-                      <Badge variant="outline" className="text-xs font-medium">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[hsl(var(--status-coming-soon-bg))] text-[hsl(var(--status-coming-soon-fg))]">
                         {CATEGORY_LABELS[p.category]}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell className="font-medium text-sm">{p.series}</TableCell>
                     <TableCell className="text-center text-sm">{formatStorage(p.storage_gb)}</TableCell>
@@ -357,9 +357,14 @@ export default function MasterProductsPage() {
                     <TableCell className="text-sm text-muted-foreground">{getWarrantyLabel(p.warranty_type)}</TableCell>
                     <TableCell className="text-right text-sm font-medium">{formatPrice(p.base_price)}</TableCell>
                     <TableCell className="text-center">
-                      <Badge variant={p.is_active ? "default" : "secondary"} className="text-xs">
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        p.is_active
+                          ? "bg-[hsl(var(--status-active-bg))] text-[hsl(var(--status-active-fg))]"
+                          : "bg-[hsl(var(--status-inactive-bg))] text-[hsl(var(--status-inactive-fg))]"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${p.is_active ? "bg-[hsl(var(--status-active))]" : "bg-[hsl(var(--status-inactive))]"}`} />
                         {p.is_active ? "Aktif" : "Nonaktif"}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
