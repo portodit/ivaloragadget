@@ -615,6 +615,7 @@ export type Database = {
       }
     }
     Functions: {
+      custom_email_hook: { Args: { event: Json }; Returns: undefined }
       get_my_status: {
         Args: never
         Returns: Database["public"]["Enums"]["account_status"]
