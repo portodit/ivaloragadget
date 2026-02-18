@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   TrendingUp,
   Package,
@@ -122,12 +123,17 @@ function OpnameBadge({ status }: { status: string }) {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function Index() {
+  const { user } = useAuth();
   const [kpi, setKpi] = useState<KpiData | null>(null);
   const [opnameSessions, setOpnameSessions] = useState<OpnameMonitor[]>([]);
   const [chartData, setChartData] = useState<{ name: string; tersedia: number; terjual: number }[]>([]);
   const [loadingKpi, setLoadingKpi] = useState(true);
   const [loadingOpname, setLoadingOpname] = useState(true);
   const [updateTime] = useState(timeLabel());
+
+  // Personalized greeting
+  const rawName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "Admin";
+  const firstName = rawName.split(" ")[0];
 
   useEffect(() => {
     fetchKpi();
@@ -218,7 +224,7 @@ export default function Index() {
             {todayLabel()}
           </p>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">
-            Halo, selamat datang! 👋
+            Halo, {firstName}! Selamat datang dan semangat bekerja! 👋
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">Ini ringkasan stok dan aktivitas hari ini.</p>
         </div>

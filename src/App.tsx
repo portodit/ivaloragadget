@@ -17,6 +17,9 @@ import StockIMEIPage from "./pages/StockIMEIPage";
 import StokOpnamePage from "./pages/StokOpnamePage";
 import ManajemenAdminPage from "./pages/ManajemenAdminPage";
 import LaporanPage from "./pages/LaporanPage";
+import ProfilPage from "./pages/ProfilPage";
+import PengaturanPage from "./pages/PengaturanPage";
+import ActivityLogPage from "./pages/ActivityLogPage";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +46,9 @@ const App = () => (
             <Route path="/manajemen-admin" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
             <Route path="/manajemen-admin/:tab" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
             <Route path="/laporan" element={<ProtectedRoute><LaporanPage /></ProtectedRoute>} />
+            <Route path="/profil" element={<ProtectedRoute><ProfilPage /></ProtectedRoute>} />
+            <Route path="/pengaturan" element={<ProtectedRoute><PengaturanPage /></ProtectedRoute>} />
+            <Route path="/log-aktivitas" element={<ProtectedRoute requireRole="super_admin"><ActivityLogPage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
@@ -54,4 +60,5 @@ const App = () => (
 );
 
 export default App;
+
 

@@ -131,7 +131,7 @@ export default function ManajemenAdminPage() {
 
 // ─── Tab 1: Daftar Admin ──────────────────────────────────────────────────────
 function DaftarAdminTab() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,15 +184,32 @@ function DaftarAdminTab() {
     return matchSearch && matchRole && matchStatus;
   });
 
+  const logActivity = async (action: string, targetUser: AdminUser, metadata?: Record<string, unknown>) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("activity_logs").insert({
+        actor_id: user?.id ?? null,
+        actor_email: user?.email ?? null,
+        actor_role: role ?? null,
+        action,
+        target_id: targetUser.id,
+        target_email: targetUser.email,
+        metadata: metadata ?? null,
+      });
+    } catch { /* silent */ }
+  };
+
   const handleAction = async (type: string, targetUser: AdminUser, extra?: string) => {
     if (type === "suspend") {
       const { error } = await supabase.from("user_profiles").update({ status: "suspended" }).eq("id", targetUser.id);
       if (error) { toast({ title: "Gagal menonaktifkan akun", variant: "destructive" }); return; }
       toast({ title: "Akun telah dinonaktifkan." });
+      await logActivity("suspend_admin", targetUser);
     } else if (type === "activate") {
       const { error } = await supabase.from("user_profiles").update({ status: "active" }).eq("id", targetUser.id);
       if (error) { toast({ title: "Gagal mengaktifkan akun", variant: "destructive" }); return; }
       toast({ title: "Akun berhasil diaktifkan kembali." });
+      await logActivity("activate_admin", targetUser);
     } else if (type === "role" && extra) {
       // Check: must keep at least 1 active super_admin
       if (targetUser.role === "super_admin" && extra !== "super_admin") {
@@ -210,12 +227,14 @@ function DaftarAdminTab() {
         await supabase.from("user_roles").insert({ user_id: targetUser.id, role: extra as "super_admin" | "admin" });
       }
       toast({ title: "Perubahan role berhasil disimpan." });
+      await logActivity("role_change", targetUser, { old_role: targetUser.role ?? "none", new_role: extra });
     } else if (type === "reset_password") {
       const { error } = await supabase.auth.resetPasswordForEmail(targetUser.email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) { toast({ title: "Gagal mengirim email reset", variant: "destructive" }); return; }
       toast({ title: "Tautan reset dikirim ke email pengguna." });
+      await logActivity("reset_password", targetUser);
     }
     setActionModal(null);
     setDetailUser(null);

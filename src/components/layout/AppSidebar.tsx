@@ -17,6 +17,7 @@ import {
   Users,
   UserCheck,
   Shield,
+  Activity,
 } from "lucide-react";
 import logoHorizontal from "@/assets/logo-horizontal.png";
 import logoIcon from "@/assets/logo-icon.svg";
@@ -58,6 +59,7 @@ const superAdminNavItems: NavItem[] = [
     ],
   },
   { title: "Laporan & Analitika", url: "/laporan", icon: BarChart3 },
+  { title: "Log Aktivitas", url: "/log-aktivitas", icon: Activity },
 ];
 
 const adminNavItems: NavItem[] = [
