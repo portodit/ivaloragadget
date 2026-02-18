@@ -66,3 +66,17 @@ All colors MUST be HSL.
     font-family: 'Poppins', sans-serif;
   }
 }
+
+/* Hide reCAPTCHA badge on non-auth pages */
+.grecaptcha-badge {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Show reCAPTCHA badge only on auth pages */
+.auth-page .grecaptcha-badge {
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}

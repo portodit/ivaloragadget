@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRecaptcha } from "@/hooks/use-recaptcha";
 import logoFull from "@/assets/logo-full.svg";
-import storeFront from "@/assets/store-front.webp";
+import storeFront from "@/assets/ruko.jpg";
 
 const schema = z.object({
   full_name: z.string().min(2, "Nama minimal 2 karakter").max(100),
@@ -80,7 +80,7 @@ export default function RegisterPage() {
 
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8 bg-background">
+      <div className="auth-page min-h-screen flex items-center justify-center p-6 sm:p-8 bg-background">
         <div className="max-w-sm w-full text-center space-y-6">
           <div className="w-16 h-16 rounded-full bg-foreground flex items-center justify-center mx-auto">
             <Check className="w-7 h-7 text-background" strokeWidth={2.5} />
@@ -100,16 +100,16 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="auth-page min-h-screen flex bg-background">
       {/* ── Left panel — photo background ── */}
       <div className="hidden lg:flex lg:w-[45%] xl:w-1/2 relative overflow-hidden">
         <img
           src={storeFront}
           alt="Ivalora Gadget Store"
-          className="absolute inset-0 w-full h-full object-cover object-center"
+          className="absolute inset-0 w-full h-full object-cover object-top"
         />
-        <div className="absolute inset-0 bg-black/30" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
         {/* Logo */}
         <div className="absolute top-8 left-8">
@@ -142,132 +142,136 @@ export default function RegisterPage() {
       </div>
 
       {/* ── Right panel — form ── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 lg:px-12 xl:px-16">
+      <div className="flex-1 flex flex-col min-h-screen px-6 py-10 sm:px-8 lg:px-12 xl:px-16">
         {/* Mobile logo */}
-        <div className="lg:hidden mb-8">
+        <div className="lg:hidden flex justify-center mb-6">
           <img src={logoFull} alt="Ivalora Gadget" className="h-7 invert" />
         </div>
 
-        <div className="w-full max-w-sm space-y-7">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Buat akun Admin</h1>
-            <p className="text-sm text-muted-foreground">Isi data di bawah untuk mendaftar</p>
+        {/* Vertically centered form */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-sm space-y-7">
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Buat akun Admin</h1>
+              <p className="text-sm text-muted-foreground">Isi data di bawah untuk mendaftar</p>
+            </div>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Full name */}
+              <div className="space-y-1.5">
+                <Label htmlFor="full_name" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Nama Lengkap
+                </Label>
+                <Input
+                  id="full_name"
+                  placeholder="Ahmad Fauzi"
+                  {...register("full_name")}
+                  className="h-11 bg-background"
+                />
+                {errors.full_name && <p className="text-xs text-destructive">{errors.full_name.message}</p>}
+              </div>
+
+              {/* Email */}
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="admin@ivalora.com"
+                  {...register("email")}
+                  className="h-11 bg-background"
+                />
+                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+              </div>
+
+              {/* Password */}
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min. 8 karakter, 1 kapital, 1 angka"
+                    {...register("password")}
+                    className="h-11 pr-10 bg-background"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+              </div>
+
+              {/* Confirm password */}
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm_password" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Konfirmasi Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirm_password"
+                    type={showConfirm ? "text" : "password"}
+                    placeholder="Ulangi password"
+                    {...register("confirm_password")}
+                    className="h-11 pr-10 bg-background"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {errors.confirm_password && (
+                  <p className="text-xs text-destructive">{errors.confirm_password.message}</p>
+                )}
+              </div>
+
+              {serverError && (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  {serverError}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full h-11 gap-2 font-semibold mt-1"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                ) : (
+                  <>
+                    Daftar
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            </form>
+
+            <p className="text-sm text-center text-muted-foreground">
+              Sudah punya akun?{" "}
+              <Link
+                to="/login"
+                className="font-semibold text-foreground hover:underline underline-offset-4"
+              >
+                Masuk
+              </Link>
+            </p>
           </div>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Full name */}
-            <div className="space-y-1.5">
-              <Label htmlFor="full_name" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Nama Lengkap
-              </Label>
-              <Input
-                id="full_name"
-                placeholder="Ahmad Fauzi"
-                {...register("full_name")}
-                className="h-11 bg-background"
-              />
-              {errors.full_name && <p className="text-xs text-destructive">{errors.full_name.message}</p>}
-            </div>
-
-            {/* Email */}
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="admin@ivalora.com"
-                {...register("email")}
-                className="h-11 bg-background"
-              />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-            </div>
-
-            {/* Password */}
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Min. 8 karakter, 1 kapital, 1 angka"
-                  {...register("password")}
-                  className="h-11 pr-10 bg-background"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
-            </div>
-
-            {/* Confirm password */}
-            <div className="space-y-1.5">
-              <Label htmlFor="confirm_password" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Konfirmasi Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="confirm_password"
-                  type={showConfirm ? "text" : "password"}
-                  placeholder="Ulangi password"
-                  {...register("confirm_password")}
-                  className="h-11 pr-10 bg-background"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {errors.confirm_password && (
-                <p className="text-xs text-destructive">{errors.confirm_password.message}</p>
-              )}
-            </div>
-
-            {serverError && (
-              <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                {serverError}
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full h-11 gap-2 font-semibold mt-1"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              ) : (
-                <>
-                  Daftar
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </Button>
-          </form>
-
-          <p className="text-sm text-center text-muted-foreground">
-            Sudah punya akun?{" "}
-            <Link
-              to="/login"
-              className="font-semibold text-foreground hover:underline underline-offset-4"
-            >
-              Masuk
-            </Link>
-          </p>
         </div>
 
-        <p className="mt-auto pt-12 text-xs text-muted-foreground/50">
+        {/* Footer */}
+        <p className="pt-8 text-center text-xs text-muted-foreground/50">
           © 2025 Ivalora Gadget · All rights reserved
         </p>
       </div>

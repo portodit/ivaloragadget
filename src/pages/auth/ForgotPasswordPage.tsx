@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
 
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8">
+      <div className="min-h-screen flex items-center justify-center p-6 sm:p-8">
         <div className="max-w-sm w-full text-center space-y-6">
           <div className="w-16 h-16 rounded-full bg-foreground flex items-center justify-center mx-auto">
             <svg className="w-8 h-8 text-background" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 sm:p-8">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex justify-center">
           <img src={logoFull} alt="Ivalora Gadget" className="h-7 invert" />
@@ -77,7 +77,13 @@ export default function ForgotPasswordPage() {
             <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Email
             </Label>
-            <Input id="email" type="email" placeholder="admin@ivalora.com" {...register("email")} className="h-11" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="admin@ivalora.com"
+              {...register("email")}
+              className="h-11"
+            />
             {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
 
