@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import logoFull from "@/assets/logo-full.svg";
+import storeFront from "@/assets/store-front.webp";
 
 const schema = z.object({
   email: z.string().email("Email tidak valid"),
@@ -49,7 +50,6 @@ export default function LoginPage() {
 
     if (!authData.user) return;
 
-    // Fetch profile status
     const { data: profile } = await supabase
       .from("user_profiles")
       .select("status")
@@ -72,35 +72,54 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left — Branding panel */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-foreground text-background">
-        <div>
-          <div className="w-8 h-8 bg-background rounded-sm" />
+    <div className="min-h-screen flex bg-background">
+      {/* ── Left panel — photo background ── */}
+      <div className="hidden lg:flex lg:w-[45%] xl:w-1/2 relative overflow-hidden">
+        {/* Background photo */}
+        <img
+          src={storeFront}
+          alt="Ivalora Gadget Store"
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        />
+
+        {/* Dark overlay overall — subtle */}
+        <div className="absolute inset-0 bg-black/30" />
+
+        {/* Gradient overlay — heavy at bottom for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+
+        {/* Logo — top left */}
+        <div className="absolute top-8 left-8">
+          <img src={logoFull} alt="Ivalora Gadget" className="h-6 brightness-0 invert" />
         </div>
-        <div className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-background/40 font-medium">Dashboard Admin</p>
-          <h1 className="text-4xl font-bold leading-tight">
-            Kelola bisnis<br />gadget Anda<br />dengan presisi.
-          </h1>
-          <p className="text-background/50 text-sm max-w-xs leading-relaxed">
-            Platform manajemen internal Ivalora Gadget — POS, inventaris IMEI, laporan, dan kontrol penuh di satu tempat.
+
+        {/* Tagline — bottom left */}
+        <div className="absolute bottom-10 left-8 right-8 space-y-2">
+          <p className="text-white/60 text-xs uppercase tracking-[0.2em] font-medium">
+            Dashboard Admin
+          </p>
+          <h2 className="text-white text-3xl xl:text-4xl font-bold leading-tight">
+            Pusat Jual Beli<br />iPhone Surabaya
+          </h2>
+          <p className="text-white/50 text-sm">
+            Kelola penjualan, stok IMEI, dan laporan dalam satu platform.
           </p>
         </div>
-        <p className="text-xs text-background/20">© 2025 Ivalora Gadget</p>
       </div>
 
-      {/* Right — Form panel */}
-      <div className="flex flex-col items-center justify-center p-8 lg:p-16">
-        <div className="w-full max-w-sm space-y-8">
-          {/* Logo */}
-          <div className="flex justify-center lg:justify-start">
-            <img src={logoFull} alt="Ivalora Gadget" className="h-7 invert" />
-          </div>
+      {/* ── Right panel — form ── */}
+      <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 lg:px-12 xl:px-16">
+        {/* Mobile logo */}
+        <div className="lg:hidden mb-8">
+          <img src={logoFull} alt="Ivalora Gadget" className="h-7 invert" />
+        </div>
 
+        <div className="w-full max-w-sm space-y-8">
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold tracking-tight">Masuk ke akun</h2>
-            <p className="text-sm text-muted-foreground">Gunakan email dan password yang terdaftar</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Masuk ke akun</h1>
+            <p className="text-sm text-muted-foreground">
+              Gunakan email dan password yang terdaftar
+            </p>
           </div>
 
           {/* Blocked notice */}
@@ -113,8 +132,9 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* Email */}
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Email
               </Label>
               <Input
@@ -123,17 +143,23 @@ export default function LoginPage() {
                 placeholder="admin@ivalora.com"
                 autoComplete="email"
                 {...register("email")}
-                className="h-11"
+                className="h-11 bg-background"
               />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
+              )}
             </div>
 
+            {/* Password */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   Password
                 </Label>
-                <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
                   Lupa password?
                 </Link>
               </div>
@@ -144,17 +170,19 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                   {...register("password")}
-                  className="h-11 pr-10"
+                  className="h-11 pr-10 bg-background"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password.message}</p>
+              )}
             </div>
 
             {serverError && (
@@ -163,22 +191,37 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button type="submit" className="w-full h-11 gap-2" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              className="w-full h-11 gap-2 font-semibold"
+              disabled={isSubmitting}
+            >
               {isSubmitting ? (
                 <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
               ) : (
-                <>Masuk <ArrowRight className="w-4 h-4" /></>
+                <>
+                  Masuk
+                  <ArrowRight className="w-4 h-4" />
+                </>
               )}
             </Button>
           </form>
 
           <p className="text-sm text-center text-muted-foreground">
             Belum punya akun?{" "}
-            <Link to="/register" className="font-medium text-foreground hover:underline underline-offset-4">
+            <Link
+              to="/register"
+              className="font-semibold text-foreground hover:underline underline-offset-4"
+            >
               Daftar sebagai Admin
             </Link>
           </p>
         </div>
+
+        {/* Footer */}
+        <p className="mt-auto pt-12 text-xs text-muted-foreground/50">
+          © 2025 Ivalora Gadget · All rights reserved
+        </p>
       </div>
     </div>
   );

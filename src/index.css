@@ -18,8 +18,8 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Blue primary accent */
-    --primary: 217 91% 54%;
+    /* Primary — charcoal black #1e1e1e */
+    --primary: 0 0% 12%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 20% 96%;
@@ -36,7 +36,7 @@ All colors MUST be HSL.
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 217 91% 54%;
+    --ring: 0 0% 12%;
 
     --radius: 0.625rem;
 
