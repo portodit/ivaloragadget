@@ -90,8 +90,8 @@ export function AppSidebar() {
                 key={item.title}
                 to={item.url}
                 end
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-150 overflow-hidden group"
-                activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-150 overflow-hidden group"
+                activeClassName="bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               >
                 <item.icon className="w-5 h-5 shrink-0" />
                 <span
@@ -149,7 +149,7 @@ export function AppSidebar() {
                       to={child.url}
                       end
                       className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-150 whitespace-nowrap"
-                      activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground font-medium"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
                     >
                       <child.icon className="w-4 h-4 shrink-0" />
                       <span>{child.title}</span>
