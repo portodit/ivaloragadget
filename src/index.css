@@ -40,15 +40,15 @@ All colors MUST be HSL.
 
     --radius: 0.625rem;
 
-    /* Sidebar - light white, hover #1e1e1e */
+    /* Sidebar - white bg, hover & active = #1e1e1e */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 13% 30%;
-    --sidebar-primary: 217 91% 54%;
+    --sidebar-foreground: 220 13% 40%;
+    --sidebar-primary: 0 0% 12%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 12%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 217 91% 54%;
+    --sidebar-ring: 0 0% 12%;
 
     /* Navbar */
     --navbar-background: 0 0% 100%;
