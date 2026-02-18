@@ -24,12 +24,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import {
   CATEGORY_LABELS,
-  WARRANTY_LABELS,
   STORAGE_OPTIONS,
   MasterProduct,
   ProductCategory,
   WarrantyType,
 } from "@/lib/master-products";
+import type { WarrantyLabel } from "@/components/master-products/WarrantyLabelModal";
 
 const schema = z.object({
   category: z.enum(["iphone", "ipad", "accessory"] as const),
@@ -48,9 +48,11 @@ interface Props {
   onSuccess: () => void;
   editProduct?: MasterProduct | null;
   isUsedInStock?: boolean;
+  warrantyLabels?: WarrantyLabel[];
 }
 
-export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsedInStock }: Props) {
+
+export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsedInStock, warrantyLabels = [] }: Props) {
   const { toast } = useToast();
   const [duplicateError, setDuplicateError] = useState(false);
   const isEdit = !!editProduct;
@@ -195,7 +197,7 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Seri / Model</Label>
             <Input
-              placeholder="cth. iPhone 13 Pro"
+              placeholder="Contoh: iPhone 15 Pro Max"
               {...register("series")}
               readOnly={coreFieldsReadOnly}
               className={coreFieldsReadOnly ? "bg-muted" : ""}
@@ -229,7 +231,7 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Warna</Label>
             <Input
-              placeholder="cth. Midnight, Purple, Gold"
+              placeholder="Contoh: Midnight, Desert Titanium, Starlight"
               {...register("color")}
               readOnly={coreFieldsReadOnly}
               className={coreFieldsReadOnly ? "bg-muted" : ""}
@@ -242,22 +244,25 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
             <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jenis Garansi</Label>
             {coreFieldsReadOnly ? (
               <div className="h-10 flex items-center px-3 rounded-md border bg-muted text-sm">
-                {WARRANTY_LABELS[editProduct!.warranty_type]}
+                {warrantyLabels.find((w) => w.key === editProduct!.warranty_type)?.label ?? editProduct!.warranty_type}
               </div>
             ) : (
               <Select value={watchedWarranty} onValueChange={(v) => setValue("warranty_type", v as WarrantyType)}>
                 <SelectTrigger className="h-10">
-                  <SelectValue />
+                  <SelectValue placeholder="Pilih jenis garansi" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.entries(WARRANTY_LABELS) as [WarrantyType, string][]).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
+                  {warrantyLabels
+                    .filter((w) => w.is_active)
+                    .map((w) => (
+                      <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             )}
             {errors.warranty_type && <p className="text-xs text-destructive">{errors.warranty_type.message}</p>}
           </div>
+
 
           {/* Base price — always editable */}
           <div className="space-y-1.5">
@@ -268,7 +273,7 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
               <Input
                 type="number"
-                placeholder="0"
+                placeholder="Masukkan harga referensi dalam rupiah"
                 min={0}
                 className="pl-10"
                 {...register("base_price")}

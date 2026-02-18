@@ -161,7 +161,7 @@ export default function RegisterPage() {
                 </Label>
                 <Input
                   id="full_name"
-                  placeholder="Ahmad Fauzi"
+                  placeholder="Masukkan nama lengkap Anda"
                   {...register("full_name")}
                   className="h-11 bg-background"
                 />
@@ -176,7 +176,7 @@ export default function RegisterPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@ivalora.com"
+                  placeholder="Masukkan alamat email Anda"
                   {...register("email")}
                   className="h-11 bg-background"
                 />
@@ -192,7 +192,7 @@ export default function RegisterPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Min. 8 karakter, 1 kapital, 1 angka"
+                    placeholder="Masukkan password Anda (min. 8 karakter)"
                     {...register("password")}
                     className="h-11 pr-10 bg-background"
                   />
@@ -216,7 +216,7 @@ export default function RegisterPage() {
                   <Input
                     id="confirm_password"
                     type={showConfirm ? "text" : "password"}
-                    placeholder="Ulangi password"
+                    placeholder="Ulangi password Anda"
                     {...register("confirm_password")}
                     className="h-11 pr-10 bg-background"
                   />
@@ -269,7 +269,7 @@ export default function RegisterPage() {
 
         {/* Footer */}
         <p className="pt-8 text-center text-xs text-muted-foreground/50">
-          © 2025 Ivalora Gadget · All rights reserved
+          Ivalora Gadget RMS (Retail Management System)
         </p>
       </div>
     </div>

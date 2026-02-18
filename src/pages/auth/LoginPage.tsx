@@ -147,7 +147,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@ivalora.com"
+                  placeholder="Masukkan alamat email Anda"
                   autoComplete="email"
                   {...register("email")}
                   className="h-11 bg-background"
@@ -174,7 +174,7 @@ export default function LoginPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder="Masukkan password Anda"
                     autoComplete="current-password"
                     {...register("password")}
                     className="h-11 pr-10 bg-background"
@@ -228,7 +228,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="pt-8 text-center text-xs text-muted-foreground/50">
-          © 2025 Ivalora Gadget · All rights reserved
+          Ivalora Gadget RMS (Retail Management System)
         </p>
       </div>
     </div>

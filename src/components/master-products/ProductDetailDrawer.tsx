@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MasterProduct, CATEGORY_LABELS, WARRANTY_LABELS } from "@/lib/master-products";
+import { MasterProduct, CATEGORY_LABELS } from "@/lib/master-products";
 
 interface StockSummary {
   total_available: number;
@@ -20,6 +20,7 @@ interface Props {
   product: MasterProduct | null;
   stockSummary?: StockSummary;
   loadingSummary?: boolean;
+  warrantyLabelMap?: Record<string, string>;
 }
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -44,7 +45,7 @@ function StatCard({ label, value, loading }: { label: string; value: number; loa
   );
 }
 
-export function ProductDetailDrawer({ open, onClose, product, stockSummary, loadingSummary }: Props) {
+export function ProductDetailDrawer({ open, onClose, product, stockSummary, loadingSummary, warrantyLabelMap }: Props) {
   if (!product) return null;
 
   return (
@@ -72,7 +73,7 @@ export function ProductDetailDrawer({ open, onClose, product, stockSummary, load
             <InfoRow label="Seri" value={product.series} />
             <InfoRow label="Storage" value={product.storage_gb >= 1024 ? `${product.storage_gb / 1024} TB` : `${product.storage_gb} GB`} />
             <InfoRow label="Warna" value={product.color} />
-            <InfoRow label="Garansi" value={WARRANTY_LABELS[product.warranty_type]} />
+            <InfoRow label="Garansi" value={warrantyLabelMap?.[product.warranty_type] ?? product.warranty_type} />
             <InfoRow
               label="Harga Referensi"
               value={

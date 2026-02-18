@@ -80,7 +80,7 @@ export default function ForgotPasswordPage() {
             <Input
               id="email"
               type="email"
-              placeholder="admin@ivalora.com"
+              placeholder="Masukkan alamat email Anda"
               {...register("email")}
               className="h-11"
             />

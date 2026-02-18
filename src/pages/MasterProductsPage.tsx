@@ -32,17 +32,18 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  Tag,
 } from "lucide-react";
 import {
   MasterProduct,
   CATEGORY_LABELS,
-  WARRANTY_LABELS,
   ProductCategory,
   WarrantyType,
 } from "@/lib/master-products";
 import { ProductFormModal } from "@/components/master-products/ProductFormModal";
 import { ProductDetailDrawer } from "@/components/master-products/ProductDetailDrawer";
 import { DeactivateModal } from "@/components/master-products/DeactivateModal";
+import { WarrantyLabelModal, WarrantyLabel } from "@/components/master-products/WarrantyLabelModal";
 
 const PAGE_SIZE = 15;
 
@@ -54,6 +55,10 @@ export default function MasterProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+
+  // ─── Warranty labels (dynamic) ───────────────────────────
+  const [warrantyLabels, setWarrantyLabels] = useState<WarrantyLabel[]>([]);
+  const [showWarrantyModal, setShowWarrantyModal] = useState(false);
 
   // ─── Filters ─────────────────────────────────────────────
   const [search, setSearch] = useState("");
@@ -84,7 +89,24 @@ export default function MasterProductsPage() {
     setPage(1);
   }, [debouncedSearch, filterCategory, filterWarranty, filterStatus]);
 
-  // ─── Fetch ───────────────────────────────────────────────
+  // ─── Fetch warranty labels ────────────────────────────────
+  const fetchWarrantyLabels = useCallback(async () => {
+    const { data } = await supabase
+      .from("warranty_labels")
+      .select("*")
+      .order("sort_order", { ascending: true });
+    if (data) setWarrantyLabels(data as WarrantyLabel[]);
+  }, []);
+
+  useEffect(() => { fetchWarrantyLabels(); }, [fetchWarrantyLabels]);
+
+  // Build label map for display
+  const warrantyLabelMap = Object.fromEntries(
+    warrantyLabels.map((w) => [w.key, w.label])
+  );
+  const getWarrantyLabel = (key: string) => warrantyLabelMap[key] ?? key;
+
+  // ─── Fetch products ───────────────────────────────────────
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -122,7 +144,6 @@ export default function MasterProductsPage() {
 
   // ─── Handlers ────────────────────────────────────────────
   const handleEdit = (product: MasterProduct) => {
-    // For now assume not used in stock (stok_imei table doesn't exist yet)
     setEditProduct(product);
     setIsUsedInStock(false);
     setShowForm(true);
@@ -183,20 +204,31 @@ export default function MasterProductsPage() {
   return (
     <DashboardLayout pageTitle="Master Data Produk">
       {/* ── Page Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-foreground">Master Data Produk</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Kelola varian produk berdasarkan kombinasi kategori, seri, storage, warna, dan garansi
           </p>
         </div>
-        <Button
-          className="gap-2 shrink-0 self-start sm:self-auto"
-          onClick={() => { setEditProduct(null); setShowForm(true); }}
-        >
-          <Plus className="w-4 h-4" />
-          Tambah Produk
-        </Button>
+        <div className="flex gap-2 shrink-0 self-start sm:self-auto">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => setShowWarrantyModal(true)}
+          >
+            <Tag className="w-4 h-4" />
+            <span className="hidden sm:inline">Kelola Label Garansi</span>
+            <span className="sm:hidden">Garansi</span>
+          </Button>
+          <Button
+            className="gap-2"
+            onClick={() => { setEditProduct(null); setShowForm(true); }}
+          >
+            <Plus className="w-4 h-4" />
+            Tambah Produk
+          </Button>
+        </div>
       </div>
 
       {/* ── Filters ── */}
@@ -204,7 +236,7 @@ export default function MasterProductsPage() {
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Cari seri, warna..."
+            placeholder="Cari seri atau warna produk..."
             className="pl-9 h-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -228,8 +260,8 @@ export default function MasterProductsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Garansi</SelectItem>
-              {(Object.entries(WARRANTY_LABELS) as [WarrantyType, string][]).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v}</SelectItem>
+              {warrantyLabels.map((w) => (
+                <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -322,7 +354,7 @@ export default function MasterProductsPage() {
                     <TableCell className="font-medium text-sm">{p.series}</TableCell>
                     <TableCell className="text-center text-sm">{formatStorage(p.storage_gb)}</TableCell>
                     <TableCell className="text-sm">{p.color}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{WARRANTY_LABELS[p.warranty_type]}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{getWarrantyLabel(p.warranty_type)}</TableCell>
                     <TableCell className="text-right text-sm font-medium">{formatPrice(p.base_price)}</TableCell>
                     <TableCell className="text-center">
                       <Badge variant={p.is_active ? "default" : "secondary"} className="text-xs">
@@ -409,6 +441,7 @@ export default function MasterProductsPage() {
         onSuccess={fetchProducts}
         editProduct={editProduct}
         isUsedInStock={isUsedInStock}
+        warrantyLabels={warrantyLabels}
       />
 
       <ProductDetailDrawer
@@ -417,6 +450,7 @@ export default function MasterProductsPage() {
         product={detailProduct}
         stockSummary={undefined}
         loadingSummary={false}
+        warrantyLabelMap={warrantyLabelMap}
       />
 
       <DeactivateModal
@@ -426,6 +460,14 @@ export default function MasterProductsPage() {
         product={deactivateProduct}
         hasAvailableStock={false}
         loading={deactivateLoading}
+      />
+
+      <WarrantyLabelModal
+        open={showWarrantyModal}
+        onClose={() => {
+          setShowWarrantyModal(false);
+          fetchWarrantyLabels(); // Refresh labels after editing
+        }}
       />
     </DashboardLayout>
   );
