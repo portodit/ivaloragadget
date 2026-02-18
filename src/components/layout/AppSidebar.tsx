@@ -61,26 +61,24 @@ export function AppSidebar() {
     <aside
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
-      className="fixed left-0 top-0 h-screen z-40 flex flex-col overflow-hidden bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out"
+      className="fixed left-0 top-0 h-screen z-40 flex flex-col overflow-hidden bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out shadow-sm"
       style={{ width: isExpanded ? "260px" : "72px" }}
     >
       {/* Logo area */}
-      <div className="flex items-center h-16 px-4 border-b border-sidebar-border shrink-0 overflow-hidden">
-        <img
-          src={logoIcon}
-          alt="Logo"
-          className="w-8 h-8 shrink-0 object-contain"
-        />
-        <div
-          className="overflow-hidden transition-all duration-300"
-          style={{ width: isExpanded ? "160px" : "0px", opacity: isExpanded ? 1 : 0 }}
-        >
+      <div className="flex items-center justify-center h-16 px-4 border-b border-sidebar-border shrink-0 overflow-hidden">
+        {isExpanded ? (
           <img
             src={logoFull}
             alt="Ivalora Gadget"
-            className="h-6 ml-3 object-contain"
+            className="h-7 object-contain transition-all duration-300"
           />
-        </div>
+        ) : (
+          <img
+            src={logoIcon}
+            alt="Logo"
+            className="w-8 h-8 object-contain transition-all duration-300"
+          />
+        )}
       </div>
 
       {/* Navigation */}
@@ -92,13 +90,16 @@ export function AppSidebar() {
                 key={item.title}
                 to={item.url}
                 end
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors duration-150 overflow-hidden"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-150 overflow-hidden group"
                 activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
               >
                 <item.icon className="w-5 h-5 shrink-0" />
                 <span
-                  className="text-sm font-medium whitespace-nowrap transition-all duration-300"
-                  style={{ opacity: isExpanded ? 1 : 0, width: isExpanded ? "auto" : 0 }}
+                  className="text-sm font-medium whitespace-nowrap transition-all duration-300 overflow-hidden"
+                  style={{
+                    opacity: isExpanded ? 1 : 0,
+                    maxWidth: isExpanded ? "200px" : "0px",
+                  }}
                 >
                   {item.title}
                 </span>
@@ -112,12 +113,15 @@ export function AppSidebar() {
             <div key={item.title}>
               <button
                 onClick={() => isExpanded && toggleGroup(item.title)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors duration-150 overflow-hidden"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-150 overflow-hidden"
               >
                 <item.icon className="w-5 h-5 shrink-0" />
                 <span
-                  className="text-sm font-medium whitespace-nowrap flex-1 text-left transition-all duration-300"
-                  style={{ opacity: isExpanded ? 1 : 0, width: isExpanded ? "auto" : 0 }}
+                  className="text-sm font-medium whitespace-nowrap flex-1 text-left transition-all duration-300 overflow-hidden"
+                  style={{
+                    opacity: isExpanded ? 1 : 0,
+                    maxWidth: isExpanded ? "160px" : "0px",
+                  }}
                 >
                   {item.title}
                 </span>
@@ -130,7 +134,7 @@ export function AppSidebar() {
                 />
               </button>
 
-              {/* Children - only visible when expanded & open */}
+              {/* Children */}
               <div
                 className="overflow-hidden transition-all duration-300"
                 style={{
@@ -144,7 +148,7 @@ export function AppSidebar() {
                       key={child.title}
                       to={child.url}
                       end
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors duration-150 whitespace-nowrap"
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-150 whitespace-nowrap"
                       activeClassName="bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground font-medium"
                     >
                       <child.icon className="w-4 h-4 shrink-0" />
@@ -158,12 +162,10 @@ export function AppSidebar() {
         })}
       </nav>
 
-      {/* Bottom version badge */}
-      <div
-        className="px-4 py-3 border-t border-sidebar-border overflow-hidden"
-      >
+      {/* Bottom status */}
+      <div className="px-4 py-3 border-t border-sidebar-border overflow-hidden">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
           <span
             className="text-xs text-sidebar-foreground/50 whitespace-nowrap transition-all duration-300"
             style={{ opacity: isExpanded ? 1 : 0 }}

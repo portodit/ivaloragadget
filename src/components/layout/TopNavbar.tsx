@@ -19,7 +19,7 @@ export function TopNavbar({ pageTitle }: { pageTitle?: string }) {
     .toUpperCase();
 
   return (
-    <header className="fixed top-0 right-0 left-[72px] h-16 z-30 flex items-center justify-between px-6 bg-card border-b border-border transition-all duration-300">
+    <header className="fixed top-0 right-0 left-[72px] h-16 z-30 flex items-center justify-between px-6 bg-card border-b border-border shadow-sm transition-all duration-300">
       {/* Page title */}
       <div>
         <h1 className="text-base font-semibold text-foreground">
