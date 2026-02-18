@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import {
   LayoutDashboard,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import logoFull from "@/assets/logo-full.svg";
 import logoIcon from "@/assets/logo-icon.svg";
+import { cn } from "@/lib/utils";
 
 type NavChild = { title: string; url: string; icon: React.ElementType };
 type NavItem =
@@ -62,6 +64,12 @@ export function AppSidebar({ mobileSidebarOpen = false, onMobileClose }: AppSide
       prev.includes(title) ? prev.filter((g) => g !== title) : [...prev, title]
     );
   };
+
+  const location = useLocation();
+
+  // Returns true if any child of a group matches the current pathname
+  const isGroupActive = (children: NavChild[]) =>
+    children.some((c) => location.pathname === c.url || location.pathname.startsWith(c.url + "/"));
 
   const sidebarContent = (isMobile: boolean) => (
     <>
@@ -111,12 +119,18 @@ export function AppSidebar({ mobileSidebarOpen = false, onMobileClose }: AppSide
 
           const isOpen = openGroups.includes(item.title);
           const showExpanded = isMobile || isExpanded;
+          const groupActive = isGroupActive(item.children);
 
           return (
             <div key={item.title}>
               <button
                 onClick={() => showExpanded && toggleGroup(item.title)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-150 overflow-hidden"
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 overflow-hidden",
+                  !showExpanded && groupActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                )}
               >
                 <item.icon className="w-5 h-5 shrink-0" />
                 <span
