@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.approve-admin]
 verify_jwt = false
+
+[functions.opname-notify]
+verify_jwt = false

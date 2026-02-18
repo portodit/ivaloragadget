@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Plus, RefreshCw, ClipboardList, Clock, CheckCircle2,
+  Plus, RefreshCw, ClipboardList, CheckCircle2,
   Lock, ChevronRight, AlertTriangle, Search, Trash2,
   ArrowLeft, ShieldCheck, X, Info, Layers, ScanLine,
+  UserCheck, CalendarClock, Users,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -101,6 +102,10 @@ export default function StokOpnamePage() {
   );
 }
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface AdminProfile { id: string; full_name: string | null; email: string }
+interface SessionWithAssignees extends OpnameSession { assignees?: AdminProfile[] }
+
 // ─── SessionListView ──────────────────────────────────────────────────────────
 function SessionListView({
   userId, isSuperAdmin, onStartScan, onViewDetail, toast,
@@ -111,21 +116,59 @@ function SessionListView({
   onViewDetail: (id: string, status: SessionStatus) => void;
   toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const [sessions, setSessions] = useState<OpnameSession[]>([]);
+  const [sessions, setSessions] = useState<SessionWithAssignees[]>([]);
   const [loading, setLoading] = useState(true);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [expectedCount, setExpectedCount] = useState(0);
   const [creating, setCreating] = useState(false);
   const [newType, setNewType] = useState<SessionType>("opening");
   const [newNotes, setNewNotes] = useState("");
+  const [adminList, setAdminList] = useState<AdminProfile[]>([]);
+  const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>([]);
+  const [assignModalSession, setAssignModalSession] = useState<SessionWithAssignees | null>(null);
+
+  const fetchAdmins = useCallback(async () => {
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+    if (!roles || roles.length === 0) { setAdminList([]); return; }
+    const ids = roles.map((r) => r.user_id);
+    const { data: profiles } = await supabase
+      .from("user_profiles")
+      .select("id, full_name, email")
+      .in("id", ids)
+      .eq("status", "active");
+    setAdminList((profiles ?? []) as AdminProfile[]);
+  }, []);
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data: sessData } = await supabase
       .from("opname_sessions")
       .select("*")
       .order("started_at", { ascending: false });
-    setSessions((data as OpnameSession[]) ?? []);
+
+    const sessions = (sessData as OpnameSession[]) ?? [];
+
+    // Fetch assignees for each session
+    const sessionsWithAssignees: SessionWithAssignees[] = await Promise.all(
+      sessions.map(async (s) => {
+        const { data: assignments } = await supabase
+          .from("opname_session_assignments" as never)
+          .select("admin_id")
+          .eq("session_id", s.id);
+        if (!assignments || (assignments as { admin_id: string }[]).length === 0) return { ...s, assignees: [] };
+        const adminIds = (assignments as { admin_id: string }[]).map((a) => a.admin_id);
+        const { data: profiles } = await supabase
+          .from("user_profiles")
+          .select("id, full_name, email")
+          .in("id", adminIds);
+        return { ...s, assignees: (profiles ?? []) as AdminProfile[] };
+      })
+    );
+
+    setSessions(sessionsWithAssignees);
     setLoading(false);
   }, []);
 
@@ -137,21 +180,15 @@ function SessionListView({
     setExpectedCount(count ?? 0);
   }, []);
 
-  useEffect(() => { fetchSessions(); fetchExpected(); }, [fetchSessions, fetchExpected]);
+  useEffect(() => { fetchSessions(); fetchExpected(); if (isSuperAdmin) fetchAdmins(); }, [fetchSessions, fetchExpected, fetchAdmins, isSuperAdmin]);
 
   const handleCreateSession = async () => {
     if (!userId) return;
     setCreating(true);
 
-    // Create session
     const { data: sess, error: sessErr } = await supabase
       .from("opname_sessions")
-      .insert({
-        session_type: newType,
-        notes: newNotes || null,
-        created_by: userId,
-        total_expected: expectedCount,
-      } as never)
+      .insert({ session_type: newType, notes: newNotes || null, created_by: userId, total_expected: expectedCount } as never)
       .select()
       .single();
 
@@ -162,7 +199,17 @@ function SessionListView({
     }
     const sessionId = (sess as { id: string }).id;
 
-    // Take snapshot of available+reserved units
+    // Assign selected admins
+    if (selectedAdminIds.length > 0) {
+      const assignRows = selectedAdminIds.map((adminId) => ({
+        session_id: sessionId,
+        admin_id: adminId,
+        assigned_by: userId,
+      }));
+      await supabase.from("opname_session_assignments" as never).insert(assignRows as never);
+    }
+
+    // Take snapshot
     const { data: units } = await supabase
       .from("stock_units")
       .select("id, imei, stock_status, selling_price, cost_price, master_products(series, storage_gb, color, warranty_type)")
@@ -197,7 +244,25 @@ function SessionListView({
     setCreating(false);
     setNewSessionOpen(false);
     setNewNotes("");
+    setSelectedAdminIds([]);
     onStartScan(sessionId);
+  };
+
+  const handleSaveAssignees = async (sessionId: string, adminIds: string[]) => {
+    if (!userId) return;
+    // Remove existing then re-insert
+    await supabase.from("opname_session_assignments" as never).delete().eq("session_id" as never, sessionId);
+    if (adminIds.length > 0) {
+      const rows = adminIds.map((aid) => ({ session_id: sessionId, admin_id: aid, assigned_by: userId }));
+      await supabase.from("opname_session_assignments" as never).insert(rows as never);
+    }
+    toast({ title: "Penugasan admin berhasil disimpan." });
+    setAssignModalSession(null);
+    fetchSessions();
+  };
+
+  const toggleAdminSelect = (id: string, list: string[], setList: (v: string[]) => void) => {
+    setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   };
 
   return (
@@ -214,9 +279,11 @@ function SessionListView({
               <RefreshCw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Segarkan</span>
             </Button>
-            <Button size="sm" className="h-9 gap-1.5 text-xs" onClick={() => setNewSessionOpen(true)}>
-              <Plus className="w-3.5 h-3.5" /> Mulai Sesi Baru
-            </Button>
+            {isSuperAdmin && (
+              <Button size="sm" className="h-9 gap-1.5 text-xs" onClick={() => setNewSessionOpen(true)}>
+                <Plus className="w-3.5 h-3.5" /> Mulai Sesi Baru
+              </Button>
+            )}
           </div>
         </div>
 
@@ -232,11 +299,15 @@ function SessionListView({
             </div>
             <div>
               <p className="text-sm font-medium text-foreground">Belum ada sesi stok opname.</p>
-              <p className="text-xs text-muted-foreground mt-1">Mulai sesi pertama untuk memverifikasi stok secara fisik.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isSuperAdmin ? "Mulai sesi pertama untuk memverifikasi stok secara fisik." : "Belum ada sesi yang ditugaskan ke Anda."}
+              </p>
             </div>
-            <Button size="sm" className="gap-1.5" onClick={() => setNewSessionOpen(true)}>
-              <Plus className="w-3.5 h-3.5" /> Mulai Sesi Pertama
-            </Button>
+            {isSuperAdmin && (
+              <Button size="sm" className="gap-1.5" onClick={() => setNewSessionOpen(true)}>
+                <Plus className="w-3.5 h-3.5" /> Mulai Sesi Pertama
+              </Button>
+            )}
           </div>
         ) : (
           <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -246,8 +317,8 @@ function SessionListView({
                   <tr className="border-b border-border bg-muted/40">
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tanggal</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jenis</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">Expected</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">Scan</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:table-cell">Assigned</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">Match</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Selisih</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Status</th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Aksi</th>
@@ -256,17 +327,46 @@ function SessionListView({
                 <tbody className="divide-y divide-border">
                   {sessions.map((s) => {
                     const selisih = s.total_missing + s.total_unregistered;
+                    const isAssignedToMe = s.assignees?.some((a) => a.id === userId);
+                    const canScan = isSuperAdmin || isAssignedToMe;
                     return (
                       <tr key={s.id} className="hover:bg-accent/30 transition-colors">
                         <td className="px-4 py-3">
                           <p className="text-sm text-foreground">{formatDateShort(s.started_at)}</p>
                           <p className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(s.started_at))}</p>
                         </td>
-                        <td className="px-4 py-3">
-                          <SessionTypeBadge type={s.session_type} />
+                        <td className="px-4 py-3"><SessionTypeBadge type={s.session_type} /></td>
+                        <td className="px-4 py-3 hidden md:table-cell">
+                          {s.assignees && s.assignees.length > 0 ? (
+                            <div className="flex items-center gap-1">
+                              <div className="flex -space-x-1">
+                                {s.assignees.slice(0, 3).map((a) => (
+                                  <div key={a.id} title={a.full_name ?? a.email} className="w-6 h-6 rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-[9px] font-bold flex items-center justify-center ring-2 ring-card">
+                                    {(a.full_name ?? a.email).slice(0, 2).toUpperCase()}
+                                  </div>
+                                ))}
+                              </div>
+                              {s.assignees.length > 3 && (
+                                <span className="text-[10px] text-muted-foreground">+{s.assignees.length - 3}</span>
+                              )}
+                              {isSuperAdmin && (
+                                <button onClick={() => setAssignModalSession(s)} className="ml-1 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+                                  <UserCheck className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground italic">Belum ada</span>
+                              {isSuperAdmin && (
+                                <button onClick={() => setAssignModalSession(s)} className="ml-1 p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+                                  <UserCheck className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-foreground hidden sm:table-cell">{s.total_expected}</td>
-                        <td className="px-4 py-3 text-sm text-foreground hidden sm:table-cell">{s.total_scanned}</td>
+                        <td className="px-4 py-3 text-sm text-[hsl(var(--status-available-fg))] font-medium hidden sm:table-cell">{s.total_match}</td>
                         <td className="px-4 py-3">
                           {selisih > 0 ? (
                             <span className="inline-flex items-center gap-1 text-xs font-semibold text-[hsl(var(--status-minus-fg))]">
@@ -276,19 +376,21 @@ function SessionListView({
                             <span className="text-xs text-[hsl(var(--status-available-fg))]">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3">
-                          <SessionStatusBadge status={s.session_status} />
-                        </td>
+                        <td className="px-4 py-3"><SessionStatusBadge status={s.session_status} /></td>
                         <td className="px-4 py-3 text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs gap-1"
-                            onClick={() => onViewDetail(s.id, s.session_status)}
-                          >
-                            {s.session_status === "draft" ? "Lanjut Scan" : "Lihat Detail"}
-                            <ChevronRight className="w-3 h-3" />
-                          </Button>
+                          {canScan ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs gap-1"
+                              onClick={() => onViewDetail(s.id, s.session_status)}
+                            >
+                              {s.session_status === "draft" ? "Lanjut Scan" : "Lihat Detail"}
+                              <ChevronRight className="w-3 h-3" />
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Tidak ada akses</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -303,22 +405,21 @@ function SessionListView({
         )}
       </div>
 
-      {/* New session modal */}
+      {/* ── New session modal ── */}
       {newSessionOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={() => setNewSessionOpen(false)} />
-          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-sm p-6 space-y-5">
+          <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md p-6 space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-base font-semibold text-foreground">Mulai Sesi Baru</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Sistem akan mengambil snapshot unit AVAILABLE & RESERVED saat sesi dimulai.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Snapshot diambil dari unit Available & Reserved saat sesi dimulai.</p>
               </div>
               <button onClick={() => setNewSessionOpen(false)} className="p-1 rounded-lg hover:bg-accent">
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
 
-            {/* Expected preview */}
             <div className="rounded-xl bg-[hsl(var(--status-available-bg))] border border-[hsl(var(--status-available))]/20 px-4 py-3 flex items-center gap-3">
               <Info className="w-4 h-4 text-[hsl(var(--status-available-fg))] shrink-0" />
               <div>
@@ -332,9 +433,7 @@ function SessionListView({
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Jenis Sesi</label>
                 <Select value={newType} onValueChange={(v) => setNewType(v as SessionType)}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="opening">Opening</SelectItem>
                     <SelectItem value="closing">Closing</SelectItem>
@@ -342,6 +441,44 @@ function SessionListView({
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Admin assignment */}
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1.5 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5" /> Assign Admin (opsional, bisa lebih dari 1)
+                </label>
+                {adminList.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic px-1">Belum ada admin aktif.</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                    {adminList.map((admin) => {
+                      const checked = selectedAdminIds.includes(admin.id);
+                      return (
+                        <button
+                          key={admin.id}
+                          type="button"
+                          onClick={() => toggleAdminSelect(admin.id, selectedAdminIds, setSelectedAdminIds)}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-sm text-left transition-all",
+                            checked
+                              ? "border-primary bg-primary/5 text-foreground"
+                              : "border-border bg-background text-foreground hover:bg-accent",
+                          )}
+                        >
+                          <div className={cn("w-4 h-4 rounded border-2 flex items-center justify-center shrink-0", checked ? "bg-primary border-primary" : "border-muted-foreground/40")}>
+                            {checked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-xs truncate">{admin.full_name ?? admin.email}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{admin.email}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Catatan (opsional)</label>
                 <Input
@@ -354,9 +491,7 @@ function SessionListView({
             </div>
 
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => setNewSessionOpen(false)}>
-                Batal
-              </Button>
+              <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => setNewSessionOpen(false)}>Batal</Button>
               <Button className="flex-1 h-9 text-sm gap-1.5" onClick={handleCreateSession} disabled={creating}>
                 {creating ? <div className="w-3.5 h-3.5 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 Mulai Sesi
@@ -365,9 +500,93 @@ function SessionListView({
           </div>
         </div>
       )}
+
+      {/* ── Assign admin modal ── */}
+      {assignModalSession && (
+        <AssignAdminModal
+          session={assignModalSession}
+          adminList={adminList}
+          onClose={() => setAssignModalSession(null)}
+          onSave={(ids) => handleSaveAssignees(assignModalSession.id, ids)}
+        />
+      )}
     </DashboardLayout>
   );
 }
+
+// ─── AssignAdminModal ─────────────────────────────────────────────────────────
+function AssignAdminModal({
+  session, adminList, onClose, onSave,
+}: {
+  session: SessionWithAssignees;
+  adminList: AdminProfile[];
+  onClose: () => void;
+  onSave: (ids: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>(
+    (session.assignees ?? []).map((a) => a.id)
+  );
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (id: string) => {
+    setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Assign Admin</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Pilih admin yang bertugas untuk sesi ini.</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-accent">
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
+        {adminList.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic text-center py-4">Belum ada admin aktif di sistem.</p>
+        ) : (
+          <div className="space-y-1.5 max-h-56 overflow-y-auto">
+            {adminList.map((admin) => {
+              const checked = selected.includes(admin.id);
+              return (
+                <button
+                  key={admin.id}
+                  onClick={() => toggle(admin.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm text-left transition-all",
+                    checked ? "border-primary bg-primary/5" : "border-border bg-background hover:bg-accent",
+                  )}
+                >
+                  <div className={cn("w-4 h-4 rounded border-2 flex items-center justify-center shrink-0", checked ? "bg-primary border-primary" : "border-muted-foreground/40")}>
+                    {checked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-xs truncate">{admin.full_name ?? admin.email}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{admin.email}</p>
+                  </div>
+                  {checked && <UserCheck className="w-3.5 h-3.5 text-primary shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" className="flex-1 h-9 text-sm" onClick={onClose}>Batal</Button>
+          <Button className="flex-1 h-9 text-sm gap-1.5" disabled={saving} onClick={async () => { setSaving(true); await onSave(selected); setSaving(false); }}>
+            {saving ? <div className="w-3.5 h-3.5 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : <UserCheck className="w-3.5 h-3.5" />}
+            Simpan
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
 
 // ─── ScanView ─────────────────────────────────────────────────────────────────
 function ScanView({
@@ -378,6 +597,7 @@ function ScanView({
   onComplete: (id: string) => void;
 }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [session, setSession] = useState<OpnameSession | null>(null);
@@ -565,7 +785,20 @@ function ScanView({
       toast({ title: "Gagal menyelesaikan sesi", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Sesi berhasil diselesaikan." });
+
+    // Fire email notification to super admins
+    try {
+      await supabase.functions.invoke("opname-notify", {
+        body: { sessionId, completedBy: user?.id },
+      });
+    } catch (e) {
+      console.warn("Email notification failed (non-critical):", e);
+    }
+
+    toast({
+      title: "Sesi berhasil diselesaikan.",
+      description: "Laporan dikirim ke Super Admin via email.",
+    });
     onComplete(sessionId);
   };
 
@@ -1210,7 +1443,7 @@ function DetailView({
         {/* Audit trail */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" /> Audit Trail Sesi
+            <CalendarClock className="w-3.5 h-3.5" /> Audit Trail Sesi
           </p>
           <AuditRow label="Sesi dimulai" date={session.started_at} />
           {session.completed_at && <AuditRow label="Sesi diselesaikan" date={session.completed_at} />}

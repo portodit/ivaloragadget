@@ -94,6 +94,71 @@ export type Database = {
           },
         ]
       }
+      opname_schedules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cron_time: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          schedule_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cron_time: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          schedule_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cron_time?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          schedule_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      opname_session_assignments: {
+        Row: {
+          admin_id: string
+          assigned_at: string
+          assigned_by: string | null
+          id: string
+          session_id: string
+        }
+        Insert: {
+          admin_id: string
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          session_id: string
+        }
+        Update: {
+          admin_id?: string
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opname_session_assignments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "opname_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opname_sessions: {
         Row: {
           approved_at: string | null
