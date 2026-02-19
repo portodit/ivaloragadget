@@ -21,3 +21,36 @@ verify_jwt = false
 
 [functions.opname-notify]
 verify_jwt = false
+
+[functions.opname-reminder]
+verify_jwt = false
+
+# ─── Custom Email Templates ───────────────────────────────────────────────────
+# These override Supabase's default emails with Ivalora-branded HTML templates.
+# Variables: {{ .ConfirmationURL }}, {{ .Token }}, {{ .TokenHash }},
+#            {{ .SiteURL }}, {{ .Email }}, {{ .Data }}
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+
+[auth.email.template.confirmation]
+subject = "Konfirmasi Email — Ivalora Gadget RMS"
+content_path = "./supabase/templates/confirm.html"
+
+[auth.email.template.recovery]
+subject = "Reset Kata Sandi — Ivalora Gadget RMS"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.invite]
+subject = "Undangan ke Ivalora Gadget RMS"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.email_change]
+subject = "Konfirmasi Perubahan Email — Ivalora Gadget RMS"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.magic_link]
+subject = "Link Masuk — Ivalora Gadget RMS"
+content_path = "./supabase/templates/magic_link.html"
