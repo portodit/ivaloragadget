@@ -1006,7 +1006,13 @@ export type Database = {
       minus_severity: "minor" | "mayor"
       price_strategy: "min_price" | "avg_price" | "fixed"
       product_category: "iphone" | "ipad" | "accessory"
-      sold_channel: "pos" | "ecommerce" | "manual" | "website"
+      sold_channel:
+        | "pos"
+        | "ecommerce"
+        | "manual"
+        | "website"
+        | "ecommerce_tokopedia"
+        | "ecommerce_shopee"
       stock_status:
         | "available"
         | "reserved"
@@ -1157,7 +1163,14 @@ export const Constants = {
       minus_severity: ["minor", "mayor"],
       price_strategy: ["min_price", "avg_price", "fixed"],
       product_category: ["iphone", "ipad", "accessory"],
-      sold_channel: ["pos", "ecommerce", "manual", "website"],
+      sold_channel: [
+        "pos",
+        "ecommerce",
+        "manual",
+        "website",
+        "ecommerce_tokopedia",
+        "ecommerce_shopee",
+      ],
       stock_status: [
         "available",
         "reserved",
