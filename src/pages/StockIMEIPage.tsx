@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, Search, LayoutGrid, List, X, RefreshCw, Download, AlertCircle, Trash2, CalendarIcon } from "lucide-react";
+import { Plus, Search, LayoutGrid, List, X, RefreshCw, Download, AlertCircle, Trash2, CalendarIcon, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { id as localeId } from "date-fns/locale";
@@ -60,6 +60,7 @@ export default function StockIMEIPage() {
 
    // Date filter
    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   // Modals
   const [addOpen, setAddOpen] = useState(false);
@@ -105,7 +106,7 @@ export default function StockIMEIPage() {
       .from("stock_units")
       .select(`*, master_products(series, storage_gb, color, warranty_type, category)`)
       .in("stock_status", activeStatuses)
-      .order("received_at", { ascending: false });
+      .order("received_at", { ascending: sortOrder === "asc" });
 
     if (filterCondition === "no_minus") query = query.eq("condition_status", "no_minus" as never);
     else if (filterCondition === "minus") query = query.eq("condition_status", "minus" as never);
@@ -142,7 +143,7 @@ export default function StockIMEIPage() {
     }
     setUnits(filtered);
     setLoading(false);
-  }, [search, filterStatuses, filterSeries, filterCondition, dateRange]);
+  }, [search, filterStatuses, filterSeries, filterCondition, dateRange, sortOrder]);
 
   const fetchSummary = useCallback(async () => {
     const counts: SummaryCount[] = [];
@@ -162,7 +163,7 @@ export default function StockIMEIPage() {
 
   const handleRefresh = () => { fetchUnits(); fetchSummary(); setSelectedIds(new Set()); setConfirmBulkDelete(false); };
   const isDefaultFilter = filterStatuses.size === DEFAULT_STATUSES.length && DEFAULT_STATUSES.every(s => filterStatuses.has(s));
-  const resetFilters = () => { setSearch(""); setFilterStatuses(new Set(DEFAULT_STATUSES)); setFilterSeries("all"); setFilterCondition("all"); setDateRange(undefined); setSeriesSearch(""); };
+  const resetFilters = () => { setSearch(""); setFilterStatuses(new Set(DEFAULT_STATUSES)); setFilterSeries("all"); setFilterCondition("all"); setDateRange(undefined); setSeriesSearch(""); setSortOrder("desc"); };
 
   const hasActiveFilters = search || !isDefaultFilter || filterSeries !== "all" || filterCondition !== "all" || dateRange?.from;
 
@@ -401,6 +402,16 @@ export default function StockIMEIPage() {
                  </div>
                </PopoverContent>
             </Popover>
+            {/* Sort toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs hidden sm:flex"
+              onClick={() => setSortOrder(prev => prev === "desc" ? "asc" : "desc")}
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              {sortOrder === "desc" ? "Terbaru" : "Terlama"}
+            </Button>
             {/* View toggle */}
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1 h-9">
               <button
@@ -485,6 +496,13 @@ export default function StockIMEIPage() {
                  </div>
                </PopoverContent>
             </Popover>
+            <button
+              onClick={() => setSortOrder(prev => prev === "desc" ? "asc" : "desc")}
+              className="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium border border-border bg-background text-muted-foreground flex items-center gap-1"
+            >
+              <ArrowUpDown className="w-3 h-3" />
+              {sortOrder === "desc" ? "Baru" : "Lama"}
+            </button>
             {hasActiveFilters && (
               <button className="shrink-0 px-2 py-1 rounded-full text-[10px] font-medium border border-destructive/30 text-destructive" onClick={resetFilters}>
                 Reset
