@@ -994,13 +994,13 @@ function FeaturedVariantCard({
         )}
       </div>
       <div className="p-4 space-y-1.5 flex-1 flex flex-col">
-        <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">
+        <p className="text-xs font-semibold text-primary uppercase tracking-wide">
           {WARRANTY_SHORT_MAP[variant.warranty_type] ?? variant.warranty_type}
         </p>
-        <p className="text-sm font-bold text-foreground line-clamp-2 leading-snug">{label}</p>
+        <p className="text-[15px] font-semibold text-foreground line-clamp-2 leading-snug">{label}</p>
         <div className="mt-auto pt-1">
-          <p className="text-base font-bold text-foreground">{formatPrice(variant.price)}</p>
-          <p className="text-xs font-bold text-foreground">{variant.stock} unit tersedia</p>
+          <p className="text-lg font-bold text-foreground">{formatPrice(variant.price)}</p>
+          <p className="text-sm text-foreground">{variant.stock} unit tersedia</p>
         </div>
         <Button
           size="sm"
