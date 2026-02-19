@@ -144,10 +144,10 @@ export default function ShopPage() {
       <div className="pt-16">
 
         {/* Hero */}
-        <div className="bg-muted/30 border-b border-border py-10 px-4">
+        <div className="bg-muted/30 border-b border-border py-6 px-4">
           <div className="max-w-6xl mx-auto">
             <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">Katalog Produk</h1>
-            <p className="text-muted-foreground text-sm mb-6">iPhone, iPad, dan aksesori original berkualitas dengan harga terbaik.</p>
+            <p className="text-muted-foreground text-sm mb-5">iPhone, iPad, dan aksesori original berkualitas dengan harga terbaik.</p>
             {/* Search bar */}
             <div className="relative max-w-xl">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

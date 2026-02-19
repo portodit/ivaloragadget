@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, Globe, ChevronDown } from "lucide-react";
+import { Menu, X, ChevronDown } from "lucide-react";
 import logoHorizontal from "@/assets/logo-horizontal.svg";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const navLinks = [
   { label: "Beranda", labelEn: "Home", href: "/" },
@@ -12,26 +13,10 @@ const navLinks = [
   { label: "Kontak", labelEn: "Contact", href: "#kontak" },
 ];
 
-type Lang = "id" | "en";
-type Currency = "IDR" | "USD";
-
-interface PublicNavbarProps {
-  lang?: Lang;
-  currency?: Currency;
-  onLangChange?: (l: Lang) => void;
-  onCurrencyChange?: (c: Currency) => void;
-}
-
-export function PublicNavbar({
-  lang: externalLang,
-  currency: externalCurrency,
-  onLangChange,
-  onCurrencyChange,
-}: PublicNavbarProps = {}) {
+export function PublicNavbar() {
+  const { lang, currency, setLang, setCurrency } = useLocale();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [lang, setLang] = useState<Lang>(externalLang ?? "id");
-  const [currency, setCurrency] = useState<Currency>(externalCurrency ?? "IDR");
   const [langOpen, setLangOpen] = useState(false);
   const [currOpen, setCurrOpen] = useState(false);
   const navigate = useNavigate();
@@ -49,14 +34,12 @@ export function PublicNavbar({
     return () => document.removeEventListener("click", close);
   }, [langOpen, currOpen]);
 
-  const handleLang = (l: Lang) => {
+  const handleLang = (l: "id" | "en") => {
     setLang(l);
-    onLangChange?.(l);
     setLangOpen(false);
   };
-  const handleCurrency = (c: Currency) => {
+  const handleCurrency = (c: "IDR" | "USD") => {
     setCurrency(c);
-    onCurrencyChange?.(c);
     setCurrOpen(false);
   };
 
@@ -68,9 +51,7 @@ export function PublicNavbar({
       <header
         className={cn(
           "fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-out",
-          scrolled
-            ? "py-2"
-            : "py-0"
+          scrolled ? "py-2" : "py-0"
         )}
       >
         <div
@@ -82,12 +63,12 @@ export function PublicNavbar({
           )}
         >
           <div className="max-w-6xl mx-auto px-5 h-16 flex items-center">
-            {/* Logo — left */}
+            {/* Logo */}
             <Link to="/" className="flex items-center shrink-0 mr-8">
               <img src={logoHorizontal} alt="Ivalora" className="h-7 w-auto" />
             </Link>
 
-            {/* Nav links — centered absolutely */}
+            {/* Nav links — centered */}
             <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
               {navLinks.map((l) => (
                 <Link
@@ -101,7 +82,7 @@ export function PublicNavbar({
             </nav>
 
             {/* Right actions */}
-            <div className="flex items-center gap-2 shrink-0 ml-8">
+            <div className="flex items-center gap-1.5 shrink-0 ml-8">
               {/* Language switcher — flag only */}
               <div className="relative hidden md:block" onClick={(e) => e.stopPropagation()}>
                 <button
@@ -113,7 +94,7 @@ export function PublicNavbar({
                   <ChevronDown className={cn("w-3 h-3 transition-transform", langOpen && "rotate-180")} />
                 </button>
                 {langOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-border rounded-xl shadow-lg overflow-hidden py-1 min-w-[130px]">
+                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-border rounded-xl shadow-lg overflow-hidden py-1 min-w-[160px]">
                     <button onClick={() => handleLang("id")} className={cn("flex items-center gap-2.5 w-full px-3 py-2 text-sm hover:bg-accent transition-colors", lang === "id" && "font-semibold text-foreground")}>
                       <span className="text-base">🇮🇩</span> Bahasa Indonesia
                     </button>
@@ -135,7 +116,7 @@ export function PublicNavbar({
                   <ChevronDown className={cn("w-3 h-3 transition-transform", currOpen && "rotate-180")} />
                 </button>
                 {currOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-border rounded-xl shadow-lg overflow-hidden py-1 min-w-[110px]">
+                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-border rounded-xl shadow-lg overflow-hidden py-1 min-w-[120px]">
                     <button onClick={() => handleCurrency("IDR")} className={cn("w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors", currency === "IDR" && "font-semibold text-foreground")}>
                       🇮🇩 IDR — Rp
                     </button>
@@ -181,8 +162,8 @@ export function PublicNavbar({
                   <span>{lang === "id" ? "🇮🇩" : "🇬🇧"}</span>
                   <span className="uppercase text-xs font-medium">{lang}</span>
                 </button>
-                <button onClick={() => handleCurrency(currency === "IDR" ? "USD" : "IDR")} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-sm hover:bg-accent transition-colors">
-                  <span className="text-xs font-semibold">{currency}</span>
+                <button onClick={() => handleCurrency(currency === "IDR" ? "USD" : "IDR")} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-sm hover:bg-accent transition-colors font-semibold">
+                  <span className="text-xs">{currency === "IDR" ? "Rp" : "$"}</span>
                 </button>
               </div>
               <div className="pt-2 border-t border-border mt-2 flex flex-col gap-2">
@@ -195,7 +176,7 @@ export function PublicNavbar({
         </div>
       </header>
 
-      {/* Spacer so content doesn't go behind fixed navbar */}
+      {/* Spacer */}
       <div className="h-16" />
     </>
   );

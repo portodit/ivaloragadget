@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Star, ChevronRight, MapPin, Clock, Phone, MessageCircle,
-  ArrowRight, ShoppingBag, Instagram, Zap, Shield, Banknote, CreditCard,
+  ArrowRight, ShoppingBag, Instagram, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
@@ -209,19 +209,18 @@ export default function LandingPage() {
           HERO — Full bleed photo background, dark left overlay
       ══════════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden flex items-center min-h-[92vh]">
-        {/* Background photo */}
+        {/* Background photo — no mirror */}
         <img
           src={heroBg}
           alt="Hero"
           className="absolute inset-0 w-full h-full object-cover object-center"
-          style={{ transform: "scaleX(-1)" }}
         />
-        {/* Dark gradient left-to-right overlay — text readable on left */}
+        {/* Dark gradient left-to-right overlay */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(90deg, hsl(0 0% 3% / 0.97) 0%, hsl(0 0% 5% / 0.88) 30%, hsl(0 0% 8% / 0.55) 60%, hsl(0 0% 0% / 0.1) 100%)",
+              "linear-gradient(90deg, hsl(0 0% 3% / 0.97) 0%, hsl(0 0% 5% / 0.88) 35%, hsl(0 0% 8% / 0.5) 65%, hsl(0 0% 0% / 0.05) 100%)",
           }}
         />
         {/* Top vignette */}
@@ -310,32 +309,32 @@ export default function LandingPage() {
             </Button>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1 scrollbar-hide snap-x snap-mandatory">
+          <div className="flex gap-4 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide snap-x snap-mandatory">
             {IPHONE_CATEGORIES.map((cat) => (
               <div
                 key={cat.name}
                 onClick={() => navigate("/katalog")}
-                className="snap-start shrink-0 w-52 md:w-60 rounded-2xl overflow-hidden border border-border cursor-pointer group hover:border-foreground/30 transition-all duration-300 hover:shadow-lg bg-card"
+                className="snap-start shrink-0 w-52 md:w-60 rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                style={{ background: "hsl(0 0% 8%)", border: "1px solid hsl(0 0% 15%)" }}
               >
-                <div className="relative h-52 bg-secondary/40 flex items-end justify-center overflow-hidden">
-                  <div className="absolute inset-0"
-                    style={{ background: "linear-gradient(180deg, transparent 40%, hsl(0 0% 0% / 0.5) 100%)" }} />
+                {/* Image area — centered iPhone on dark bg */}
+                <div
+                  className="relative h-52 flex items-center justify-center overflow-hidden"
+                  style={{ background: "hsl(0 0% 10%)" }}
+                >
                   <img
                     src={cat.img}
                     alt={cat.name}
-                    className="absolute bottom-0 h-44 w-auto object-contain group-hover:scale-105 transition-transform duration-500"
-                    style={{ filter: "drop-shadow(0 10px 20px hsl(0 0% 0% / 0.3))" }}
+                    className="h-40 w-auto object-contain group-hover:scale-105 transition-transform duration-500"
+                    style={{ filter: "drop-shadow(0 8px 24px hsl(0 0% 0% / 0.5))" }}
                   />
-                  <div className="relative z-10 w-full p-3">
-                    <span className="inline-block text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md text-white"
-                      style={{ background: "hsl(0 0% 100% / 0.15)", border: "1px solid hsl(0 0% 100% / 0.2)" }}>
-                      {cat.tag}
-                    </span>
-                  </div>
                 </div>
-                <div className="p-4">
-                  <p className="font-semibold text-sm text-foreground">{cat.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Rilis {cat.year}</p>
+                {/* Divider */}
+                <div style={{ height: 1, background: "hsl(0 0% 15%)" }} />
+                {/* Name row */}
+                <div className="px-4 py-3.5">
+                  <p className="font-semibold text-sm" style={{ color: "hsl(0 0% 92%)" }}>{cat.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "hsl(0 0% 40%)" }}>Rilis {cat.year}</p>
                 </div>
               </div>
             ))}
@@ -560,10 +559,11 @@ export default function LandingPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════
-          TOKO FISIK — Card-based branches with map focus
+          TOKO FISIK — Top: heading, Bottom: card + map side by side
       ══════════════════════════════════════════════════════════════ */}
       <section className="py-20 px-6" style={{ background: "hsl(0 0% 97%)" }} id="tentang">
         <div className="max-w-6xl mx-auto">
+          {/* Top — text */}
           <div className="mb-10">
             <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">Toko Fisik</p>
             <h2 className="text-3xl font-bold leading-tight">
@@ -575,73 +575,78 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[2fr_3fr] gap-6 items-start">
-            {/* Left — branch cards */}
+          {/* Bottom — branch card + map */}
+          <div className="grid lg:grid-cols-[2fr_3fr] gap-5 items-stretch">
+            {/* Branch cards — white, gray stroke, hover effect */}
             <div className="space-y-3">
               {BRANCHES.map((br, i) => (
                 <button
                   key={br.id}
                   onClick={() => setActiveBranch(i)}
-                  className="w-full text-left rounded-2xl p-5 border transition-all duration-200"
+                  className="w-full text-left rounded-2xl p-5 transition-all duration-200 group"
                   style={{
-                    background: activeBranch === i ? "hsl(0 0% 8%)" : "hsl(0 0% 100%)",
-                    borderColor: activeBranch === i ? "hsl(0 0% 8%)" : "hsl(214 32% 91%)",
-                    boxShadow: activeBranch === i ? "0 8px 24px hsl(0 0% 0% / 0.15)" : "none",
+                    background: "hsl(0 0% 100%)",
+                    border: `1.5px solid ${activeBranch === i ? "hsl(0 0% 20%)" : "hsl(214 32% 88%)"}`,
+                    boxShadow: activeBranch === i
+                      ? "0 4px 20px hsl(0 0% 0% / 0.08)"
+                      : "0 1px 3px hsl(0 0% 0% / 0.04)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (activeBranch !== i) {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "hsl(0 0% 50%)";
+                      (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px hsl(0 0% 0% / 0.08)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeBranch !== i) {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "hsl(214 32% 88%)";
+                      (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 1px 3px hsl(0 0% 0% / 0.04)";
+                    }
                   }}
                 >
                   <div className="flex items-start gap-4">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{
-                        background: activeBranch === i ? "hsl(0 0% 100% / 0.1)" : "hsl(0 0% 96%)",
-                      }}
+                      style={{ background: activeBranch === i ? "hsl(0 0% 8%)" : "hsl(0 0% 95%)" }}
                     >
-                      <MapPin className="w-5 h-5" style={{ color: activeBranch === i ? "hsl(0 0% 80%)" : "hsl(0 0% 30%)" }} />
+                      <MapPin className="w-5 h-5" style={{ color: activeBranch === i ? "hsl(0 0% 90%)" : "hsl(0 0% 35%)" }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm"
-                        style={{ color: activeBranch === i ? "hsl(0 0% 100%)" : "hsl(0 0% 10%)" }}>
-                        {br.name}
-                      </p>
-                      <p className="text-xs mt-1 leading-relaxed"
-                        style={{ color: activeBranch === i ? "hsl(0 0% 55%)" : "hsl(215 16% 47%)" }}>
-                        {br.address}
-                      </p>
-                      {activeBranch === i && (
-                        <div className="mt-3 space-y-1.5">
-                          <div className="flex items-center gap-2 text-xs" style={{ color: "hsl(0 0% 60%)" }}>
-                            <Clock className="w-3.5 h-3.5" /> {br.hours}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs" style={{ color: "hsl(0 0% 60%)" }}>
-                            <Phone className="w-3.5 h-3.5" /> {br.phone}
-                          </div>
-                          <a
-                            href={br.mapsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold"
-                            style={{ color: "hsl(210 100% 65%)" }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ArrowRight className="w-3 h-3" /> Buka di Google Maps
-                          </a>
+                      <p className="font-semibold text-sm text-foreground">{br.name}</p>
+                      <p className="text-xs mt-1 leading-relaxed text-muted-foreground">{br.address}</p>
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="w-3.5 h-3.5 shrink-0" /> {br.hours}
                         </div>
-                      )}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Phone className="w-3.5 h-3.5 shrink-0" /> {br.phone}
+                        </div>
+                        <a
+                          href={br.mapsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold"
+                          style={{ color: "hsl(210 100% 50%)" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ArrowRight className="w-3 h-3" /> Buka di Google Maps
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </button>
               ))}
             </div>
 
-            {/* Right — embedded map (no API key, just q= param) */}
-            <div className="rounded-2xl overflow-hidden sticky top-24"
-              style={{ height: 340, border: "1px solid hsl(214 32% 91%)" }}>
+            {/* Map */}
+            <div className="rounded-2xl overflow-hidden relative"
+              style={{ minHeight: 320, border: "1.5px solid hsl(214 32% 88%)" }}>
               {BRANCHES.map((br, i) => (
                 <iframe
                   key={br.id}
                   title={br.name}
-                  className="w-full h-full transition-opacity duration-500"
-                  style={{ border: 0, opacity: activeBranch === i ? 1 : 0, position: activeBranch === i ? "relative" : "absolute" }}
+                  className="w-full h-full absolute inset-0 transition-opacity duration-500"
+                  style={{ border: 0, opacity: activeBranch === i ? 1 : 0 }}
                   loading="lazy"
                   allowFullScreen
                   src={br.mapSrc}
