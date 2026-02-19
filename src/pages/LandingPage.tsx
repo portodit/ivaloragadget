@@ -561,13 +561,17 @@ export default function LandingPage() {
               {t("Semua Produk", "All Products")} <ChevronRight className="w-3.5 h-3.5" />
             </Button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
             {products.length > 0
               ? products.map((p) => (
-                  <ProductCard key={p.id} product={p} stockPrices={stockPrices} formatPrice={formatPrice} />
+                  <div key={p.id} className="min-w-[220px] max-w-[260px] shrink-0">
+                    <ProductCard product={p} stockPrices={stockPrices} formatPrice={formatPrice} />
+                  </div>
                 ))
               : Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonCard key={i} />
+                  <div key={i} className="min-w-[220px] max-w-[260px] shrink-0">
+                    <SkeletonCard />
+                  </div>
                 ))
             }
           </div>
@@ -631,7 +635,7 @@ export default function LandingPage() {
               {t("Temui Kami Langsung.", "Meet Us In Person.")}<br />
               <span style={{ color: "hsl(0 0% 45%)" }}>{t("Lihat, Coba, Baru Beli.", "See, Try, Then Buy.")}</span>
             </h2>
-            <p className="text-muted-foreground text-sm leading-relaxed mt-3 max-w-xl">
+            <p className="text-muted-foreground text-sm leading-relaxed mt-3 max-w-3xl">
               {t(
                 "Ingin melihat kondisi unit secara langsung sebelum memutuskan? Datangi toko kami — tim kami siap membantu tanpa tekanan.",
                 "Want to see the unit's condition in person? Visit our store — our team is ready to help without pressure."

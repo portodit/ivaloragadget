@@ -10,6 +10,7 @@ import {
   ImageOff, BadgeCheck, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/contexts/LocaleContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface MasterProduct {
@@ -111,9 +112,18 @@ const WARRANTY_SHORT: Record<string, string> = {
   digimap: "Digimap",
 };
 
-function formatRupiah(n: number | null | undefined) {
-  if (!n) return "—";
-  return "Rp" + n.toLocaleString("id-ID");
+const USD_RATE = 15500;
+
+function useFormatPrice() {
+  const { currency } = useLocale();
+  return (n: number | null | undefined) => {
+    if (!n) return "—";
+    if (currency === "USD") {
+      const usd = n / USD_RATE;
+      return "$" + usd.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+    return "Rp" + n.toLocaleString("id-ID");
+  };
 }
 
 function storageLabel(gb: number) {
@@ -167,6 +177,7 @@ function Tab({ label, active, onClick }: { label: string; active: boolean; onCli
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const formatRupiah = useFormatPrice();
 
   const [catalog, setCatalog] = useState<CatalogProduct | null>(null);
   const [units, setUnits] = useState<StockUnit[]>([]);
