@@ -74,16 +74,14 @@ export function PublicNavbar() {
     <>
       {/* ── Floating wrapper ── */}
       <header
-        className={cn(
-          "fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-out",
-          scrolled ? "py-2 hidden md:block" : "py-0"
-        )}
+        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-out"
+        style={{ paddingTop: scrolled ? "0.5rem" : "0", paddingBottom: scrolled ? "0" : "0" }}
       >
         <div
           className={cn(
             "transition-all duration-300 ease-out",
             scrolled
-              ? "mx-auto max-w-2xl rounded-2xl bg-white/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-border/60"
+              ? "md:mx-auto md:max-w-2xl md:rounded-2xl bg-background/95 md:bg-white/90 backdrop-blur-xl md:shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-b md:border border-border md:border-border/60"
               : "bg-background/95 backdrop-blur-sm border-b border-border"
           )}
         >

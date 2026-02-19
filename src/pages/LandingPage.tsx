@@ -647,9 +647,9 @@ export default function LandingPage() {
                   />
                 </div>
                 <div style={{ height: 1, background: "hsl(0 0% 15%)" }} />
-                <div className="px-4 py-3.5">
-                  <p className="font-semibold text-sm" style={{ color: "hsl(0 0% 92%)" }}>{cat.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "hsl(0 0% 40%)" }}>
+                <div className="px-4 py-3.5 text-center">
+                  <p className="font-bold text-sm" style={{ color: "hsl(0 0% 92%)" }}>{cat.name}</p>
+                  <p className="text-xs font-semibold mt-0.5" style={{ color: "hsl(0 0% 100%)" }}>
                     {categoryCounts[cat.name] ? `${categoryCounts[cat.name]} ${t("unit tersedia", "units available")}` : t("Lihat unit", "View units")}
                   </p>
                 </div>
@@ -718,9 +718,7 @@ export default function LandingPage() {
             </Button>
           </div>
           <div className="border border-border rounded-2xl p-7 flex flex-col items-center gap-4 hover:shadow-md transition-shadow bg-card">
-            <div className="h-10 flex items-center">
-              <span className="text-2xl font-extrabold" style={{ color: "hsl(142 71% 38%)" }}>tokopedia</span>
-            </div>
+            <img src={logoTokopedia} alt="Tokopedia" className="h-10 object-contain" />
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -996,13 +994,13 @@ function FeaturedVariantCard({
         )}
       </div>
       <div className="p-4 space-y-1.5 flex-1 flex flex-col">
-        <p className="text-[11px] font-medium text-muted-foreground">
+        <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">
           {WARRANTY_SHORT_MAP[variant.warranty_type] ?? variant.warranty_type}
         </p>
-        <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">{label}</p>
+        <p className="text-sm font-bold text-foreground line-clamp-2 leading-snug">{label}</p>
         <div className="mt-auto pt-1">
           <p className="text-base font-bold text-foreground">{formatPrice(variant.price)}</p>
-          <p className="text-xs text-muted-foreground">{variant.stock} unit tersedia</p>
+          <p className="text-xs font-bold text-foreground">{variant.stock} unit tersedia</p>
         </div>
         <Button
           size="sm"
