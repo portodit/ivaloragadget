@@ -11,7 +11,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 
 interface CatalogItem {
   id: string;
-  product_id: string;
+  product_id: string | null;
   slug: string | null;
   display_name: string;
   short_description: string | null;
@@ -26,13 +26,15 @@ interface CatalogItem {
   discount_value: number | null;
   discount_start_at: string | null;
   discount_end_at: string | null;
-  master_products: {
-    series: string;
-    storage_gb: number;
-    color: string;
-    category: string;
-    warranty_type: string;
-  };
+  catalog_series: string | null;
+  catalog_warranty_type: string | null;
+}
+
+interface MasterProductRef {
+  id: string;
+  series: string;
+  warranty_type: string;
+  category: string;
 }
 
 interface StockPrice {
@@ -41,16 +43,13 @@ interface StockPrice {
   total: number;
 }
 
-// A grouped card = 1 series + 1 warranty_type
+// Each catalog item IS a group (1 series + 1 warranty_type)
 interface GroupedProduct {
-  key: string; // series + warranty_type
+  key: string;
   series: string;
   warranty_type: string;
   category: string;
-  // Representative data (from the first/best variant)
-  representative: CatalogItem;
-  variants: CatalogItem[];
-  // Aggregated
+  item: CatalogItem;
   minPrice: number | null;
   maxPrice: number | null;
   totalStock: number;
@@ -109,6 +108,7 @@ export default function ShopPage() {
   const formatPrice = useFormatPrice();
   const { lang } = useLocale();
   const [items, setItems] = useState<CatalogItem[]>([]);
+  const [masterProducts, setMasterProducts] = useState<MasterProductRef[]>([]);
   const [prices, setPrices] = useState<Record<string, StockPrice>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
@@ -124,16 +124,21 @@ export default function ShopPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [catRes, stockRes, fsRes] = await Promise.all([
+    const [catRes, masterRes, stockRes, fsRes] = await Promise.all([
       db.from("catalog_products")
-        .select("id, product_id, slug, display_name, short_description, thumbnail_url, highlight_product, free_shipping, promo_label, promo_badge, is_flash_sale, discount_active, discount_type, discount_value, discount_start_at, discount_end_at, master_products(series, storage_gb, color, category, warranty_type)")
+        .select("id, product_id, slug, display_name, short_description, thumbnail_url, highlight_product, free_shipping, promo_label, promo_badge, is_flash_sale, discount_active, discount_type, discount_value, discount_start_at, discount_end_at, catalog_series, catalog_warranty_type")
         .eq("catalog_status", "published"),
+      db.from("master_products")
+        .select("id, series, warranty_type, category")
+        .eq("is_active", true)
+        .is("deleted_at", null),
       db.from("stock_units")
         .select("product_id, selling_price")
         .eq("stock_status", "available"),
       db.from("flash_sale_settings").select("is_active, start_time, duration_hours").limit(1).single(),
     ]);
 
+    const masters: MasterProductRef[] = masterRes.data ?? [];
     const rawStock = stockRes.data ?? [];
     const priceMap: Record<string, StockPrice> = {};
     for (const unit of rawStock) {
@@ -157,71 +162,60 @@ export default function ShopPage() {
     }
 
     setPrices(priceMap);
+    setMasterProducts(masters);
     setItems(catRes.data ?? []);
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Group items by series + warranty_type
+  // Each catalog item is already a group (1 series + 1 warranty_type)
   const grouped: GroupedProduct[] = useMemo(() => {
-    const map = new Map<string, GroupedProduct>();
-    for (const item of items) {
-      const m = item.master_products;
-      if (!m) continue;
-      const key = `${m.series}__${m.warranty_type}`;
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          series: m.series,
-          warranty_type: m.warranty_type,
-          category: m.category,
-          representative: item,
-          variants: [],
-          minPrice: null,
-          maxPrice: null,
-          totalStock: 0,
-          hasFlashSale: false,
-          hasDiscount: false,
-          hasFreeShipping: false,
-          hasHighlight: false,
-          thumbnailUrl: null,
-        });
-      }
-      const g = map.get(key)!;
-      g.variants.push(item);
-      // Aggregate stock & price from ALL variants
-      const sp = prices[item.product_id];
-      if (sp) {
-        g.totalStock += sp.total;
-        if (sp.min_price != null) {
-          g.minPrice = g.minPrice === null ? sp.min_price : Math.min(g.minPrice, sp.min_price);
-          g.maxPrice = g.maxPrice === null ? sp.min_price : Math.max(g.maxPrice!, sp.min_price);
+    return items.map(item => {
+      const series = item.catalog_series ?? "";
+      const wType = item.catalog_warranty_type ?? "";
+      // Find all master products matching this series+type
+      const matchingMasters = masterProducts.filter(m => m.series === series && m.warranty_type === wType);
+      const category = matchingMasters[0]?.category ?? "iphone";
+      
+      let minPrice: number | null = null;
+      let maxPrice: number | null = null;
+      let totalStock = 0;
+      for (const m of matchingMasters) {
+        const sp = prices[m.id];
+        if (sp) {
+          totalStock += sp.total;
+          if (sp.min_price != null) {
+            minPrice = minPrice === null ? sp.min_price : Math.min(minPrice, sp.min_price);
+            maxPrice = maxPrice === null ? sp.min_price : Math.max(maxPrice!, sp.min_price);
+          }
         }
       }
-      if (item.is_flash_sale) g.hasFlashSale = true;
-      if (item.discount_active && item.discount_value) g.hasDiscount = true;
-      if (item.free_shipping) g.hasFreeShipping = true;
-      if (item.highlight_product) g.hasHighlight = true;
-      if (!g.thumbnailUrl && item.thumbnail_url) g.thumbnailUrl = item.thumbnail_url;
-    }
 
-    // Pick best representative (one with thumbnail, or highlight, or most stock)
-    for (const g of map.values()) {
-      const withThumb = g.variants.find(v => v.thumbnail_url);
-      const withHighlight = g.variants.find(v => v.highlight_product);
-      g.representative = withThumb ?? withHighlight ?? g.variants[0];
-      g.thumbnailUrl = g.representative.thumbnail_url ?? g.thumbnailUrl;
-    }
-    return Array.from(map.values());
-  }, [items, prices]);
+      return {
+        key: `${series}__${wType}`,
+        series,
+        warranty_type: wType,
+        category,
+        item,
+        minPrice,
+        maxPrice,
+        totalStock,
+        hasFlashSale: item.is_flash_sale,
+        hasDiscount: item.discount_active && !!item.discount_value,
+        hasFreeShipping: item.free_shipping,
+        hasHighlight: item.highlight_product,
+        thumbnailUrl: item.thumbnail_url,
+      };
+    }).filter(g => g.series); // Only include items with valid series
+  }, [items, prices, masterProducts]);
 
   // Filter grouped
   const filtered = grouped.filter(g => {
     const q = search.toLowerCase();
     const matchSearch = !q ||
       g.series.toLowerCase().includes(q) ||
-      g.variants.some(v => v.display_name.toLowerCase().includes(q) || v.master_products?.color?.toLowerCase().includes(q));
+      g.item.display_name.toLowerCase().includes(q);
     const matchFlash = filterCategory === "flash_sale" ? g.hasFlashSale : true;
     const matchCat = filterCategory === "flash_sale" || filterCategory === "all" || g.category === filterCategory;
     const matchWar = filterWarranty === "all" || g.warranty_type === filterWarranty;
@@ -266,9 +260,7 @@ export default function ShopPage() {
 
   // Build display name for a grouped product
   function groupDisplayName(g: GroupedProduct) {
-    const storages = Array.from(new Set(g.variants.map(v => v.master_products.storage_gb))).sort((a, b) => a - b);
-    const storageStr = storages.map(s => s >= 1024 ? `${s / 1024}TB` : `${s}GB`).join("/");
-    return `${g.series} ${storageStr} ${WARRANTY_SHORT[g.warranty_type] ?? g.warranty_type}`;
+    return g.item.display_name;
   }
 
   return (
@@ -426,8 +418,7 @@ export default function ShopPage() {
               {paginated.map(g => {
                 const outOfStock = g.totalStock === 0;
                 const displayName = groupDisplayName(g);
-                // Pick slug from representative
-                const slug = g.representative.slug;
+                const slug = g.item.slug;
 
                 return (
                   <Link
@@ -485,7 +476,7 @@ export default function ShopPage() {
                     <div className="p-3 flex-1 flex flex-col gap-1.5">
                       <p className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{displayName}</p>
                       <p className="text-[10px] text-muted-foreground">
-                        {g.variants.length} varian · {WARRANTY_SHORT[g.warranty_type] ?? g.warranty_type}
+                        {WARRANTY_SHORT[g.warranty_type] ?? g.warranty_type}
                       </p>
                       <div className="mt-auto">
                         {outOfStock ? (

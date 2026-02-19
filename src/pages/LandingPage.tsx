@@ -52,8 +52,10 @@ interface Product {
   rating_score: number | null;
   free_shipping: boolean;
   spec_warranty_duration: string | null;
-  product_id: string;
+  product_id: string | null;
   is_flash_sale?: boolean;
+  catalog_series: string | null;
+  catalog_warranty_type: string | null;
 }
 
 interface StockPriceInfo {
@@ -270,7 +272,7 @@ export default function LandingPage() {
       // Fetch products
       const { data } = await supabase
         .from("catalog_products")
-        .select("id, display_name, slug, thumbnail_url, override_display_price, highlight_product, promo_badge, promo_label, rating_score, free_shipping, spec_warranty_duration, product_id, is_flash_sale")
+        .select("id, display_name, slug, thumbnail_url, override_display_price, highlight_product, promo_badge, promo_label, rating_score, free_shipping, spec_warranty_duration, product_id, is_flash_sale, catalog_series, catalog_warranty_type")
         .eq("catalog_status", "published")
         .eq("publish_to_web", true);
       if (data) {
@@ -278,52 +280,60 @@ export default function LandingPage() {
         setFlashSaleProducts(data.filter((p: Product) => p.is_flash_sale));
         setProducts(data.slice(0, 8));
 
-        const productIds = data.map((p: Product) => p.product_id);
-        if (productIds.length > 0) {
-          const { data: stockData } = await supabase
-            .from("stock_units")
-            .select("product_id, selling_price")
-            .in("product_id", productIds)
-            .eq("stock_status", "available")
-            .not("selling_price", "is", null);
+        // Fetch all master products & stock to aggregate by catalog series+type
+        const [masterRes, stockAllRes] = await Promise.all([
+          supabase.from("master_products").select("id, series, warranty_type").eq("is_active", true).is("deleted_at", null),
+          supabase.from("stock_units").select("product_id, selling_price").eq("stock_status", "available").not("selling_price", "is", null),
+        ]);
 
-          if (stockData) {
-            const priceMap: Record<string, { min: number; max: number }> = {};
-            for (const unit of stockData) {
-              if (!unit.selling_price) continue;
-              if (!priceMap[unit.product_id]) {
-                priceMap[unit.product_id] = { min: unit.selling_price, max: unit.selling_price };
-              } else {
-                priceMap[unit.product_id].min = Math.min(priceMap[unit.product_id].min, unit.selling_price);
-                priceMap[unit.product_id].max = Math.max(priceMap[unit.product_id].max, unit.selling_price);
-              }
+        const masters = masterRes.data ?? [];
+        const stockAll = stockAllRes.data ?? [];
+
+        // Build per-product price map
+        const perProductPrice: Record<string, { min: number; max: number }> = {};
+        for (const unit of stockAll) {
+          if (!unit.selling_price) continue;
+          if (!perProductPrice[unit.product_id]) {
+            perProductPrice[unit.product_id] = { min: unit.selling_price, max: unit.selling_price };
+          } else {
+            perProductPrice[unit.product_id].min = Math.min(perProductPrice[unit.product_id].min, unit.selling_price);
+            perProductPrice[unit.product_id].max = Math.max(perProductPrice[unit.product_id].max, unit.selling_price);
+          }
+        }
+
+        // Aggregate by catalog item's series+type
+        const catalogPrices: StockPriceInfo[] = [];
+        for (const p of data) {
+          const matchingMasters = masters.filter(m => m.series === p.catalog_series && m.warranty_type === p.catalog_warranty_type);
+          let min: number | null = null;
+          let max: number | null = null;
+          for (const m of matchingMasters) {
+            const pp = perProductPrice[m.id];
+            if (pp) {
+              min = min === null ? pp.min : Math.min(min, pp.min);
+              max = max === null ? pp.max : Math.max(max, pp.max);
             }
-            setStockPrices(
-              Object.entries(priceMap).map(([product_id, { min, max }]) => ({
-                product_id,
-                min_price: min,
-                max_price: max,
-              }))
-            );
+          }
+          if (min !== null) {
+            catalogPrices.push({ product_id: p.id, min_price: min, max_price: max! });
           }
         }
+        setStockPrices(catalogPrices);
 
-        // Fetch category counts for Koleksi Pilihan
-        const { data: allStock } = await supabase
-          .from("stock_units")
-          .select("product_id")
-          .eq("stock_status", "available");
-        if (allStock && data) {
-          const counts: Record<string, number> = {};
-          for (const cat of IPHONE_CATEGORIES) {
-            const matchingProducts = data.filter((p: Product) =>
-              p.display_name.toLowerCase().includes(cat.name.toLowerCase())
-            );
-            const matchingProductIds = new Set(matchingProducts.map((p: Product) => p.product_id));
-            counts[cat.name] = allStock.filter(s => matchingProductIds.has(s.product_id)).length;
+        // Fetch category counts
+        const counts: Record<string, number> = {};
+        for (const cat of IPHONE_CATEGORIES) {
+          const matchingProducts = data.filter((p: Product) =>
+            p.display_name.toLowerCase().includes(cat.name.toLowerCase())
+          );
+          let count = 0;
+          for (const mp of matchingProducts) {
+            const matchingMasters2 = masters.filter(m => m.series === mp.catalog_series && m.warranty_type === mp.catalog_warranty_type);
+            count += stockAll.filter(s => matchingMasters2.some(m => m.id === s.product_id)).length;
           }
-          setCategoryCounts(counts);
+          counts[cat.name] = count;
         }
+        setCategoryCounts(counts);
       }
     })();
   }, []);
@@ -911,7 +921,7 @@ function ProductCard({
   const navigate = useNavigate();
   const href = product.slug ? `/produk/${product.slug}` : "#";
 
-  const stockInfo = stockPrices.find((s) => s.product_id === product.product_id);
+  const stockInfo = stockPrices.find((s) => s.product_id === product.id);
   const displayPrice = product.override_display_price ?? stockInfo?.min_price ?? null;
   const maxPrice = stockInfo?.max_price ?? null;
   const hasRange = stockInfo && stockInfo.min_price !== stockInfo.max_price;

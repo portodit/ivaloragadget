@@ -179,13 +179,8 @@ function formatRupiah(n: number | null | undefined) {
   return "Rp" + n.toLocaleString("id-ID");
 }
 
-const WARRANTY_LABELS: Record<string, string> = {
-  resmi_bc: "Resmi BC (Bea Cukai)",
-  ibox: "Resmi iBox Indonesia",
-  inter: "Inter (Internasional)",
-  whitelist: "Whitelist Terdaftar",
-  digimap: "Resmi Digimap Indonesia",
-};
+// Warranty labels fetched from DB at runtime
+type WarrantyLabelRecord = { key: string; label: string };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Main Page
@@ -204,6 +199,7 @@ export default function KatalogFormPage() {
   // Master data
   const [masterProducts, setMasterProducts] = useState<MasterProduct[]>([]);
   const [stockAgg, setStockAgg] = useState<StockAggregate[]>([]);
+  const [warrantyLabelsMap, setWarrantyLabelsMap] = useState<Record<string, string>>({});
 
   // Bonus products from DB
   const [bonusProductRecords, setBonusProductRecords] = useState<BonusProductRecord[]>([]);
@@ -251,7 +247,7 @@ export default function KatalogFormPage() {
   const [specPostelCert, setSpecPostelCert] = useState("-");
   const [specShippedFrom, setSpecShippedFrom] = useState("Kota Surabaya");
 
-  // Grouped series for selection (add mode only)
+  // Series+type groups for selection (both add & edit mode)
   const [seriesGroups, setSeriesGroups] = useState<{ key: string; series: string; warranty_type: string; productIds: string[]; totalStock: number }[]>([]);
   const [selectedGroup, setSelectedGroup] = useState("");
 
@@ -260,11 +256,16 @@ export default function KatalogFormPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const [masterRes, stockRes, bonusRes] = await Promise.all([
+        const [masterRes, stockRes, bonusRes, warrantyRes] = await Promise.all([
           db.from("master_products").select("*").eq("is_active", true).is("deleted_at", null),
           db.from("stock_units").select("product_id, selling_price, condition_status").eq("stock_status", "available"),
           db.from("bonus_products").select("id, name, description, icon").eq("is_active", true).order("sort_order"),
+          db.from("warranty_labels").select("key, label").eq("is_active", true).order("sort_order"),
         ]);
+
+        const wMap: Record<string, string> = {};
+        for (const w of (warrantyRes.data ?? [])) wMap[w.key] = w.label;
+        setWarrantyLabelsMap(wMap);
 
         const masters: MasterProduct[] = masterRes.data ?? [];
         const rawStock = stockRes.data ?? [];
@@ -285,8 +286,20 @@ export default function KatalogFormPage() {
 
         setStockAgg(Object.values(aggMap));
 
+        // Build series+warranty groups from master products (for both add & edit)
+        const { data: existingCats } = await db.from("catalog_products").select("id, catalog_series, catalog_warranty_type");
+        const existingCatsList: { id: string; catalog_series: string | null; catalog_warranty_type: string | null }[] = existingCats ?? [];
+
+        // Group masters by series+warranty_type
+        const groupMap: Record<string, { series: string; warranty_type: string; productIds: string[] }> = {};
+        for (const m of masters) {
+          const key = `${m.series}||${m.warranty_type}`;
+          if (!groupMap[key]) groupMap[key] = { series: m.series, warranty_type: m.warranty_type, productIds: [] };
+          groupMap[key].productIds.push(m.id);
+        }
+
         if (isEdit && id) {
-          const { data: catData } = await db.from("catalog_products").select("*, master_products(*)").eq("id", id).single();
+          const { data: catData } = await db.from("catalog_products").select("*").eq("id", id).single();
           if (catData) {
             setSelectedId(catData.product_id);
             setDisplayName(catData.display_name);
@@ -331,30 +344,39 @@ export default function KatalogFormPage() {
             setDiscountValueStr(catData.discount_value != null ? String(catData.discount_value) : "");
             setDiscountStartAt(catData.discount_start_at ? catData.discount_start_at.slice(0, 16) : "");
             setDiscountEndAt(catData.discount_end_at ? catData.discount_end_at.slice(0, 16) : "");
+
+            // Set current group selection for edit mode
+            if (catData.catalog_series && catData.catalog_warranty_type) {
+              setSelectedGroup(`${catData.catalog_series}||${catData.catalog_warranty_type}`);
+            }
+
+            // Build groups: exclude combos used by OTHER catalog items (not this one)
+            const existingKeysExcludingSelf = new Set(
+              existingCatsList
+                .filter((c) => c.catalog_series && c.id !== id)
+                .map((c) => `${c.catalog_series}||${c.catalog_warranty_type}`)
+            );
+
+            const groups = Object.entries(groupMap)
+              .filter(([key]) => !existingKeysExcludingSelf.has(key))
+              .map(([key, g]) => {
+                const totalStock = g.productIds.reduce((sum, pid) => sum + (aggMap[pid]?.total ?? 0), 0);
+                return { key, series: g.series, warranty_type: g.warranty_type, productIds: g.productIds, totalStock };
+              })
+              .sort((a, b) => a.series.localeCompare(b.series));
+
+            setSeriesGroups(groups);
           }
         } else {
-          // Build series+warranty groups and filter out those already in catalog
-          const { data: existingCats } = await db.from("catalog_products").select("catalog_series, catalog_warranty_type");
+          // Add mode: exclude combos already in catalog
           const existingKeys = new Set(
-            (existingCats ?? [])
-              .filter((c: { catalog_series: string | null }) => c.catalog_series)
-              .map((c: { catalog_series: string; catalog_warranty_type: string }) => `${c.catalog_series}||${c.catalog_warranty_type}`)
+            existingCatsList
+              .filter((c) => c.catalog_series)
+              .map((c) => `${c.catalog_series}||${c.catalog_warranty_type}`)
           );
 
-          // Group masters by series+warranty_type
-          const groupMap: Record<string, { series: string; warranty_type: string; productIds: string[] }> = {};
-          for (const m of masters) {
-            const key = `${m.series}||${m.warranty_type}`;
-            if (!groupMap[key]) groupMap[key] = { series: m.series, warranty_type: m.warranty_type, productIds: [] };
-            groupMap[key].productIds.push(m.id);
-          }
-
-          // Filter: not in catalog + has stock
           const groups = Object.entries(groupMap)
-            .filter(([key, g]) => {
-              if (existingKeys.has(key)) return false;
-              return g.productIds.some(pid => aggMap[pid] && aggMap[pid].total > 0);
-            })
+            .filter(([key]) => !existingKeys.has(key))
             .map(([key, g]) => {
               const totalStock = g.productIds.reduce((sum, pid) => sum + (aggMap[pid]?.total ?? 0), 0);
               return { key, series: g.series, warranty_type: g.warranty_type, productIds: g.productIds, totalStock };
@@ -374,28 +396,19 @@ export default function KatalogFormPage() {
   const selectedAgg = stockAgg.find(a => a.product_id === selectedId);
   const selectedGroupData = seriesGroups.find(g => g.key === selectedGroup);
 
-  // Auto-fill display name when group is selected (add mode)
+  // Auto-fill display name when group is selected (both add & edit)
   useEffect(() => {
-    if (!isEdit && selectedGroupData) {
-      const name = `${selectedGroupData.series} ${WARRANTY_LABELS[selectedGroupData.warranty_type] ?? selectedGroupData.warranty_type}`;
+    if (selectedGroupData && Object.keys(warrantyLabelsMap).length > 0) {
+      const name = `${selectedGroupData.series} ${warrantyLabelsMap[selectedGroupData.warranty_type] ?? selectedGroupData.warranty_type}`;
       setDisplayName(name);
       // Pick first product id from group as representative
       setSelectedId(selectedGroupData.productIds[0] ?? "");
       if (!slugEdited) {
         const warranty = selectedGroupData.warranty_type.replace(/_/g, "-");
-        const suffix = (selectedGroupData.productIds[0] ?? "").slice(0, 6);
-        setSlug(generateSlug(`${selectedGroupData.series} ${warranty}`, suffix));
+        setSlug(generateSlug(`${selectedGroupData.series} ${warranty}`));
       }
     }
-  }, [selectedGroup, selectedGroupData, isEdit, slugEdited]);
-
-  useEffect(() => {
-    if (!slugEdited && displayName && !isEdit && selectedGroupData) {
-      const warranty = selectedGroupData.warranty_type.replace(/_/g, "-");
-      const suffix = (selectedGroupData.productIds[0] ?? "").slice(0, 6);
-      setSlug(generateSlug(`${displayName} ${warranty}`, suffix));
-    }
-  }, [displayName, slugEdited, isEdit, selectedGroupData]);
+  }, [selectedGroup, selectedGroupData, warrantyLabelsMap, slugEdited]);
 
   // Bonus item handlers
   function addBonus() {
@@ -430,7 +443,7 @@ export default function KatalogFormPage() {
   }
 
   async function handleSave() {
-    if (!selectedGroup && !isEdit) {
+    if (!selectedGroup) {
       toast({ title: "Pilih seri produk terlebih dahulu", variant: "destructive" }); return;
     }
     if (!displayName.trim()) {
@@ -482,10 +495,12 @@ export default function KatalogFormPage() {
       discount_end_at: discountActive && discountEndAt ? new Date(discountEndAt).toISOString() : null,
     };
 
+    // Always update series/type info from the selected group
+    payload.product_id = selectedId || null;
+    payload.catalog_series = selectedGroupData?.series ?? null;
+    payload.catalog_warranty_type = selectedGroupData?.warranty_type ?? null;
+
     if (!isEdit) {
-      payload.product_id = selectedId || null;
-      payload.catalog_series = selectedGroupData?.series ?? null;
-      payload.catalog_warranty_type = selectedGroupData?.warranty_type ?? null;
       payload.catalog_status = "draft";
       payload.price_strategy = "min_price";
       payload.created_by = user?.id;
@@ -568,37 +583,35 @@ export default function KatalogFormPage() {
           </div>
         </div>
 
-        {/* Section: Pilih Seri Produk (add only) */}
-        {!isEdit && (
-          <Section title="Seri Produk">
-            {seriesGroups.length === 0 ? (
-              <div className="rounded-lg bg-muted/50 border border-border p-3 text-sm text-muted-foreground flex items-center gap-2">
-                <Package className="w-4 h-4 shrink-0" />
-                Semua seri produk dengan stok tersedia sudah masuk katalog.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih seri produk yang belum ada di katalog…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {seriesGroups.map(g => (
-                      <SelectItem key={g.key} value={g.key}>
-                        {g.series} — {WARRANTY_LABELS[g.warranty_type] ?? g.warranty_type} · {g.totalStock} unit
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedGroupData && (
-                  <p className="text-xs text-muted-foreground px-1">
-                    {selectedGroupData.productIds.length} varian (warna/kapasitas) · Total {selectedGroupData.totalStock} unit tersedia
-                  </p>
-                )}
-              </div>
-            )}
-          </Section>
-        )}
+        {/* Section: Pilih Seri Produk (both add & edit) */}
+        <Section title="Seri Produk">
+          {seriesGroups.length === 0 ? (
+            <div className="rounded-lg bg-muted/50 border border-border p-3 text-sm text-muted-foreground flex items-center gap-2">
+              <Package className="w-4 h-4 shrink-0" />
+              {isEdit ? "Tidak ada kombinasi seri & tipe lain yang tersedia." : "Semua seri produk sudah masuk katalog."}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih kombinasi seri & tipe iPhone…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seriesGroups.map(g => (
+                    <SelectItem key={g.key} value={g.key}>
+                      {g.series} — {warrantyLabelsMap[g.warranty_type] ?? g.warranty_type} · {g.totalStock} unit
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedGroupData && (
+                <p className="text-xs text-muted-foreground px-1">
+                  {selectedGroupData.productIds.length} varian (warna/kapasitas) · Total {selectedGroupData.totalStock} unit tersedia
+                </p>
+              )}
+            </div>
+          )}
+        </Section>
 
         {/* Tabbed content */}
         <Tabs defaultValue="info" className="w-full">
@@ -621,9 +634,9 @@ export default function KatalogFormPage() {
           <TabsContent value="info" className="space-y-6 mt-4">
             <Section title="Informasi Tampilan">
               <div className="space-y-4">
-                <Field label="Nama Tampilan" hint="Nama yang dilihat sales dan pelanggan." required>
-                  <Input value={displayName} onChange={e => setDisplayName(e.target.value)}
-                    placeholder="Contoh: iPhone 15 Pro Max 256GB Natural Titanium Resmi BC" />
+                <Field label="Nama Tampilan" hint="Otomatis dari kombinasi Seri & Tipe yang dipilih." required>
+                  <Input value={displayName} readOnly className="bg-muted"
+                    placeholder="Pilih seri produk di atas terlebih dahulu" />
                 </Field>
                 <Field label="Slug URL" hint="URL halaman detail produk.">
                   <div className="flex items-center">
@@ -865,7 +878,7 @@ export default function KatalogFormPage() {
           <Button variant="outline" onClick={() => navigate("/admin/katalog")} className="ml-auto">
             Batal
           </Button>
-          <Button onClick={handleSave} disabled={saving || (!isEdit && !selectedGroup)}>
+          <Button onClick={handleSave} disabled={saving || !selectedGroup}>
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
             {isEdit ? "Simpan Perubahan" : "Tambah ke Katalog"}
           </Button>
