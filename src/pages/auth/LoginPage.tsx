@@ -68,6 +68,15 @@ export default function LoginPage() {
       .single();
 
     const status = profile?.status;
+
+    // Log login activity
+    await logActivity({
+      action: "login",
+      actor_id: authData.user.id,
+      actor_email: authData.user.email,
+      metadata: { status },
+    });
+
     if (status === "pending") {
       navigate("/waiting-approval", { replace: true });
     } else if (status === "suspended") {

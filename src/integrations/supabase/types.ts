@@ -50,6 +50,42 @@ export type Database = {
         }
         Relationships: []
       }
+      catalog_discount_codes: {
+        Row: {
+          catalog_product_id: string
+          created_at: string
+          discount_code_id: string
+          id: string
+        }
+        Insert: {
+          catalog_product_id: string
+          created_at?: string
+          discount_code_id: string
+          id?: string
+        }
+        Update: {
+          catalog_product_id?: string
+          created_at?: string
+          discount_code_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_discount_codes_catalog_product_id_fkey"
+            columns: ["catalog_product_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_discount_codes_discount_code_id_fkey"
+            columns: ["discount_code_id"]
+            isOneToOne: false
+            referencedRelation: "discount_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalog_products: {
         Row: {
           catalog_status: Database["public"]["Enums"]["catalog_status"]
@@ -129,6 +165,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      discount_codes: {
+        Row: {
+          applicable_product_ids: Json | null
+          applies_to_all: boolean
+          buy_quantity: number | null
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discount_amount: number | null
+          discount_percent: number | null
+          discount_type: Database["public"]["Enums"]["discount_type"]
+          get_quantity: number | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          max_uses_per_user: number | null
+          min_purchase_amount: number | null
+          name: string
+          updated_at: string
+          used_count: number
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          applicable_product_ids?: Json | null
+          applies_to_all?: boolean
+          buy_quantity?: number | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          discount_type?: Database["public"]["Enums"]["discount_type"]
+          get_quantity?: number | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          max_uses_per_user?: number | null
+          min_purchase_amount?: number | null
+          name: string
+          updated_at?: string
+          used_count?: number
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          applicable_product_ids?: Json | null
+          applies_to_all?: boolean
+          buy_quantity?: number | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
+          discount_type?: Database["public"]["Enums"]["discount_type"]
+          get_quantity?: number | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          max_uses_per_user?: number | null
+          min_purchase_amount?: number | null
+          name?: string
+          updated_at?: string
+          used_count?: number
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: []
       }
       master_products: {
         Row: {
@@ -713,6 +821,12 @@ export type Database = {
       app_role: "super_admin" | "admin"
       catalog_status: "draft" | "published" | "unpublished"
       condition_status: "no_minus" | "minus"
+      discount_type:
+        | "percentage"
+        | "fixed_amount"
+        | "buy_x_get_y"
+        | "min_purchase"
+        | "flash_sale"
       price_strategy: "min_price" | "avg_price" | "fixed"
       product_category: "iphone" | "ipad" | "accessory"
       sold_channel: "pos" | "ecommerce" | "manual"
@@ -856,6 +970,13 @@ export const Constants = {
       app_role: ["super_admin", "admin"],
       catalog_status: ["draft", "published", "unpublished"],
       condition_status: ["no_minus", "minus"],
+      discount_type: [
+        "percentage",
+        "fixed_amount",
+        "buy_x_get_y",
+        "min_purchase",
+        "flash_sale",
+      ],
       price_strategy: ["min_price", "avg_price", "fixed"],
       product_category: ["iphone", "ipad", "accessory"],
       sold_channel: ["pos", "ecommerce", "manual"],

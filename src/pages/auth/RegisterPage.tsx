@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, ArrowRight, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { logActivity } from "@/lib/activity-log";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,6 +73,12 @@ export default function RegisterPage() {
       }
       return;
     }
+    // Log registration (fire-and-forget)
+    await logActivity({
+      action: "register",
+      actor_email: data.email,
+      metadata: { full_name: data.full_name },
+    });
     setDone(true);
   };
 
