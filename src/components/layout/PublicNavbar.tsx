@@ -74,21 +74,30 @@ export function PublicNavbar() {
     <>
       {/* ── Floating wrapper ── */}
       <header
-        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-out"
-        style={{ paddingTop: scrolled ? "0.5rem" : "0", paddingBottom: scrolled ? "0" : "0" }}
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-out",
+          scrolled && "md:pt-2"
+        )}
       >
         <div
           className={cn(
-            "transition-all duration-300 ease-out",
-            scrolled
-              ? "md:mx-auto md:max-w-2xl md:rounded-2xl bg-background/95 md:bg-white/90 backdrop-blur-xl md:shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-b md:border border-border md:border-border/60"
-              : "bg-background/95 backdrop-blur-sm border-b border-border"
+            "transition-all duration-300 ease-out bg-background/95 backdrop-blur-sm border-b border-border",
+            scrolled && "md:mx-auto md:max-w-2xl md:rounded-2xl md:bg-white/90 md:backdrop-blur-xl md:shadow-[0_8px_32px_rgba(0,0,0,0.12)] md:border md:border-border/60"
           )}
         >
           <div className="max-w-6xl mx-auto px-5 h-16 flex items-center">
             {/* Logo */}
             <Link to="/" className="flex items-center shrink-0 mr-8">
-              <img src={scrolled ? logoIcon : logoHorizontal} alt="Ivalora" className={scrolled ? "h-8 w-auto" : "h-7 w-auto"} />
+              <img
+                src={logoHorizontal}
+                alt="Ivalora"
+                className={cn("h-7 w-auto", scrolled && "md:hidden")}
+              />
+              <img
+                src={scrolled ? logoIcon : logoHorizontal}
+                alt="Ivalora"
+                className={cn("h-7 w-auto hidden", scrolled ? "md:block md:h-8" : "md:block")}
+              />
             </Link>
 
             {/* Nav links — centered */}
