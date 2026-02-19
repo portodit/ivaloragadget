@@ -63,6 +63,7 @@ const App = () => (
             {/* ── Admin auth routes (/admin/...) ─────────────────── */}
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin/register" element={<AdminRegisterPage />} />
+            <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/waiting-approval" element={<WaitingApprovalPage />} />
 
             {/* ── Protected dashboard routes (/dashboard/...) ────── */}

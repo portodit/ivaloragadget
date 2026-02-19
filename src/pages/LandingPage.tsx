@@ -298,7 +298,7 @@ export default function LandingPage() {
           style={{ background: "linear-gradient(0deg, hsl(0 0% 3% / 0.8) 0%, transparent 100%)" }} />
 
         <div className="max-w-6xl mx-auto px-6 w-full py-28 relative z-10">
-          <div className="max-w-xl space-y-8">
+          <div className="max-w-2xl space-y-8">
             {/* Tag */}
             <div
               className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-widest"
