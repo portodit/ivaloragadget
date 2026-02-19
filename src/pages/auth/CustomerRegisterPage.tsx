@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff, ArrowRight, Check, Mail, ShoppingBag } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Check, Mail, ShoppingBag, RefreshCw, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +26,19 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const RESEND_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
+
 export default function CustomerRegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [resending, setResending] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [resendSuccess, setResendSuccess] = useState(false);
+  // Store last resend time in state (also persisted via DB)
+  const [lastResendAt, setLastResendAt] = useState<Date | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -59,10 +66,77 @@ export default function CustomerRegisterPage() {
     }
 
     setRegisteredEmail(data.email);
+    setLastResendAt(new Date()); // treat initial signup as first send
     setDone(true);
   };
 
+  const canResend = !lastResendAt || (Date.now() - lastResendAt.getTime() >= RESEND_COOLDOWN_MS);
+
+  const getNextResendTime = () => {
+    if (!lastResendAt) return null;
+    const nextTime = new Date(lastResendAt.getTime() + RESEND_COOLDOWN_MS);
+    const diffMs = nextTime.getTime() - Date.now();
+    if (diffMs <= 0) return null;
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 0) return `${hours} jam ${minutes} menit`;
+    return `${minutes} menit`;
+  };
+
+  const handleResend = async () => {
+    if (!canResend) return;
+    setResending(true);
+    setResendError(null);
+    setResendSuccess(false);
+
+    // Check DB cooldown via user_profiles
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("last_resend_at")
+      .eq("email", registeredEmail)
+      .maybeSingle();
+
+    if (profile?.last_resend_at) {
+      const dbLastResend = new Date(profile.last_resend_at);
+      if (Date.now() - dbLastResend.getTime() < RESEND_COOLDOWN_MS) {
+        const elapsed = Date.now() - dbLastResend.getTime();
+        const remainingMs = RESEND_COOLDOWN_MS - elapsed;
+        const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+        const minutes = Math.ceil((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+        const timeStr = hours > 0 ? `${hours} jam ${minutes} menit` : `${minutes} menit`;
+        setResendError(`Pengiriman ulang dibatasi. Coba lagi dalam ${timeStr}.`);
+        setLastResendAt(dbLastResend);
+        setResending(false);
+        return;
+      }
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: registeredEmail,
+      options: { emailRedirectTo: `${window.location.origin}/login` },
+    });
+
+    if (error) {
+      setResendError(error.message);
+    } else {
+      const now = new Date();
+      setLastResendAt(now);
+      setResendSuccess(true);
+
+      // Update last_resend_at in DB
+      await supabase
+        .from("user_profiles")
+        .update({ last_resend_at: now.toISOString() })
+        .eq("email", registeredEmail);
+    }
+
+    setResending(false);
+  };
+
   if (done) {
+    const waitTime = getNextResendTime();
+
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <div className="border-b border-border px-6 py-4">
@@ -78,7 +152,8 @@ export default function CustomerRegisterPage() {
             <div className="space-y-2">
               <h2 className="text-2xl font-bold">Verifikasi Email</h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Link verifikasi telah dikirim ke <span className="font-semibold text-foreground">{registeredEmail}</span>.
+                Link verifikasi telah dikirim ke{" "}
+                <span className="font-semibold text-foreground">{registeredEmail}</span>.
                 Klik link tersebut untuk mengaktifkan akun dan mulai berbelanja.
               </p>
             </div>
@@ -89,6 +164,42 @@ export default function CustomerRegisterPage() {
                 <p className="text-xs text-muted-foreground mt-0.5">Jika tidak masuk inbox, cek folder spam/junk email Anda.</p>
               </div>
             </div>
+
+            {/* Resend section */}
+            <div className="space-y-2">
+              {resendSuccess && (
+                <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground text-left flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  Email verifikasi berhasil dikirim ulang!
+                </div>
+              )}
+              {resendError && (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive text-left">
+                  {resendError}
+                </div>
+              )}
+              {!canResend && waitTime && (
+                <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                  <Clock className="w-3.5 h-3.5" />
+                  Kirim ulang tersedia dalam {waitTime}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                onClick={handleResend}
+                disabled={resending || !canResend}
+              >
+                {resending ? (
+                  <div className="w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
+                Kirim Ulang Email Verifikasi
+              </Button>
+            </div>
+
             <Link to="/login" className="block text-sm font-semibold text-foreground hover:underline underline-offset-4">
               Kembali ke halaman login
             </Link>

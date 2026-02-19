@@ -46,6 +46,14 @@ export function PublicNavbar() {
           >
             Masuk
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate("/admin/login")}
+            className="hidden md:flex"
+          >
+            Admin
+          </Button>
           <button
             className="md:hidden p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground"
             onClick={() => setMobileOpen(!mobileOpen)}
@@ -68,9 +76,12 @@ export function PublicNavbar() {
               {l.label}
             </Link>
           ))}
-          <div className="pt-2 border-t border-border mt-2">
+          <div className="pt-2 border-t border-border mt-2 flex flex-col gap-2">
             <Button className="w-full" onClick={() => { setMobileOpen(false); navigate("/login"); }}>
               Masuk
+            </Button>
+            <Button variant="outline" className="w-full" onClick={() => { setMobileOpen(false); navigate("/admin/login"); }}>
+              Admin
             </Button>
           </div>
         </div>

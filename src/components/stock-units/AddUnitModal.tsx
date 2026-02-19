@@ -18,7 +18,7 @@ const schema = z.object({
   imei: z.string().min(14, "IMEI minimal 14 karakter").max(17, "IMEI maksimal 17 karakter"),
   condition_status: z.enum(["no_minus", "minus"]),
   minus_description: z.string().optional(),
-  selling_price: z.string().min(1, "Masukkan harga jual"),
+  selling_price: z.string().optional(),
   cost_price: z.string().optional(),
   stock_status: z.enum(["available", "coming_soon"]),
   received_at: z.string().min(1, "Masukkan tanggal masuk"),
@@ -198,9 +198,10 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
 
           {/* Harga Jual */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Harga Jual</Label>
+            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Harga Jual <span className="text-muted-foreground/50 normal-case font-normal">(opsional)</span>
+            </Label>
             <Input {...register("selling_price")} placeholder="Masukkan harga jual (contoh: 5000000)" className="h-10" />
-            {errors.selling_price && <p className="text-xs text-destructive">{errors.selling_price.message}</p>}
           </div>
 
           {/* Harga Modal (super admin only field — always shown, RLS protects it) */}

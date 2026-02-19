@@ -22,7 +22,7 @@ import {
   Archive, RefreshCw, ImageOff, Star, Tag, AlertCircle,
   ExternalLink, Globe, ShoppingCart, Store, X, Upload,
   Ticket, Percent, DollarSign, Trash2, ChevronRight,
-  Package, Camera,
+  Package, Camera, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -87,6 +87,23 @@ interface DiscountCode {
   valid_until: string | null;
   applies_to_all: boolean;
   is_active: boolean;
+}
+
+interface BonusProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  sort_order: number;
+  is_active: boolean;
+}
+
+// bonus_items JSON shape stored in catalog_products
+interface BonusItem {
+  id: string;
+  name: string;
+  icon: string | null;
+  qty: number;
 }
 
 type ViewMode = "grid" | "table";
@@ -689,15 +706,36 @@ function AddCatalogModal({ masterProducts, stockAgg, onClose, onSaved, user, rol
   const [highlight, setHighlight] = useState(false);
   const [showCondition, setShowCondition] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Bonus products
+  const [bonusProducts, setBonusProducts] = useState<BonusProduct[]>([]);
+  const [selectedBonus, setSelectedBonus] = useState<BonusItem[]>([]);
+  const [bonusSearch, setBonusSearch] = useState("");
 
   const selectedMaster = masterProducts.find(m => m.id === selectedId);
   const selectedAgg = stockAgg.find(a => a.product_id === selectedId);
+
+  useEffect(() => {
+    db.from("bonus_products").select("*").eq("is_active", true).order("sort_order")
+      .then(({ data }) => setBonusProducts(data ?? []));
+  }, []);
 
   useEffect(() => {
     if (selectedMaster) {
       setDisplayName(`${selectedMaster.series} ${selectedMaster.storage_gb}GB ${selectedMaster.color}`);
     }
   }, [selectedId, selectedMaster]);
+
+  const filteredBonus = bonusProducts.filter(b =>
+    b.name.toLowerCase().includes(bonusSearch.toLowerCase())
+  );
+
+  function toggleBonus(b: BonusProduct) {
+    setSelectedBonus(prev => {
+      const exists = prev.find(i => i.id === b.id);
+      if (exists) return prev.filter(i => i.id !== b.id);
+      return [...prev, { id: b.id, name: b.name, icon: b.icon, qty: 1 }];
+    });
+  }
 
   async function handleSave() {
     if (!selectedId || !displayName.trim()) {
@@ -722,6 +760,7 @@ function AddCatalogModal({ masterProducts, stockAgg, onClose, onSaved, user, rol
       highlight_product: highlight,
       promo_label: promoLabel.trim() || null,
       show_condition_breakdown: showCondition,
+      bonus_items: selectedBonus.length > 0 ? selectedBonus : [],
       created_by: user?.id,
       updated_by: user?.id,
     });
@@ -862,6 +901,65 @@ function AddCatalogModal({ masterProducts, stockAgg, onClose, onSaved, user, rol
             </div>
           </div>
 
+          {/* Bonus Products */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Bonus Produk <span className="text-muted-foreground font-normal normal-case">(opsional — hadiah gratis untuk pembeli)</span>
+            </label>
+            {selectedBonus.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {selectedBonus.map(b => (
+                  <span key={b.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-foreground/5 border border-border text-xs font-medium text-foreground">
+                    {b.icon && <span>{b.icon}</span>}
+                    {b.name}
+                    <button type="button" onClick={() => toggleBonus({ id: b.id, name: b.name, icon: b.icon, is_active: true, description: null, sort_order: 0 })} className="ml-0.5 text-muted-foreground hover:text-destructive">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Cari bonus produk..."
+                value={bonusSearch}
+                onChange={e => setBonusSearch(e.target.value)}
+                className="h-9 pl-8 text-sm"
+              />
+            </div>
+            <div className="border border-border rounded-lg max-h-40 overflow-y-auto divide-y divide-border">
+              {filteredBonus.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-muted-foreground">Tidak ada bonus produk ditemukan</div>
+              ) : filteredBonus.map(b => {
+                const isSelected = selectedBonus.some(i => i.id === b.id);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => toggleBonus(b)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors hover:bg-accent",
+                      isSelected && "bg-foreground/5"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                      isSelected ? "border-foreground bg-foreground" : "border-border"
+                    )}>
+                      {isSelected && <Check className="w-2.5 h-2.5 text-background" strokeWidth={3} />}
+                    </div>
+                    {b.icon && <span className="text-base leading-none">{b.icon}</span>}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground truncate">{b.name}</p>
+                      {b.description && <p className="text-xs text-muted-foreground truncate">{b.description}</p>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Options */}
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={() => setHighlight(!highlight)}
@@ -921,6 +1019,30 @@ function EditCatalogModal({ item, agg, isSuperAdmin, onClose, onSaved, onDelete,
   const [highlight, setHighlight] = useState(item.highlight_product);
   const [showCondition, setShowCondition] = useState(item.show_condition_breakdown);
   const [saving, setSaving] = useState(false);
+  // Bonus products
+  const [bonusProducts, setBonusProducts] = useState<BonusProduct[]>([]);
+  const [selectedBonus, setSelectedBonus] = useState<BonusItem[]>(() => {
+    const existing = (item as { bonus_items?: BonusItem[] }).bonus_items;
+    return Array.isArray(existing) ? existing : [];
+  });
+  const [bonusSearch, setBonusSearch] = useState("");
+
+  useEffect(() => {
+    db.from("bonus_products").select("*").eq("is_active", true).order("sort_order")
+      .then(({ data }) => setBonusProducts(data ?? []));
+  }, []);
+
+  const filteredBonus = bonusProducts.filter(b =>
+    b.name.toLowerCase().includes(bonusSearch.toLowerCase())
+  );
+
+  function toggleBonus(b: BonusProduct) {
+    setSelectedBonus(prev => {
+      const exists = prev.find(i => i.id === b.id);
+      if (exists) return prev.filter(i => i.id !== b.id);
+      return [...prev, { id: b.id, name: b.name, icon: b.icon, qty: 1 }];
+    });
+  }
 
   async function handleSave() {
     if (!displayName.trim()) {
@@ -940,6 +1062,7 @@ function EditCatalogModal({ item, agg, isSuperAdmin, onClose, onSaved, onDelete,
       highlight_product: isSuperAdmin ? highlight : item.highlight_product,
       promo_label: isSuperAdmin ? (promoLabel.trim() || null) : item.promo_label,
       show_condition_breakdown: showCondition,
+      bonus_items: selectedBonus,
       updated_by: user?.id,
     }).eq("id", item.id);
     setSaving(false);
@@ -1034,6 +1157,65 @@ function EditCatalogModal({ item, agg, isSuperAdmin, onClose, onSaved, onDelete,
                   {ch.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Bonus Products */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Bonus Produk <span className="text-muted-foreground font-normal normal-case">(opsional — hadiah gratis untuk pembeli)</span>
+            </label>
+            {selectedBonus.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {selectedBonus.map(b => (
+                  <span key={b.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-foreground/5 border border-border text-xs font-medium text-foreground">
+                    {b.icon && <span>{b.icon}</span>}
+                    {b.name}
+                    <button type="button" onClick={() => toggleBonus({ id: b.id, name: b.name, icon: b.icon, is_active: true, description: null, sort_order: 0 })} className="ml-0.5 text-muted-foreground hover:text-destructive">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Cari bonus produk..."
+                value={bonusSearch}
+                onChange={e => setBonusSearch(e.target.value)}
+                className="h-9 pl-8 text-sm"
+              />
+            </div>
+            <div className="border border-border rounded-lg max-h-40 overflow-y-auto divide-y divide-border">
+              {filteredBonus.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-muted-foreground">Tidak ada bonus produk ditemukan</div>
+              ) : filteredBonus.map(b => {
+                const isSelected = selectedBonus.some(i => i.id === b.id);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => toggleBonus(b)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 text-sm text-left transition-colors hover:bg-accent",
+                      isSelected && "bg-foreground/5"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                      isSelected ? "border-foreground bg-foreground" : "border-border"
+                    )}>
+                      {isSelected && <Check className="w-2.5 h-2.5 text-background" strokeWidth={3} />}
+                    </div>
+                    {b.icon && <span className="text-base leading-none">{b.icon}</span>}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground truncate">{b.name}</p>
+                      {b.description && <p className="text-xs text-muted-foreground truncate">{b.description}</p>}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
