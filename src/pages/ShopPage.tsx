@@ -313,18 +313,13 @@ export default function ShopPage() {
                       {/* Badges */}
                       <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
                         {item.highlight_product && (
-                          <span className="inline-flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500 text-white whitespace-nowrap">
-                            <Star className="w-2.5 h-2.5 fill-current shrink-0" /> Unggulan
+                          <span className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500 text-white whitespace-nowrap">
+                            <Star className="w-3 h-3 fill-current shrink-0" /> Unggulan
                           </span>
                         )}
                         {item.free_shipping && (
-                          <span className="inline-flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-green-500 text-white whitespace-nowrap">
-                            <Truck className="w-2.5 h-2.5 shrink-0" /> Gratis Ongkir
-                          </span>
-                        )}
-                        {item.promo_label && (
-                          <span className="inline-flex items-center justify-center text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-600 text-white whitespace-nowrap">
-                            <Tag className="w-2.5 h-2.5 shrink-0 mr-0.5" /> {item.promo_label}
+                          <span className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-green-500 text-white whitespace-nowrap">
+                            <Truck className="w-3 h-3 shrink-0" /> Gratis Ongkir
                           </span>
                         )}
                       </div>

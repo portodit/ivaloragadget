@@ -50,6 +50,7 @@ function ImageUploadBox({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -59,16 +60,40 @@ function ImageUploadBox({
     if (url) onChange(url);
   }
 
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) handleFile(file);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  }
+
   return (
     <div className="space-y-1">
       {label && <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>}
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
       <div
         className={cn(
-          "relative border-2 border-dashed border-border rounded-xl overflow-hidden bg-muted/30 flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors",
-          aspect
+          "relative border-2 border-dashed rounded-xl overflow-hidden bg-muted/30 flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors",
+          aspect,
+          dragOver ? "border-foreground bg-accent/50" : "border-border"
         )}
         onClick={() => fileRef.current?.click()}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
       >
         {value ? (
           <>
@@ -88,7 +113,7 @@ function ImageUploadBox({
             ) : (
               <>
                 <Camera className="w-6 h-6" />
-                <span className="text-[11px]">Klik untuk upload</span>
+                <span className="text-[11px]">{dragOver ? "Lepas untuk upload" : "Klik atau seret gambar"}</span>
               </>
             )}
           </div>
@@ -554,20 +579,12 @@ export default function KatalogFormPage() {
                       placeholder="iphone-15-pro-max-256gb-resmi-bc-abc123" className="rounded-l-none" />
                   </div>
                 </Field>
-                <Field label="Deskripsi Singkat" hint="Tagline pendek di kartu produk (maks. 120 karakter).">
-                  <Input value={shortDesc} onChange={e => setShortDesc(e.target.value)} maxLength={120}
-                    placeholder="Contoh: Unit mulus fullset, garansi Apple aktif." />
-                </Field>
-                <Field label="Deskripsi Lengkap" hint="Tampil di halaman detail produk.">
-                  <Textarea value={fullDesc} onChange={e => setFullDesc(e.target.value)}
-                    className="min-h-[120px] resize-none" placeholder="Tuliskan detail produk…" />
-                </Field>
               </div>
             </Section>
 
             <Section title="Foto & Media">
               <div className="space-y-4">
-                <ImageUploadBox label="Foto Utama" hint="Ukuran ideal: 800×600 px."
+                <ImageUploadBox label="Foto Utama" hint="Ukuran ideal: 800×600 px. Seret atau klik untuk upload."
                   value={thumbnail} onChange={setThumbnail} aspect="aspect-[4/3]" />
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
@@ -584,16 +601,8 @@ export default function KatalogFormPage() {
               </div>
             </Section>
 
-            <Section title="Label & Promosi">
+            <Section title="Opsi Tampilan">
               <div className="space-y-4">
-                <Field label="Label Promo" hint="Badge merah kecil di kartu produk (maks. 30 karakter).">
-                  <Input value={promoLabel} onChange={e => setPromoLabel(e.target.value)} maxLength={30}
-                    placeholder="Contoh: PROMO LEBARAN, BEST SELLER" />
-                </Field>
-                <Field label="Badge Tambahan" hint="Badge sekunder (maks. 30 karakter).">
-                  <Input value={promoLabel2} onChange={e => setPromoLabel2(e.target.value)} maxLength={30}
-                    placeholder="Contoh: QC VERIFIED, FULLSET" />
-                </Field>
                 <div className="flex items-center justify-between p-3 rounded-xl border border-border">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Truck className="w-4 h-4 text-muted-foreground" />
