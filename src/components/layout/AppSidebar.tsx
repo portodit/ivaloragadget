@@ -15,8 +15,6 @@ import {
   ChevronRight,
   X,
   Users,
-  UserCheck,
-  Shield,
   Activity,
   Zap,
 } from "lucide-react";
@@ -33,14 +31,7 @@ type NavItem =
 // ── Nav items per role ─────────────────────────────────────────────────────────
 const superAdminNavItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  {
-    title: "Manajemen Admin",
-    icon: Users,
-    children: [
-      { title: "Daftar Admin", url: "/manajemen-admin/daftar", icon: UserCheck },
-      { title: "Approval Admin", url: "/manajemen-admin/approval", icon: Shield },
-    ],
-  },
+  { title: "Manajemen Admin", url: "/manajemen-admin/daftar", icon: Users },
   {
     title: "Produk & Inventory",
     icon: Package,
