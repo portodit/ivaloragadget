@@ -7,10 +7,15 @@ import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import {
   ChevronRight, Shield, CheckCircle2, Truck, MessageCircle,
   Share2, Package, Star, ExternalLink,
-  ImageOff, BadgeCheck, Zap,
+  ImageOff, BadgeCheck, Zap, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/contexts/LocaleContext";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface MasterProduct {
@@ -42,6 +47,7 @@ interface CatalogProduct {
   promo_label: string | null;
   promo_badge: string | null;
   free_shipping: boolean;
+  is_flash_sale: boolean;
   bonus_items: BonusItem[];
   master_products: MasterProduct;
   spec_condition: string | null;
@@ -181,11 +187,13 @@ export default function ProductDetailPage() {
 
   const [catalog, setCatalog] = useState<CatalogProduct | null>(null);
   const [units, setUnits] = useState<StockUnit[]>([]);
-  const [allSiblings, setAllSiblings] = useState<SiblingCatalog[]>([]); // same series, all warranty types
+  const [allSiblings, setAllSiblings] = useState<SiblingCatalog[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [activeImg, setActiveImg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"detail" | "kondisi" | "rating" | "garansi" | "pengiriman">("detail");
+  const [flashSaleSettings, setFlashSaleSettings] = useState<{ is_active: boolean; start_time: string; duration_hours: number } | null>(null);
+  const [showFlashSalePopup, setShowFlashSalePopup] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -224,6 +232,15 @@ export default function ProductDetailPage() {
           });
           setAllSiblings(sibs);
         }
+      }
+
+      // Fetch flash sale settings if product is flash sale
+      if (data.is_flash_sale) {
+        const { data: fsData } = await db.from("flash_sale_settings")
+          .select("is_active, start_time, duration_hours")
+          .limit(1)
+          .single();
+        if (fsData) setFlashSaleSettings(fsData);
       }
 
       setLoading(false);
@@ -578,12 +595,50 @@ export default function ProductDetailPage() {
                     </span>
                   </div>
                 )}
+                {/* Flash sale not yet started indicator */}
+                {(() => {
+                  const isFlashNotStarted = catalog?.is_flash_sale && flashSaleSettings?.is_active && 
+                    new Date(flashSaleSettings.start_time).getTime() > Date.now();
+                  if (isFlashNotStarted) {
+                    const startAt = new Date(flashSaleSettings!.start_time);
+                    return (
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+                        <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+                        <div className="text-xs">
+                          <p className="font-semibold text-amber-700 dark:text-amber-400">Flash Sale Segera Dimulai</p>
+                          <p className="text-amber-600 dark:text-amber-500 mt-0.5">
+                            {startAt.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })} pukul {startAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <div className="text-xl font-bold text-foreground">{formatRupiah(minPrice)}</div>
                 <div className="space-y-2">
-                  <button disabled className="w-full py-3 rounded-xl bg-muted text-muted-foreground text-sm font-semibold cursor-not-allowed border border-border">
+                  <button
+                    onClick={() => {
+                      if (catalog?.is_flash_sale && flashSaleSettings?.is_active && new Date(flashSaleSettings.start_time).getTime() > Date.now()) {
+                        setShowFlashSalePopup(true);
+                        return;
+                      }
+                    }}
+                    disabled={!catalog?.is_flash_sale || !flashSaleSettings?.is_active || new Date(flashSaleSettings?.start_time ?? 0).getTime() <= Date.now()}
+                    className="w-full py-3 rounded-xl bg-muted text-muted-foreground text-sm font-semibold cursor-not-allowed border border-border"
+                  >
                     + Keranjang
                   </button>
-                  <button disabled className="w-full py-3 rounded-xl border-2 border-foreground text-foreground text-sm font-semibold cursor-not-allowed opacity-50">
+                  <button
+                    onClick={() => {
+                      if (catalog?.is_flash_sale && flashSaleSettings?.is_active && new Date(flashSaleSettings.start_time).getTime() > Date.now()) {
+                        setShowFlashSalePopup(true);
+                        return;
+                      }
+                    }}
+                    disabled={!catalog?.is_flash_sale || !flashSaleSettings?.is_active || new Date(flashSaleSettings?.start_time ?? 0).getTime() <= Date.now()}
+                    className="w-full py-3 rounded-xl border-2 border-foreground text-foreground text-sm font-semibold cursor-not-allowed opacity-50"
+                  >
                     Beli Langsung
                   </button>
                 </div>
@@ -839,6 +894,50 @@ export default function ProductDetailPage() {
           <div className="pb-16" />
         </div>
       </div>
+
+      {/* Flash Sale Not Started Popup */}
+      <AlertDialog open={showFlashSalePopup} onOpenChange={setShowFlashSalePopup}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-500" />
+              Flash Sale Belum Dimulai
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              {flashSaleSettings && (() => {
+                const startAt = new Date(flashSaleSettings.start_time);
+                const diffMs = startAt.getTime() - Date.now();
+                const hours = Math.floor(diffMs / 3600000);
+                const minutes = Math.ceil((diffMs % 3600000) / 60000);
+                return (
+                  <>
+                    <p>
+                      Flash sale untuk produk ini belum dimulai. Harga spesial akan tersedia pada:
+                    </p>
+                    <div className="rounded-lg border border-border bg-muted/30 p-3 text-center">
+                      <p className="text-sm font-semibold text-foreground">
+                        {startAt.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                      </p>
+                      <p className="text-lg font-bold text-foreground mt-0.5">
+                        Pukul {startAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {hours > 0 ? `${hours} jam ${minutes} menit lagi` : `${minutes} menit lagi`}
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Kembali lagi nanti untuk mendapatkan harga flash sale yang spesial!
+                    </p>
+                  </>
+                );
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>Mengerti</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
