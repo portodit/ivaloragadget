@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { X, Package, Clock, TrendingDown, ShieldCheck, AlertTriangle } from "lucide-react";
+import { X, Package, Clock, TrendingDown, ShieldCheck, AlertTriangle, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { StockUnit, StockUnitLog, STOCK_STATUS_LABELS, VALID_TRANSITIONS, SOLD_CHANNEL_LABELS, formatCurrency, formatDate, StockStatus } from "@/lib/stock-units";
+import { StockUnit, StockUnitLog, STOCK_STATUS_LABELS, VALID_TRANSITIONS, SOLD_CHANNEL_LABELS, MINUS_SEVERITY_LABELS, formatCurrency, formatDate, StockStatus, SoldChannel } from "@/lib/stock-units";
 import { StockStatusBadge, ConditionBadge } from "./StockBadges";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,12 +20,19 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
   const { role } = useAuth();
   const [logs, setLogs] = useState<StockUnitLog[]>([]);
   const [newStatus, setNewStatus] = useState<StockStatus | "">("");
+  const [soldChannel, setSoldChannel] = useState<SoldChannel | "">("");
+  const [soldRefId, setSoldRefId] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const isSuperAdmin = role === "super_admin";
 
   useEffect(() => {
     if (!unit) return;
     setNewStatus("");
+    setSoldChannel("");
+    setSoldRefId("");
+    setConfirmDelete(false);
     supabase
       .from("stock_unit_logs")
       .select("*")
@@ -37,15 +45,31 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
   if (!unit) return null;
 
   const validTransitions = isSuperAdmin
-    ? Object.keys(STOCK_STATUS_LABELS) as StockStatus[] // super admin can do anything
+    ? Object.keys(STOCK_STATUS_LABELS) as StockStatus[]
     : VALID_TRANSITIONS[unit.stock_status];
+
+  const needsSoldChannel = newStatus === "sold";
+  const needsSoldRef = soldChannel === "ecommerce";
 
   const handleStatusUpdate = async () => {
     if (!newStatus || newStatus === unit.stock_status) return;
+    if (needsSoldChannel && !soldChannel) {
+      toast({ title: "Pilih channel penjualan", variant: "destructive" });
+      return;
+    }
+    if (needsSoldRef && !soldRefId.trim()) {
+      toast({ title: "Masukkan ID Transaksi e-commerce", variant: "destructive" });
+      return;
+    }
     setUpdating(true);
+    const updateData: Record<string, unknown> = { stock_status: newStatus };
+    if (needsSoldChannel) {
+      updateData.sold_channel = soldChannel;
+      if (needsSoldRef) updateData.sold_reference_id = soldRefId.trim();
+    }
     const { error } = await supabase
       .from("stock_units")
-      .update({ stock_status: newStatus } as never)
+      .update(updateData as never)
       .eq("id", unit.id);
     setUpdating(false);
     if (error) {
@@ -57,10 +81,24 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
     onClose();
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    const { error } = await supabase.from("stock_units").delete().eq("id", unit.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: "Gagal menghapus unit", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Unit berhasil dihapus" });
+    onUpdate();
+    onClose();
+  };
+
   const fieldLabel: Record<string, string> = {
     stock_status: "Status Stok",
     selling_price: "Harga Jual",
     condition_status: "Kondisi",
+    minus_severity: "Tingkat Minus",
   };
 
   return (
@@ -115,6 +153,12 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
                 <p className="text-xs text-muted-foreground mb-0.5">Tanggal Masuk</p>
                 <p className="text-sm text-foreground">{formatDate(unit.received_at)}</p>
               </div>
+              {unit.estimated_arrival_at && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-0.5">Est. Kedatangan</p>
+                  <p className="text-sm text-foreground">{formatDate(unit.estimated_arrival_at)}</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs text-muted-foreground mb-0.5">Perubahan Status</p>
                 <p className="text-sm text-foreground">{formatDate(unit.status_changed_at)}</p>
@@ -136,6 +180,11 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
               <div className="rounded-lg bg-[hsl(var(--status-minus-bg))] border border-[hsl(var(--status-minus))]/20 px-3 py-2">
                 <p className="text-xs text-[hsl(var(--status-minus-fg))] font-medium flex items-center gap-1 mb-0.5">
                   <AlertTriangle className="w-3 h-3" /> Deskripsi Minus
+                  {unit.minus_severity && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--status-minus))]/10">
+                      {MINUS_SEVERITY_LABELS[unit.minus_severity]}
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-foreground">{unit.minus_description}</p>
               </div>
@@ -148,7 +197,7 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
                 </div>
                 {unit.sold_reference_id && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Referensi</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">ID Transaksi</p>
                     <p className="text-sm text-foreground font-mono">{unit.sold_reference_id}</p>
                   </div>
                 )}
@@ -168,24 +217,77 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                 <ShieldCheck className="w-3 h-3" /> Ubah Status
               </p>
-              <div className="flex gap-2">
-                <Select value={newStatus} onValueChange={(v) => setNewStatus(v as StockStatus)}>
-                  <SelectTrigger className="h-9 flex-1">
-                    <SelectValue placeholder="Pilih status baru..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {validTransitions
-                      .filter((s) => s !== unit.stock_status)
-                      .map((s) => (
-                        <SelectItem key={s} value={s}>{STOCK_STATUS_LABELS[s]}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <Button size="sm" className="h-9" disabled={!newStatus || updating} onClick={handleStatusUpdate}>
-                  {updating ? <div className="w-3 h-3 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : "Terapkan"}
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Select value={newStatus} onValueChange={(v) => setNewStatus(v as StockStatus)}>
+                    <SelectTrigger className="h-9 flex-1">
+                      <SelectValue placeholder="Pilih status baru..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {validTransitions
+                        .filter((s) => s !== unit.stock_status)
+                        .map((s) => (
+                          <SelectItem key={s} value={s}>{STOCK_STATUS_LABELS[s]}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" className="h-9" disabled={!newStatus || updating || (needsSoldChannel && !soldChannel) || (needsSoldRef && !soldRefId.trim())} onClick={handleStatusUpdate}>
+                    {updating ? <div className="w-3 h-3 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : "Terapkan"}
+                  </Button>
+                </div>
+
+                {/* Sold channel selection */}
+                {needsSoldChannel && (
+                  <div className="space-y-2 pl-1">
+                    <p className="text-xs text-muted-foreground">Channel penjualan:</p>
+                    <Select value={soldChannel} onValueChange={(v) => setSoldChannel(v as SoldChannel)}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Pilih channel..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ecommerce">E-Commerce (Tokopedia/Shopee)</SelectItem>
+                        <SelectItem value="manual">Manual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">POS & Website otomatis saat ada transaksi.</p>
+                  </div>
+                )}
+
+                {/* E-commerce transaction ID */}
+                {needsSoldRef && (
+                  <div className="pl-1 space-y-1">
+                    <p className="text-xs text-muted-foreground">ID Transaksi E-Commerce:</p>
+                    <Input
+                      value={soldRefId}
+                      onChange={(e) => setSoldRefId(e.target.value)}
+                      placeholder="Masukkan nomor transaksi..."
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">Perubahan status akan dicatat dalam histori audit.</p>
+            </div>
+          )}
+
+          {/* Delete unit (super admin only) */}
+          {isSuperAdmin && (
+            <div className="px-6 py-4 border-b border-border">
+              {!confirmDelete ? (
+                <Button variant="outline" size="sm" className="w-full text-destructive border-destructive/30 hover:bg-destructive/5 gap-2" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="w-3.5 h-3.5" /> Hapus Unit Ini
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-destructive font-medium">Yakin ingin menghapus unit ini? Tindakan ini tidak dapat dibatalkan.</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1 h-8" onClick={() => setConfirmDelete(false)}>Batal</Button>
+                    <Button variant="destructive" size="sm" className="flex-1 h-8" disabled={deleting} onClick={handleDelete}>
+                      {deleting ? <div className="w-3 h-3 border border-destructive-foreground/30 border-t-destructive-foreground rounded-full animate-spin" /> : "Hapus"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

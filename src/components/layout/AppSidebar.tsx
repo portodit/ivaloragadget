@@ -30,15 +30,15 @@ type NavItem =
 
 // ── Nav items per role ─────────────────────────────────────────────────────────
 const superAdminNavItems: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Manajemen Admin", url: "/manajemen-admin/daftar", icon: Users },
+  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+  { title: "Manajemen Admin", url: "/admin/manajemen-admin/daftar", icon: Users },
   {
     title: "Produk & Inventory",
     icon: Package,
     children: [
-      { title: "Master Produk", url: "/master-produk", icon: Database },
-      { title: "Stok IMEI", url: "/stok-imei", icon: Barcode },
-      { title: "Stok Opname", url: "/stok-opname", icon: ClipboardList },
+      { title: "Master Produk", url: "/admin/master-produk", icon: Database },
+      { title: "Stok IMEI", url: "/admin/stok-imei", icon: Barcode },
+      { title: "Stok Opname", url: "/admin/stok-opname", icon: ClipboardList },
       { title: "Katalog", url: "/admin/katalog", icon: BookOpen },
       { title: "Flash Sale", url: "/admin/flash-sale", icon: Zap },
     ],
@@ -47,22 +47,22 @@ const superAdminNavItems: NavItem[] = [
     title: "Penjualan",
     icon: ShoppingCart,
     children: [
-      { title: "POS", url: "/pos", icon: Monitor },
-      { title: "Transaksi", url: "/transaksi", icon: Receipt },
+      { title: "POS", url: "/admin/pos", icon: Monitor },
+      { title: "Transaksi", url: "/admin/transaksi", icon: Receipt },
     ],
   },
-  { title: "Laporan & Analitika", url: "/laporan", icon: BarChart3 },
-  { title: "Log Aktivitas", url: "/log-aktivitas", icon: Activity },
+  { title: "Laporan & Analitika", url: "/admin/laporan", icon: BarChart3 },
+  { title: "Log Aktivitas", url: "/admin/log-aktivitas", icon: Activity },
 ];
 
 const adminNavItems: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   {
     title: "Produk & Inventory",
     icon: Package,
     children: [
-      { title: "Stok IMEI", url: "/stok-imei", icon: Barcode },
-      { title: "Stok Opname", url: "/stok-opname", icon: ClipboardList },
+      { title: "Stok IMEI", url: "/admin/stok-imei", icon: Barcode },
+      { title: "Stok Opname", url: "/admin/stok-opname", icon: ClipboardList },
       { title: "Katalog", url: "/admin/katalog", icon: BookOpen },
     ],
   },
@@ -70,11 +70,11 @@ const adminNavItems: NavItem[] = [
     title: "Penjualan",
     icon: ShoppingCart,
     children: [
-      { title: "POS", url: "/pos", icon: Monitor },
-      { title: "Transaksi", url: "/transaksi", icon: Receipt },
+      { title: "POS", url: "/admin/pos", icon: Monitor },
+      { title: "Transaksi", url: "/admin/transaksi", icon: Receipt },
     ],
   },
-  { title: "Laporan & Analitika", url: "/laporan", icon: BarChart3 },
+  { title: "Laporan & Analitika", url: "/admin/laporan", icon: BarChart3 },
 ];
 
 interface AppSidebarProps {

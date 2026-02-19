@@ -738,9 +738,11 @@ export type Database = {
           condition_status: Database["public"]["Enums"]["condition_status"]
           cost_price: number | null
           created_at: string
+          estimated_arrival_at: string | null
           id: string
           imei: string
           minus_description: string | null
+          minus_severity: Database["public"]["Enums"]["minus_severity"] | null
           notes: string | null
           product_id: string
           received_at: string
@@ -752,6 +754,7 @@ export type Database = {
           status_changed_at: string
           stock_status: Database["public"]["Enums"]["stock_status"]
           supplier: string | null
+          supplier_id: string | null
           updated_at: string
         }
         Insert: {
@@ -759,9 +762,11 @@ export type Database = {
           condition_status?: Database["public"]["Enums"]["condition_status"]
           cost_price?: number | null
           created_at?: string
+          estimated_arrival_at?: string | null
           id?: string
           imei: string
           minus_description?: string | null
+          minus_severity?: Database["public"]["Enums"]["minus_severity"] | null
           notes?: string | null
           product_id: string
           received_at?: string
@@ -773,6 +778,7 @@ export type Database = {
           status_changed_at?: string
           stock_status?: Database["public"]["Enums"]["stock_status"]
           supplier?: string | null
+          supplier_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -780,9 +786,11 @@ export type Database = {
           condition_status?: Database["public"]["Enums"]["condition_status"]
           cost_price?: number | null
           created_at?: string
+          estimated_arrival_at?: string | null
           id?: string
           imei?: string
           minus_description?: string | null
+          minus_severity?: Database["public"]["Enums"]["minus_severity"] | null
           notes?: string | null
           product_id?: string
           received_at?: string
@@ -794,6 +802,7 @@ export type Database = {
           status_changed_at?: string
           stock_status?: Database["public"]["Enums"]["stock_status"]
           supplier?: string | null
+          supplier_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -804,7 +813,32 @@ export type Database = {
             referencedRelation: "master_products"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "stock_units_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      suppliers: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       user_profiles: {
         Row: {
@@ -969,9 +1003,10 @@ export type Database = {
         | "buy_x_get_y"
         | "min_purchase"
         | "flash_sale"
+      minus_severity: "minor" | "mayor"
       price_strategy: "min_price" | "avg_price" | "fixed"
       product_category: "iphone" | "ipad" | "accessory"
-      sold_channel: "pos" | "ecommerce" | "manual"
+      sold_channel: "pos" | "ecommerce" | "manual" | "website"
       stock_status:
         | "available"
         | "reserved"
@@ -1119,9 +1154,10 @@ export const Constants = {
         "min_purchase",
         "flash_sale",
       ],
+      minus_severity: ["minor", "mayor"],
       price_strategy: ["min_price", "avg_price", "fixed"],
       product_category: ["iphone", "ipad", "accessory"],
-      sold_channel: ["pos", "ecommerce", "manual"],
+      sold_channel: ["pos", "ecommerce", "manual", "website"],
       stock_status: [
         "available",
         "reserved",

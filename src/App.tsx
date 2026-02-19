@@ -65,19 +65,19 @@ const App = () => (
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin/register" element={<AdminRegisterPage />} />
             <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/waiting-approval" element={<WaitingApprovalPage />} />
+            <Route path="/admin/waiting-approval" element={<WaitingApprovalPage />} />
 
-            {/* ── Protected dashboard routes (/dashboard/...) ────── */}
-            <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/master-produk" element={<ProtectedRoute><MasterProductsPage /></ProtectedRoute>} />
-            <Route path="/stok-imei" element={<ProtectedRoute><StockIMEIPage /></ProtectedRoute>} />
-            <Route path="/stok-opname" element={<ProtectedRoute><StokOpnamePage /></ProtectedRoute>} />
-            <Route path="/manajemen-admin" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
-            <Route path="/manajemen-admin/:tab" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
-            <Route path="/laporan" element={<ProtectedRoute><LaporanPage /></ProtectedRoute>} />
-            <Route path="/profil" element={<ProtectedRoute><ProfilPage /></ProtectedRoute>} />
-            <Route path="/pengaturan" element={<ProtectedRoute><PengaturanPage /></ProtectedRoute>} />
-            <Route path="/log-aktivitas" element={<ProtectedRoute requireRole="super_admin"><ActivityLogPage /></ProtectedRoute>} />
+            {/* ── Protected dashboard routes (/admin/...) ────── */}
+            <Route path="/admin/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/admin/master-produk" element={<ProtectedRoute><MasterProductsPage /></ProtectedRoute>} />
+            <Route path="/admin/stok-imei" element={<ProtectedRoute><StockIMEIPage /></ProtectedRoute>} />
+            <Route path="/admin/stok-opname" element={<ProtectedRoute><StokOpnamePage /></ProtectedRoute>} />
+            <Route path="/admin/manajemen-admin" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
+            <Route path="/admin/manajemen-admin/:tab" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
+            <Route path="/admin/laporan" element={<ProtectedRoute><LaporanPage /></ProtectedRoute>} />
+            <Route path="/admin/profil" element={<ProtectedRoute><ProfilPage /></ProtectedRoute>} />
+            <Route path="/admin/pengaturan" element={<ProtectedRoute><PengaturanPage /></ProtectedRoute>} />
+            <Route path="/admin/log-aktivitas" element={<ProtectedRoute requireRole="super_admin"><ActivityLogPage /></ProtectedRoute>} />
             <Route path="/admin/katalog" element={<ProtectedRoute><KatalogPage /></ProtectedRoute>} />
             <Route path="/admin/katalog/tambah" element={<ProtectedRoute requireRole="super_admin"><KatalogFormPage /></ProtectedRoute>} />
             <Route path="/admin/katalog/edit/:id" element={<ProtectedRoute><KatalogFormPage /></ProtectedRoute>} />
