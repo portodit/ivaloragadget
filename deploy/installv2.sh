@@ -27,17 +27,17 @@ prompt() {
   local value=""
   while true; do
     if [ "$is_secret" = "true" ]; then
-      read -sp "$prompt_text" value
-      echo ""
+      read -sp "$prompt_text" value </dev/tty
+      echo "" >/dev/tty
     else
-      read -p "$prompt_text" value
+      read -p "$prompt_text" value </dev/tty
     fi
     value="${value:-$default}"
     if [ -n "$value" ]; then
       eval "$var_name='$value'"
       return
     fi
-    echo -e "${RED}  ⚠ Tidak boleh kosong, coba lagi.${NC}"
+    echo -e "${RED}  ⚠ Tidak boleh kosong, coba lagi.${NC}" >/dev/tty
   done
 }
 
@@ -99,7 +99,7 @@ check_dns() {
   echo -e "${CYAN}Pilihan:${NC}"
   echo "  1) Lanjut tanpa DNS (SSL di-skip, bisa diaktifkan nanti)"
   echo "  2) Batalkan instalasi (setup DNS dulu)"
-  read -p "Pilih (1/2) [1]: " dns_continue
+  read -p "Pilih (1/2) [1]: " dns_continue </dev/tty
   dns_continue="${dns_continue:-1}"
   if [ "$dns_continue" = "2" ]; then
     echo "Dibatalkan. Setup DNS dulu, lalu jalankan ulang script ini."
@@ -169,7 +169,7 @@ if load_state; then
   echo "  1) Lanjutkan dari step $((COMPLETED_STEP + 1))"
   echo "  2) Mulai ulang dari awal"
   echo "  3) Pilih step tertentu"
-  read -p "Pilih (1/2/3): " resume_choice
+  read -p "Pilih (1/2/3): " resume_choice </dev/tty
 
   case "$resume_choice" in
     2)
@@ -178,7 +178,7 @@ if load_state; then
       echo "Memulai dari awal..."
       ;;
     3)
-      read -p "Mulai dari step berapa? (1-7): " custom_step
+      read -p "Mulai dari step berapa? (1-7): " custom_step </dev/tty
       COMPLETED_STEP=$(( custom_step - 1 ))
       echo "Memulai dari step ${custom_step}..."
       ;;
@@ -190,7 +190,7 @@ if load_state; then
   # If resuming and secrets exist, ask if want to re-enter
   if [ "$COMPLETED_STEP" -ge 2 ] && [ -n "${JWT_SECRET:-}" ]; then
     echo ""
-    read -p "Secrets sudah ada dari sebelumnya. Ingin input ulang? (y/n): " reenter
+    read -p "Secrets sudah ada dari sebelumnya. Ingin input ulang? (y/n): " reenter </dev/tty
     if [[ "$reenter" =~ ^[Yy] ]]; then
       COMPLETED_STEP=0
     fi
