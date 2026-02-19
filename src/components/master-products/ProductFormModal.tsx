@@ -80,16 +80,18 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
         warranty_type: editProduct.warranty_type,
       });
     } else if (!open) {
+      const firstKey = activeWarrantyLabels[0]?.key ?? "";
       reset({
         category: "iphone",
         series: "",
         storage_gb: 128,
         color: "",
-        warranty_type: activeWarrantyLabels[0]?.key ?? "",
+        warranty_type: firstKey,
       });
       setDuplicateError(false);
     }
-  }, [editProduct, open, reset, activeWarrantyLabels]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editProduct, open, reset]);
 
   const onSubmit = async (data: FormData) => {
     setDuplicateError(false);
