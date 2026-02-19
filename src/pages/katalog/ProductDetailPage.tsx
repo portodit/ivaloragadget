@@ -7,7 +7,7 @@ import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import {
   ChevronRight, Shield, CheckCircle2, Truck, MessageCircle,
   Share2, Package, Star, ExternalLink,
-  ImageOff, BadgeCheck, Zap, Clock, ShoppingCart, AlertCircle,
+  ImageOff, BadgeCheck, Zap, Clock, ShoppingCart, AlertCircle, Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -447,14 +447,24 @@ export default function ProductDetailPage() {
                   </div>
                 )}
                 <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
+                  {catalog.is_flash_sale && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground shadow-sm whitespace-nowrap">
+                      <Zap className="w-3.5 h-3.5 shrink-0" /> Flash Sale
+                    </span>
+                  )}
                   {catalog.free_shipping && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500 text-white shadow-sm whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-green-500 text-white shadow-sm whitespace-nowrap">
                       <Truck className="w-3.5 h-3.5 shrink-0" /> Gratis Ongkir
                     </span>
                   )}
                   {catalog.highlight_product && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm whitespace-nowrap">
                       <Star className="w-3.5 h-3.5 fill-current shrink-0" /> Unggulan
+                    </span>
+                  )}
+                  {catalog.discount_active && catalog.discount_value && !catalog.is_flash_sale && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground shadow-sm whitespace-nowrap">
+                      <Tag className="w-3.5 h-3.5 shrink-0" /> Diskon {catalog.discount_type === "percentage" ? `${catalog.discount_value}%` : `Rp${catalog.discount_value.toLocaleString("id-ID")}`}
                     </span>
                   )}
                 </div>
