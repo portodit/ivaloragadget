@@ -3,7 +3,7 @@ import {
   Plus, RefreshCw, ClipboardList, CheckCircle2,
   Lock, ChevronRight, AlertTriangle, Search, Trash2,
   ArrowLeft, ShieldCheck, X, Info, Layers, ScanLine,
-  UserCheck, CalendarClock, Users,
+  UserCheck, CalendarClock, Users, ShoppingCart, Store, Globe,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,11 +106,11 @@ export default function StokOpnamePage() {
 interface AdminProfile { id: string; full_name: string | null; email: string }
 interface SessionWithAssignees extends OpnameSession { assignees?: AdminProfile[] }
 
-// ─── Helpers: group sessions by calendar date ─────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function groupByDate(sessions: SessionWithAssignees[]): { dateKey: string; label: string; sessions: SessionWithAssignees[] }[] {
   const map = new Map<string, SessionWithAssignees[]>();
   for (const s of sessions) {
-    const key = s.started_at.slice(0, 10); // YYYY-MM-DD
+    const key = s.started_at.slice(0, 10);
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(s);
   }
@@ -141,7 +141,6 @@ function SessionListView({
   onViewDetail: (id: string, status: SessionStatus) => void;
   toast: ReturnType<typeof useToast>["toast"];
 }) {
-  // tab: "terkini" | "lampau"
   const [activeTab, setActiveTab] = useState<"terkini" | "lampau">("terkini");
   const [sessions, setSessions] = useState<SessionWithAssignees[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,7 +181,8 @@ function SessionListView({
   }, []);
 
   const fetchExpected = useCallback(async () => {
-    const { count } = await supabase.from("stock_units").select("*", { count: "exact", head: true }).in("stock_status", ["available", "reserved"]);
+    // Only count "available" units - the purpose is to verify physical stock in store
+    const { count } = await supabase.from("stock_units").select("*", { count: "exact", head: true }).eq("stock_status", "available");
     setExpectedCount(count ?? 0);
   }, []);
 
@@ -190,6 +190,11 @@ function SessionListView({
 
   const handleCreateSession = async () => {
     if (!userId) return;
+    // Must have at least 1 admin assigned
+    if (selectedAdminIds.length === 0) {
+      toast({ title: "Petugas wajib dipilih", description: "Pilih minimal 1 admin sebagai petugas sebelum membuat sesi.", variant: "destructive" });
+      return;
+    }
     setCreating(true);
     const { data: sess, error: sessErr } = await supabase
       .from("opname_sessions")
@@ -201,14 +206,15 @@ function SessionListView({
       return;
     }
     const sessionId = (sess as { id: string }).id;
-    if (selectedAdminIds.length > 0) {
-      const assignRows = selectedAdminIds.map((adminId) => ({ session_id: sessionId, admin_id: adminId, assigned_by: userId }));
-      await supabase.from("opname_session_assignments" as never).insert(assignRows as never);
-    }
+    // Assign admins
+    const assignRows = selectedAdminIds.map((adminId) => ({ session_id: sessionId, admin_id: adminId, assigned_by: userId }));
+    await supabase.from("opname_session_assignments" as never).insert(assignRows as never);
+
+    // Snapshot only "available" units
     const { data: units } = await supabase
       .from("stock_units")
       .select("id, imei, stock_status, selling_price, cost_price, master_products(series, storage_gb, color, warranty_type)")
-      .in("stock_status", ["available", "reserved"]);
+      .eq("stock_status", "available");
     if (units && units.length > 0) {
       const snapshotRows = (units as never[]).map((u: never) => {
         const unit = u as { id: string; imei: string; stock_status: string; selling_price: number | null; cost_price: number | null; master_products?: { series?: string; storage_gb?: number; color?: string; warranty_type?: string } };
@@ -218,7 +224,7 @@ function SessionListView({
       });
       await supabase.from("opname_snapshot_items").insert(snapshotRows as never);
     }
-    toast({ title: "Snapshot stok berhasil dibuat.", description: `Sesi ${SESSION_TYPE_LABELS[newType]} dimulai.` });
+    toast({ title: "Sesi berhasil dimulai", description: `Snapshot ${expectedCount} unit tersedia berhasil dibuat.` });
     setCreating(false);
     setNewSessionOpen(false);
     setNewNotes("");
@@ -255,7 +261,6 @@ function SessionListView({
     setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   };
 
-  // ── Derived: split sessions ──────────────────────────────────────────────────
   const todayKey = getTodayKey();
   const todaySessions = sessions.filter((s) => isTodayStr(s.started_at));
   const pastSessions  = sessions.filter((s) => !isTodayStr(s.started_at));
@@ -263,7 +268,6 @@ function SessionListView({
   const todayHasClosing = todaySessions.some((s) => s.session_type === "closing");
   const pastGroups = groupByDate(pastSessions);
 
-  // ── Session row renderer ─────────────────────────────────────────────────────
   const renderSessionRow = (s: SessionWithAssignees) => {
     const selisih = s.total_missing + s.total_unregistered;
     const isAssignedToMe = s.assignees?.some((a) => a.id === userId);
@@ -334,7 +338,7 @@ function SessionListView({
       <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jam</th>
       <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jenis</th>
       <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:table-cell">Petugas</th>
-      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">Match</th>
+      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden sm:table-cell">Cocok</th>
       <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Selisih</th>
       <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Status</th>
       <th className="px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground text-right">Aksi</th>
@@ -348,7 +352,7 @@ function SessionListView({
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
           <div>
             <h1 className="text-lg font-semibold text-foreground">Stok Opname</h1>
-            <p className="text-xs text-muted-foreground">Lakukan dan pantau verifikasi stok berbasis IMEI secara terstruktur.</p>
+            <p className="text-xs text-muted-foreground">Verifikasi stok fisik di etalase dengan data unit di sistem.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs" onClick={() => { fetchSessions(); fetchExpected(); }}>
@@ -386,12 +390,9 @@ function SessionListView({
             {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted rounded-lg animate-pulse" />)}
           </div>
         ) : activeTab === "terkini" ? (
-          /* ─── TERKINI view ─────────────────────────────────────── */
           <div className="space-y-4">
-            {/* Daily prompt cards for super admin */}
             {isSuperAdmin && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Opening prompt */}
                 <div className={cn(
                   "rounded-xl border p-4 flex items-start gap-3",
                   todayHasOpening
@@ -423,7 +424,6 @@ function SessionListView({
                     )}
                   </div>
                 </div>
-                {/* Closing prompt */}
                 <div className={cn(
                   "rounded-xl border p-4 flex items-start gap-3",
                   todayHasClosing
@@ -458,7 +458,6 @@ function SessionListView({
               </div>
             )}
 
-            {/* Today's sessions table */}
             {todaySessions.length === 0 ? (
               <div className="bg-card rounded-xl border border-border p-12 text-center space-y-3">
                 <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto">
@@ -495,7 +494,6 @@ function SessionListView({
             )}
           </div>
         ) : (
-          /* ─── LAMPAU view ──────────────────────────────────────── */
           <div className="space-y-4">
             {pastGroups.length === 0 ? (
               <div className="bg-card rounded-xl border border-border p-12 text-center space-y-3">
@@ -535,11 +533,10 @@ function SessionListView({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={() => setNewSessionOpen(false)} />
           <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            {/* Modal header */}
             <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-border">
               <div>
                 <h2 className="text-base font-semibold text-foreground">Mulai Sesi Baru</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Snapshot diambil dari unit Available & Reserved saat sesi dimulai.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Snapshot diambil dari unit berstatus "Tersedia" saat sesi dimulai.</p>
               </div>
               <button onClick={() => setNewSessionOpen(false)} className="p-1 rounded-lg hover:bg-accent shrink-0 ml-3">
                 <X className="w-4 h-4 text-muted-foreground" />
@@ -547,17 +544,15 @@ function SessionListView({
             </div>
 
             <div className="px-6 py-5 space-y-5">
-              {/* Expected count info */}
               <div className="rounded-xl bg-[hsl(var(--status-available-bg))] border border-[hsl(var(--status-available))]/20 px-4 py-3 flex items-center gap-3">
                 <Info className="w-4 h-4 text-[hsl(var(--status-available-fg))] shrink-0" />
                 <div>
-                  <p className="text-xs font-medium text-[hsl(var(--status-available-fg))]">Estimasi Unit Expected</p>
+                  <p className="text-xs font-medium text-[hsl(var(--status-available-fg))]">Unit Tersedia di Sistem</p>
                   <p className="text-xl font-bold text-foreground">{expectedCount} unit</p>
-                  <p className="text-[10px] text-muted-foreground">Status: Available + Reserved saat ini</p>
+                  <p className="text-[10px] text-muted-foreground">Hanya unit berstatus "Tersedia" yang di-snapshot</p>
                 </div>
               </div>
 
-              {/* Jenis sesi */}
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Jenis Sesi</label>
                 <Select value={newType} onValueChange={(v) => setNewType(v as SessionType)}>
@@ -570,15 +565,15 @@ function SessionListView({
                 </Select>
               </div>
 
-              {/* Assign admin — dedicated section */}
+              {/* Assign admin — WAJIB */}
               <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center shrink-0">
                     <Users className="w-3.5 h-3.5 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-foreground">Penugasan Admin</p>
-                    <p className="text-[10px] text-muted-foreground">Opsional — bisa lebih dari satu admin</p>
+                    <p className="text-xs font-semibold text-foreground">Penugasan Petugas <span className="text-destructive">*</span></p>
+                    <p className="text-[10px] text-muted-foreground">Wajib — pilih minimal 1 admin</p>
                   </div>
                   {selectedAdminIds.length > 0 && (
                     <span className="ml-auto px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
@@ -627,17 +622,15 @@ function SessionListView({
                 )}
               </div>
 
-              {/* Catatan */}
               <div>
                 <label className="text-xs font-medium text-foreground block mb-1.5">Catatan <span className="text-muted-foreground font-normal">(opsional)</span></label>
                 <Input value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Tambahkan catatan sesi…" className="h-9 text-sm" />
               </div>
             </div>
 
-            {/* Modal footer */}
             <div className="flex gap-2 px-6 pb-6">
               <Button variant="outline" className="flex-1 h-9 text-sm" onClick={() => setNewSessionOpen(false)}>Batal</Button>
-              <Button className="flex-1 h-9 text-sm gap-1.5" onClick={handleCreateSession} disabled={creating}>
+              <Button className="flex-1 h-9 text-sm gap-1.5" onClick={handleCreateSession} disabled={creating || selectedAdminIds.length === 0}>
                 {creating ? <div className="w-3.5 h-3.5 border border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 Mulai Sesi
               </Button>
@@ -646,7 +639,6 @@ function SessionListView({
         </div>
       )}
 
-      {/* ── Assign admin modal ── */}
       {assignModalSession && (
         <AssignAdminModal
           session={assignModalSession}
@@ -656,7 +648,6 @@ function SessionListView({
         />
       )}
 
-      {/* ── Delete confirmation modal ── */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={() => !deleting && setDeleteConfirmId(null)} />
@@ -708,7 +699,7 @@ function AssignAdminModal({
       <div className="relative z-10 bg-card rounded-2xl border border-border shadow-2xl w-full max-w-sm p-6 space-y-4">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Assign Admin</h2>
+            <h2 className="text-base font-semibold text-foreground">Atur Petugas</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Pilih admin yang bertugas untuk sesi ini.</p>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-accent">
@@ -755,13 +746,19 @@ function AssignAdminModal({
   );
 }
 
-
-
-
 // ─── ScanView ─────────────────────────────────────────────────────────────────
 interface ScannedItemWithScanner extends OpnameScannedItem {
   scanned_by?: string | null;
   scanner_name?: string | null;
+}
+
+interface SalesSummary {
+  pos: number;
+  website: number;
+  ecommerce_tokopedia: number;
+  ecommerce_shopee: number;
+  total: number;
+  details: { imei: string; channel: string; sold_at: string; product_label: string; admin_name?: string }[];
 }
 
 function ScanView({
@@ -787,6 +784,7 @@ function ScanView({
   const [completing, setCompleting] = useState(false);
   const [alertMsg, setAlertMsg] = useState<{ text: string; type: "info" | "warn" | "ok" } | null>(null);
   const [bulkResults, setBulkResults] = useState<{ imei: string; result: "match" | "unregistered" | "duplicate" | "invalid" }[]>([]);
+  const [salesSummary, setSalesSummary] = useState<SalesSummary>({ pos: 0, website: 0, ecommerce_tokopedia: 0, ecommerce_shopee: 0, total: 0, details: [] });
 
   const fetchAll = useCallback(async () => {
     const [{ data: sess }, { data: snap }, { data: sc }] = await Promise.all([
@@ -799,13 +797,9 @@ function ScanView({
     const scannedData = (sc as ScannedItemWithScanner[]) ?? [];
     setScanned(scannedData);
 
-    // Fetch scanner names from user_profiles
     const scannerIds = [...new Set(scannedData.map((s) => s.scanned_by).filter(Boolean))] as string[];
     if (scannerIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("user_profiles")
-        .select("id, full_name, email")
-        .in("id", scannerIds);
+      const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", scannerIds);
       if (profiles) {
         const nameMap: Record<string, string> = {};
         for (const p of profiles as { id: string; full_name: string | null; email: string }[]) {
@@ -814,12 +808,59 @@ function ScanView({
         setScannerNames(nameMap);
       }
     }
+
+    // Fetch sales summary: units sold since session started
+    if (sess) {
+      const sessionStart = (sess as OpnameSession).started_at;
+      const { data: soldUnits } = await supabase
+        .from("stock_units")
+        .select("imei, sold_channel, sold_at, master_products(series, storage_gb, color)")
+        .eq("stock_status", "sold")
+        .gte("sold_at", sessionStart);
+      
+      // Also get units sold before session but updated (status changed to sold recently)
+      const { data: recentLogs } = await supabase
+        .from("stock_unit_logs")
+        .select("unit_id, new_value, changed_at, changed_by")
+        .eq("field_changed", "stock_status")
+        .eq("new_value", "sold")
+        .gte("changed_at", sessionStart);
+
+      const summary: SalesSummary = { pos: 0, website: 0, ecommerce_tokopedia: 0, ecommerce_shopee: 0, total: 0, details: [] };
+
+      if (soldUnits) {
+        for (const u of soldUnits as { imei: string; sold_channel: string | null; sold_at: string | null; master_products?: { series?: string; storage_gb?: number; color?: string } }[]) {
+          const ch = u.sold_channel ?? "pos";
+          if (ch === "pos") summary.pos++;
+          else if (ch === "website") summary.website++;
+          else if (ch === "ecommerce_tokopedia") summary.ecommerce_tokopedia++;
+          else if (ch === "ecommerce_shopee") summary.ecommerce_shopee++;
+          summary.total++;
+          
+          // Find who updated this
+          const log = recentLogs?.find((l) => {
+            // Match by checking if IMEI corresponds to unit
+            return true; // simplified - we'll show channel info
+          });
+
+          const mp = u.master_products;
+          const label = mp ? `${mp.series} ${mp.storage_gb}GB ${mp.color}` : u.imei;
+          summary.details.push({
+            imei: u.imei,
+            channel: ch,
+            sold_at: u.sold_at ?? "",
+            product_label: label,
+          });
+        }
+      }
+      setSalesSummary(summary);
+    }
+
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [sessionId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Refocus based on current mode
   const refocusInput = useCallback(() => {
     setTimeout(() => {
       if (scanMode === "single") inputRef.current?.focus();
@@ -831,7 +872,10 @@ function ScanView({
   const unregistered = scanned.filter((s) => s.scan_result === "unregistered").length;
   const missing = snapshot.length - match;
 
-  // ── single scan ──────────────────────────────────────────────────────────────
+  // Missing IMEIs (not yet scanned)
+  const missingImeis = snapshot.filter((s) => s.scan_result !== "match");
+
+  // ── single scan ──
   const handleScan = async () => {
     const imei = imeiInput.trim();
     if (!imei) return;
@@ -880,14 +924,14 @@ function ScanView({
       total_unregistered: newUnregistered,
     } as never).eq("id", sessionId);
 
-    setAlertMsg({ text: isInSnapshot ? "✓ IMEI cocok dengan snapshot." : "⚠ IMEI tidak ada dalam daftar expected.", type: isInSnapshot ? "ok" : "warn" });
+    setAlertMsg({ text: isInSnapshot ? "✓ IMEI cocok — unit ditemukan di etalase." : "⚠ IMEI tidak ada di daftar stok tersedia.", type: isInSnapshot ? "ok" : "warn" });
     setImeiInput("");
     fetchAll();
     setScanning(false);
     refocusInput();
   };
 
-  // ── bulk scan ─────────────────────────────────────────────────────────────────
+  // ── bulk scan ──
   const handleBulkScan = async () => {
     const lines = bulkInput.split("\n").map((l) => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
@@ -981,7 +1025,6 @@ function ScanView({
       return;
     }
 
-    // Fire email notification to super admins
     try {
       await supabase.functions.invoke("opname-notify", {
         body: { sessionId, completedBy: user?.id },
@@ -1005,6 +1048,13 @@ function ScanView({
     );
   }
 
+  const CHANNEL_LABELS: Record<string, string> = {
+    pos: "Offline Store (POS)",
+    website: "Website",
+    ecommerce_tokopedia: "Tokopedia",
+    ecommerce_shopee: "Shopee",
+  };
+
   return (
     <DashboardLayout pageTitle="Stok Opname – Scan">
       <div className="space-y-4">
@@ -1022,12 +1072,118 @@ function ScanView({
           </div>
         </div>
 
+        {/* Summary bar + sales info — above input */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="bg-card rounded-xl border border-border p-3 text-center">
+            <p className="text-lg font-bold text-foreground">{snapshot.length}</p>
+            <p className="text-[10px] text-muted-foreground font-medium">Stok Tersedia</p>
+          </div>
+          <div className="bg-card rounded-xl border border-border p-3 text-center">
+            <p className="text-lg font-bold text-[hsl(var(--status-available-fg))]">{match}</p>
+            <p className="text-[10px] text-muted-foreground font-medium">Cocok</p>
+          </div>
+          <div className="bg-card rounded-xl border border-border p-3 text-center">
+            <p className={cn("text-lg font-bold", missing > 0 ? "text-[hsl(var(--status-minus-fg))]" : "text-foreground")}>{missing}</p>
+            <p className="text-[10px] text-muted-foreground font-medium">Belum Ditemukan</p>
+          </div>
+          <div className="bg-card rounded-xl border border-border p-3 text-center">
+            <p className={cn("text-lg font-bold", unregistered > 0 ? "text-[hsl(var(--status-coming-soon-fg))]" : "text-foreground")}>{unregistered}</p>
+            <p className="text-[10px] text-muted-foreground font-medium">Tidak Terdaftar</p>
+          </div>
+        </div>
+
+        {/* Sales summary */}
+        {salesSummary.total > 0 && (
+          <div className="bg-[hsl(var(--status-available-bg))] rounded-xl border border-[hsl(var(--status-available))]/20 p-4 space-y-2">
+            <p className="text-xs font-semibold text-[hsl(var(--status-available-fg))] flex items-center gap-1.5">
+              <ShoppingCart className="w-3.5 h-3.5" />
+              Penjualan Tercatat Sejak Sesi Dimulai
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {salesSummary.pos > 0 && (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                  <Store className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-foreground">{salesSummary.pos}</p>
+                    <p className="text-[9px] text-muted-foreground">Offline (POS)</p>
+                  </div>
+                </div>
+              )}
+              {salesSummary.website > 0 && (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                  <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-foreground">{salesSummary.website}</p>
+                    <p className="text-[9px] text-muted-foreground">Website</p>
+                  </div>
+                </div>
+              )}
+              {salesSummary.ecommerce_tokopedia > 0 && (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                  <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-foreground">{salesSummary.ecommerce_tokopedia}</p>
+                    <p className="text-[9px] text-muted-foreground">Tokopedia</p>
+                  </div>
+                </div>
+              )}
+              {salesSummary.ecommerce_shopee > 0 && (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                  <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-foreground">{salesSummary.ecommerce_shopee}</p>
+                    <p className="text-[9px] text-muted-foreground">Shopee</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            {salesSummary.details.length > 0 && (
+              <div className="space-y-1 max-h-28 overflow-y-auto">
+                {salesSummary.details.map((d, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span className="font-mono text-foreground">{d.imei}</span>
+                    <span>·</span>
+                    <span>{d.product_label}</span>
+                    <span>·</span>
+                    <span className="font-medium">{CHANNEL_LABELS[d.channel] ?? d.channel}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Missing warning with auto-detect */}
+        {missing > 0 && (
+          <div className="rounded-xl bg-[hsl(var(--status-minus-bg))] border border-[hsl(var(--status-minus))]/20 p-4 space-y-2">
+            <p className="text-xs font-medium text-[hsl(var(--status-minus-fg))] flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              {missing} unit belum ditemukan di etalase
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              Unit berikut tercatat "Tersedia" di sistem tapi belum dipindai. Kemungkinan besar terjual di marketplace (Tokopedia/Shopee) dan belum diupdate oleh admin.
+              Silakan cek satu per satu apakah IMEI ini sudah laku terjual di e-commerce.
+            </p>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {missingImeis.slice(0, 20).map((item) => (
+                <div key={item.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                  <AlertTriangle className="w-3 h-3 text-[hsl(var(--status-minus-fg))] shrink-0" />
+                  <span className="text-xs font-mono text-foreground flex-1">{item.imei}</span>
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[150px]">{item.product_label}</span>
+                </div>
+              ))}
+              {missingImeis.length > 20 && (
+                <p className="text-[10px] text-muted-foreground text-center py-1">...dan {missingImeis.length - 20} unit lainnya</p>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* ── Left: Scan panel ── */}
           <div className="lg:col-span-2 space-y-4">
             {/* IMEI input */}
             <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-              {/* Mode toggle header */}
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Input IMEI</p>
                 <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted border border-border">
@@ -1058,7 +1214,6 @@ function ScanView({
                 </div>
               </div>
 
-              {/* ── Single mode ── */}
               {scanMode === "single" && (
                 <>
                   <div className="flex gap-2">
@@ -1091,7 +1246,6 @@ function ScanView({
                 </>
               )}
 
-              {/* ── Bulk mode ── */}
               {scanMode === "bulk" && (
                 <>
                   <Textarea
@@ -1105,7 +1259,7 @@ function ScanView({
                   />
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-[10px] text-muted-foreground">
-                      {bulkInput.split("\n").filter((l) => l.trim()).length} IMEI siap diproses. Enter = baris baru, scan akan otomatis menambah baris.
+                      {bulkInput.split("\n").filter((l) => l.trim()).length} IMEI siap diproses
                     </p>
                     <Button
                       className="h-9 px-4 text-sm shrink-0 gap-1.5"
@@ -1119,7 +1273,6 @@ function ScanView({
                     </Button>
                   </div>
 
-                  {/* Bulk results summary */}
                   {bulkResults.length > 0 && (
                     <div className="space-y-1.5">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Hasil Proses Terakhir</p>
@@ -1140,8 +1293,8 @@ function ScanView({
                             </span>
                             <span className="flex-1 truncate">{r.imei}</span>
                             <span className="text-[10px] font-sans shrink-0">
-                              {r.result === "match" && "Match"}
-                              {r.result === "unregistered" && "Unregistered"}
+                              {r.result === "match" && "Cocok"}
+                              {r.result === "unregistered" && "Tidak Terdaftar"}
                               {r.result === "duplicate" && "Sudah ada"}
                               {r.result === "invalid" && "IMEI tidak valid"}
                             </span>
@@ -1153,7 +1306,6 @@ function ScanView({
                 </>
               )}
             </div>
-
 
             {/* Scanned list */}
             <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -1198,23 +1350,8 @@ function ScanView({
             </div>
           </div>
 
-          {/* ── Right: Summary ── */}
+          {/* ── Right: Actions ── */}
           <div className="space-y-3">
-            {/* Stats */}
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Ringkasan Real-Time</p>
-              <div className="space-y-2">
-                <SummaryRow label="Expected" value={snapshot.length} color="text-foreground" />
-                <SummaryRow label="Discan" value={scanned.length} color="text-foreground" />
-                <div className="border-t border-border pt-2 space-y-2">
-                  <SummaryRow label="Match" value={match} color="text-[hsl(var(--status-available-fg))]" />
-                  <SummaryRow label="Missing" value={missing} color={missing > 0 ? "text-[hsl(var(--status-minus-fg))]" : "text-foreground"} />
-                  <SummaryRow label="Unregistered" value={unregistered} color={unregistered > 0 ? "text-[hsl(var(--status-coming-soon-fg))]" : "text-foreground"} />
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground">Perbandingan diperbarui secara otomatis berdasarkan hasil scan.</p>
-            </div>
-
             {/* Complete button */}
             <Button
               className="w-full h-10 gap-2 text-sm"
@@ -1231,14 +1368,30 @@ function ScanView({
             {scanned.length === 0 && (
               <p className="text-[10px] text-muted-foreground text-center">Scan minimal 1 IMEI untuk dapat menyelesaikan sesi.</p>
             )}
-            {missing > 0 && (
-              <div className="rounded-xl bg-[hsl(var(--status-minus-bg))] border border-[hsl(var(--status-minus))]/20 px-3 py-2.5">
-                <p className="text-xs font-medium text-[hsl(var(--status-minus-fg))] flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  Terdapat {missing} unit missing. Selisih perlu ditinjau sebelum sesi disetujui.
-                </p>
+
+            {/* Quick stats card */}
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Ringkasan</p>
+              <div className="space-y-2">
+                <SummaryRow label="Stok Tersedia (Sistem)" value={snapshot.length} color="text-foreground" />
+                <SummaryRow label="Total Discan" value={scanned.length} color="text-foreground" />
+                <div className="border-t border-border pt-2 space-y-2">
+                  <SummaryRow label="Cocok" value={match} color="text-[hsl(var(--status-available-fg))]" />
+                  <SummaryRow label="Belum Ditemukan" value={missing} color={missing > 0 ? "text-[hsl(var(--status-minus-fg))]" : "text-foreground"} />
+                  <SummaryRow label="Tidak Terdaftar" value={unregistered} color={unregistered > 0 ? "text-[hsl(var(--status-coming-soon-fg))]" : "text-foreground"} />
+                </div>
+                {salesSummary.total > 0 && (
+                  <div className="border-t border-border pt-2 space-y-2">
+                    <p className="text-[10px] font-semibold text-muted-foreground">Penjualan Tercatat</p>
+                    {salesSummary.pos > 0 && <SummaryRow label="Offline Store (POS)" value={salesSummary.pos} color="text-foreground" />}
+                    {salesSummary.website > 0 && <SummaryRow label="Website" value={salesSummary.website} color="text-foreground" />}
+                    {salesSummary.ecommerce_tokopedia > 0 && <SummaryRow label="Tokopedia" value={salesSummary.ecommerce_tokopedia} color="text-foreground" />}
+                    {salesSummary.ecommerce_shopee > 0 && <SummaryRow label="Shopee" value={salesSummary.ecommerce_shopee} color="text-foreground" />}
+                  </div>
+                )}
               </div>
-            )}
+              <p className="text-[10px] text-muted-foreground">Data diperbarui otomatis berdasarkan hasil scan.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1268,7 +1421,7 @@ function ResultsView({
   const [session, setSession] = useState<OpnameSession | null>(null);
   const [snapshot, setSnapshot] = useState<OpnameSnapshotItem[]>([]);
   const [scanned, setScanned] = useState<OpnameScannedItem[]>([]);
-  const [tab, setTab] = useState<"match" | "missing" | "unregistered">("match");
+  const [tab, setTab] = useState<"cocok" | "belum_ditemukan" | "tidak_terdaftar">("cocok");
   const [actions, setActions] = useState<Record<string, { action: string; notes: string; ref: string }>>({});
   const [locking, setLocking] = useState(false);
   const { user } = useAuth();
@@ -1317,7 +1470,6 @@ function ResultsView({
 
   const handleLock = async () => {
     setLocking(true);
-    // Save all pending actions first
     for (const [id, act] of Object.entries(actions)) {
       const snapItem = snapshot.find((s) => s.id === id);
       const scanItem = scanned.find((s) => s.id === id);
@@ -1347,7 +1499,6 @@ function ResultsView({
   return (
     <DashboardLayout pageTitle="Stok Opname – Hasil Sesi">
       <div className="space-y-4">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="p-2 rounded-lg hover:bg-accent transition-colors">
             <ArrowLeft className="w-4 h-4 text-muted-foreground" />
@@ -1364,11 +1515,11 @@ function ResultsView({
         {/* Summary cards */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {[
-            { label: "Expected", val: session.total_expected, color: "text-foreground" },
+            { label: "Stok Tersedia", val: session.total_expected, color: "text-foreground" },
             { label: "Discan", val: session.total_scanned, color: "text-foreground" },
-            { label: "Match", val: matchItems.length, color: "text-[hsl(var(--status-available-fg))]" },
-            { label: "Missing", val: missingItems.length, color: missingItems.length > 0 ? "text-[hsl(var(--status-minus-fg))]" : "text-foreground" },
-            { label: "Unregistered", val: unregisteredItems.length, color: unregisteredItems.length > 0 ? "text-[hsl(var(--status-coming-soon-fg))]" : "text-foreground" },
+            { label: "Cocok", val: matchItems.length, color: "text-[hsl(var(--status-available-fg))]" },
+            { label: "Belum Ditemukan", val: missingItems.length, color: missingItems.length > 0 ? "text-[hsl(var(--status-minus-fg))]" : "text-foreground" },
+            { label: "Tidak Terdaftar", val: unregisteredItems.length, color: unregisteredItems.length > 0 ? "text-[hsl(var(--status-coming-soon-fg))]" : "text-foreground" },
           ].map((item) => (
             <div key={item.label} className="bg-card rounded-xl border border-border p-3 text-center">
               <p className={cn("text-2xl font-bold", item.color)}>{item.val}</p>
@@ -1381,10 +1532,10 @@ function ResultsView({
         <div className="bg-card rounded-xl border border-border overflow-hidden">
           <div className="flex border-b border-border">
             {([
-              { key: "match", label: `Match (${matchItems.length})` },
-              { key: "missing", label: `Missing (${missingItems.length})` },
-              { key: "unregistered", label: `Unregistered (${unregisteredItems.length})` },
-            ] as const).map((t) => (
+              { key: "cocok" as const, label: `Cocok (${matchItems.length})` },
+              { key: "belum_ditemukan" as const, label: `Belum Ditemukan (${missingItems.length})` },
+              { key: "tidak_terdaftar" as const, label: `Tidak Terdaftar (${unregisteredItems.length})` },
+            ]).map((t) => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
@@ -1401,8 +1552,7 @@ function ResultsView({
           </div>
 
           <div className="p-4 space-y-3 max-h-[400px] overflow-y-auto">
-            {/* Match tab */}
-            {tab === "match" && (
+            {tab === "cocok" && (
               matchItems.length === 0
                 ? <p className="text-xs text-muted-foreground text-center py-4">Tidak ada unit yang cocok.</p>
                 : matchItems.map((item) => (
@@ -1416,81 +1566,88 @@ function ResultsView({
                 ))
             )}
 
-            {/* Missing tab */}
-            {tab === "missing" && (
+            {tab === "belum_ditemukan" && (
               missingItems.length === 0
-                ? <p className="text-xs text-muted-foreground text-center py-4">Tidak ada unit missing. Semua unit ditemukan.</p>
-                : missingItems.map((item) => {
-                  const local = actions[item.id] ?? { action: item.action_taken ?? "", notes: item.action_notes ?? "", ref: item.sold_reference_id ?? "" };
-                  const isSold = local.action === "sold_pos" || local.action === "sold_ecommerce_tokopedia" || local.action === "sold_ecommerce_shopee";
-                  return (
-                    <div key={item.id} className="p-3 rounded-lg border border-border bg-card space-y-2">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-[hsl(var(--status-minus-fg))] shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-mono text-foreground">{item.imei}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{item.product_label}</p>
+                ? <p className="text-xs text-muted-foreground text-center py-4">Semua unit ditemukan di etalase. 🎉</p>
+                : <>
+                  <div className="rounded-lg bg-[hsl(var(--status-minus-bg))] border border-[hsl(var(--status-minus))]/20 px-3 py-2 mb-2">
+                    <p className="text-[10px] text-[hsl(var(--status-minus-fg))]">
+                      💡 Unit ini tercatat "Tersedia" di sistem tapi tidak ditemukan saat scan etalase. 
+                      Dugaan pertama: unit mungkin sudah terjual di marketplace (Tokopedia/Shopee) dan belum diupdate statusnya. 
+                      Silakan pilih tindakan yang sesuai untuk setiap unit.
+                    </p>
+                  </div>
+                  {missingItems.map((item) => {
+                    const local = actions[item.id] ?? { action: item.action_taken ?? "", notes: item.action_notes ?? "", ref: item.sold_reference_id ?? "" };
+                    const isSold = local.action === "sold_pos" || local.action === "sold_ecommerce_tokopedia" || local.action === "sold_ecommerce_shopee";
+                    return (
+                      <div key={item.id} className="p-3 rounded-lg border border-border bg-card space-y-2">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-[hsl(var(--status-minus-fg))] shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-mono text-foreground">{item.imei}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{item.product_label}</p>
+                          </div>
+                          {item.selling_price && <p className="text-xs font-semibold text-foreground whitespace-nowrap">{formatCurrency(item.selling_price)}</p>}
                         </div>
-                        {item.selling_price && <p className="text-xs font-semibold text-foreground whitespace-nowrap">{formatCurrency(item.selling_price)}</p>}
-                      </div>
-                      {!isLocked && (
-                        <div className="space-y-1.5">
-                          <Select
-                            value={local.action}
-                            onValueChange={(v) => {
-                              const updated = { ...local, action: v };
-                              setActions((prev) => ({ ...prev, [item.id]: updated }));
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Pilih tindakan…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(SNAPSHOT_ACTION_LABELS).map(([k, v]) => (
-                                <SelectItem key={k} value={k}>{v}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {isSold && (
-                            <Input
-                              placeholder="No. Referensi transaksi…"
-                              className="h-8 text-xs"
-                              value={local.ref}
-                              onChange={(e) => setActions((prev) => ({ ...prev, [item.id]: { ...local, ref: e.target.value } }))}
-                            />
-                          )}
-                          <Input
-                            placeholder="Catatan tindakan (opsional)…"
-                            className="h-8 text-xs"
-                            value={local.notes}
-                            onChange={(e) => setActions((prev) => ({ ...prev, [item.id]: { ...local, notes: e.target.value } }))}
-                          />
-                          {local.action && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => saveSnapshotAction(item.id, local.action as SnapshotActionTaken, local.notes, local.ref)}
+                        {!isLocked && (
+                          <div className="space-y-1.5">
+                            <Select
+                              value={local.action}
+                              onValueChange={(v) => {
+                                const updated = { ...local, action: v };
+                                setActions((prev) => ({ ...prev, [item.id]: updated }));
+                              }}
                             >
-                              Simpan Tindakan
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                      {item.action_taken && (
-                        <p className="text-[10px] font-medium text-[hsl(var(--status-available-fg))]">
-                          ✓ {SNAPSHOT_ACTION_LABELS[item.action_taken]}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Pilih tindakan…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(SNAPSHOT_ACTION_LABELS).map(([k, v]) => (
+                                  <SelectItem key={k} value={k}>{v}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {isSold && (
+                              <Input
+                                placeholder="No. Referensi transaksi…"
+                                className="h-8 text-xs"
+                                value={local.ref}
+                                onChange={(e) => setActions((prev) => ({ ...prev, [item.id]: { ...local, ref: e.target.value } }))}
+                              />
+                            )}
+                            <Input
+                              placeholder="Catatan tindakan (opsional)…"
+                              className="h-8 text-xs"
+                              value={local.notes}
+                              onChange={(e) => setActions((prev) => ({ ...prev, [item.id]: { ...local, notes: e.target.value } }))}
+                            />
+                            {local.action && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => saveSnapshotAction(item.id, local.action as SnapshotActionTaken, local.notes, local.ref)}
+                              >
+                                Simpan Tindakan
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        {item.action_taken && (
+                          <p className="text-[10px] font-medium text-[hsl(var(--status-available-fg))]">
+                            ✓ {SNAPSHOT_ACTION_LABELS[item.action_taken]}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
             )}
 
-            {/* Unregistered tab */}
-            {tab === "unregistered" && (
+            {tab === "tidak_terdaftar" && (
               unregisteredItems.length === 0
-                ? <p className="text-xs text-muted-foreground text-center py-4">Tidak ada IMEI yang tidak terdaftar.</p>
+                ? <p className="text-xs text-muted-foreground text-center py-4">Tidak ada IMEI yang tidak terdaftar di sistem.</p>
                 : unregisteredItems.map((item) => {
                   const local = actions[item.id] ?? { action: item.action_taken ?? "", notes: item.action_notes ?? "", ref: "" };
                   return (
@@ -1545,7 +1702,7 @@ function ResultsView({
           </div>
         </div>
 
-        {/* Lock button (super admin) */}
+        {/* Lock button */}
         {isSuperAdmin && !isLocked && (
           <div className="bg-card rounded-xl border border-border p-4 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
@@ -1617,7 +1774,6 @@ function DetailView({
     const scannedData = (sc as ScannedItemWithScanner[]) ?? [];
     setScannedItems(scannedData);
 
-    // Fetch assignee profiles
     const assigneeIds = ((assignments as { admin_id: string }[]) ?? []).map((a) => a.admin_id);
     if (assigneeIds.length > 0) {
       const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", assigneeIds);
@@ -1626,7 +1782,6 @@ function DetailView({
       setAssignees([]);
     }
 
-    // Fetch scanner names
     const scannerIds = [...new Set(scannedData.map((s) => s.scanned_by).filter(Boolean))] as string[];
     if (scannerIds.length > 0) {
       const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", scannerIds);
@@ -1670,7 +1825,6 @@ function DetailView({
     </DashboardLayout>
   );
 
-  // Breakdown by scanner
   const scannerBreakdown: Record<string, { name: string; count: number; match: number }> = {};
   for (const item of scannedItems) {
     const key = item.scanned_by ?? "__unknown";
@@ -1699,19 +1853,19 @@ function DetailView({
 
         {/* Summary */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <InfoCard label="Expected" value={session.total_expected.toString()} />
+          <InfoCard label="Stok Tersedia" value={session.total_expected.toString()} />
           <InfoCard label="Discan" value={session.total_scanned.toString()} />
           <InfoCard label="Cocok" value={session.total_match.toString()} />
-          <InfoCard label="Missing" value={session.total_missing.toString()} />
+          <InfoCard label="Belum Ditemukan" value={session.total_missing.toString()} />
           <InfoCard label="Tidak Terdaftar" value={session.total_unregistered.toString()} />
           <InfoCard label="Dimulai" value={formatDateShort(session.started_at)} />
         </div>
 
-        {/* ── Admin yang ditugaskan ── */}
+        {/* Admin yang ditugaskan */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5" /> Admin yang Ditugaskan
+              <Users className="w-3.5 h-3.5" /> Petugas yang Ditugaskan
             </p>
             {isSuperAdmin && (
               <button
@@ -1719,7 +1873,7 @@ function DetailView({
                 className="flex items-center gap-1 text-xs text-foreground hover:underline font-medium"
               >
                 <UserCheck className="w-3 h-3" />
-                {assignees.length === 0 ? "Assign Admin" : "Ubah Penugasan"}
+                {assignees.length === 0 ? "Tambah Petugas" : "Ubah Penugasan"}
               </button>
             )}
           </div>
@@ -1728,8 +1882,8 @@ function DetailView({
             <div className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--status-minus-bg))] border border-[hsl(var(--status-minus))]/20">
               <AlertTriangle className="w-4 h-4 text-[hsl(var(--status-minus-fg))] shrink-0" />
               <div>
-                <p className="text-xs font-medium text-[hsl(var(--status-minus-fg))]">Sesi ini belum memiliki admin yang ditugaskan.</p>
-                {isSuperAdmin && <p className="text-[10px] text-muted-foreground mt-0.5">Klik "Assign Admin" untuk menambahkan penugasan.</p>}
+                <p className="text-xs font-medium text-[hsl(var(--status-minus-fg))]">Sesi ini belum memiliki petugas.</p>
+                {isSuperAdmin && <p className="text-[10px] text-muted-foreground mt-0.5">Klik "Tambah Petugas" untuk menambahkan penugasan.</p>}
               </div>
             </div>
           ) : (
@@ -1750,7 +1904,7 @@ function DetailView({
           )}
         </div>
 
-        {/* ── Breakdown scanner ── */}
+        {/* Breakdown scanner */}
         {scannerEntries.length > 0 && (
           <div className="bg-card rounded-xl border border-border p-4 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
@@ -1796,7 +1950,6 @@ function DetailView({
         </Button>
       </div>
 
-      {/* Assign modal */}
       {showAssignModal && (
         <AssignAdminModal
           session={{ ...session, assignees }}
