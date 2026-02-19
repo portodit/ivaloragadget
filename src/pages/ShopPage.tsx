@@ -467,27 +467,30 @@ export default function ShopPage() {
 
                       {outOfStock && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <span className="text-white text-sm font-bold bg-black/60 px-4 py-2 rounded-full">Stok Habis</span>
+                          <span className="text-white text-base font-extrabold bg-destructive/80 px-5 py-2.5 rounded-full tracking-wide">STOK HABIS</span>
                         </div>
                       )}
                     </div>
 
                     {/* Info */}
-                    <div className="p-3 flex-1 flex flex-col gap-1.5">
-                      <p className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{displayName}</p>
-                      <p className="text-[10px] text-muted-foreground">
+                    <div className="p-3 flex-1 flex flex-col gap-1">
+                      {/* Warranty label above title */}
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
                         {WARRANTY_SHORT[g.warranty_type] ?? g.warranty_type}
                       </p>
+                      <p className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{displayName}</p>
                       <div className="mt-auto">
                         {outOfStock ? (
-                          <span className="text-sm text-destructive font-bold">Stok Habis</span>
+                          <span className="text-sm text-destructive font-bold">STOK HABIS</span>
                         ) : (
                           <>
-                            <p className="text-xs text-muted-foreground">{lang === "en" ? "From" : "Mulai"}</p>
-                            <p className="text-sm font-bold text-foreground">{formatPrice(g.minPrice)}</p>
-                            {g.totalStock > 0 && (
-                              <p className="text-xs text-muted-foreground mt-0.5">{g.totalStock} unit tersedia</p>
-                            )}
+                            <p className="text-[10px] text-muted-foreground">{lang === "en" ? "From" : "Mulai"}</p>
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-sm font-bold text-foreground">{formatPrice(g.minPrice)}</p>
+                              {g.totalStock > 0 && (
+                                <p className="text-xs font-semibold text-muted-foreground whitespace-nowrap">{g.totalStock} unit</p>
+                              )}
+                            </div>
                           </>
                         )}
                       </div>

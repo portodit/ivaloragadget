@@ -256,6 +256,8 @@ export default function ProductDetailPage() {
   const [otherWarrantySlugs, setOtherWarrantySlugs] = useState<{ warrantyType: string; slug: string }[]>([]);
   // All catalogs cache for warranty switching without navigation
   const [allCatalogsCache, setAllCatalogsCache] = useState<CatalogProduct[]>([]);
+  // All master products for series (to derive all color/storage options)
+  const [allMasterProducts, setAllMasterProducts] = useState<MasterProduct[]>([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -310,8 +312,18 @@ export default function ProductDetailPage() {
       }
       setOtherWarrantySlugs(Array.from(wtMap.entries()).map(([warrantyType, slug]) => ({ warrantyType, slug })));
 
-      // 3. Load units for ALL series product_ids (all warranty types for instant switching)
-      const allProductIds = allForSeries.map((s: CatalogProduct) => s.product_id);
+      // 2b. Load ALL master_products for this series (regardless of catalog entry)
+      const { data: allMasters } = await db.from("master_products")
+        .select("id, series, storage_gb, color, category, warranty_type")
+        .eq("series", series)
+        .eq("is_active", true)
+        .is("deleted_at", null);
+      setAllMasterProducts(allMasters ?? []);
+
+      // 3. Load units for ALL master product_ids of this series (not just catalog ones)
+      const allMasterIds = (allMasters ?? []).map((m: MasterProduct) => m.id);
+      const allCatalogIds = allForSeries.map((s: CatalogProduct) => s.product_id);
+      const allProductIds = Array.from(new Set([...allMasterIds, ...allCatalogIds]));
       const { data: stockData } = await db.from("stock_units")
         .select("id, imei, condition_status, minus_severity, minus_description, selling_price, stock_status, product_id")
         .in("product_id", allProductIds)
@@ -367,14 +379,18 @@ export default function ProductDetailPage() {
     return allCatalogsCache.filter(c => c.master_products.warranty_type === selectedWarrantyType);
   }, [allCatalogsCache, selectedWarrantyType, siblingCatalogs]);
 
-  // Derive all available colors and storages from current warranty siblings
+  // Derive all available colors and storages from master_products for this warranty type
   const allColors = useMemo(() => {
-    return Array.from(new Set(currentSiblings.map(s => s.master_products.color)));
-  }, [currentSiblings]);
+    const mastersForWt = allMasterProducts.filter(m => m.warranty_type === selectedWarrantyType);
+    if (mastersForWt.length === 0) return Array.from(new Set(currentSiblings.map(s => s.master_products.color)));
+    return Array.from(new Set(mastersForWt.map(m => m.color)));
+  }, [allMasterProducts, selectedWarrantyType, currentSiblings]);
 
   const allStorages = useMemo(() => {
-    return Array.from(new Set(currentSiblings.map(s => s.master_products.storage_gb))).sort((a, b) => a - b);
-  }, [currentSiblings]);
+    const mastersForWt = allMasterProducts.filter(m => m.warranty_type === selectedWarrantyType);
+    if (mastersForWt.length === 0) return Array.from(new Set(currentSiblings.map(s => s.master_products.storage_gb))).sort((a, b) => a - b);
+    return Array.from(new Set(mastersForWt.map(m => m.storage_gb))).sort((a, b) => a - b);
+  }, [allMasterProducts, selectedWarrantyType, currentSiblings]);
 
   // Find the catalog matching current selected color + storage
   const activeCatalog = useMemo(() => {
@@ -383,21 +399,37 @@ export default function ProductDetailPage() {
     ) ?? currentSiblings[0] ?? catalog;
   }, [currentSiblings, selectedColor, selectedStorage, catalog]);
 
-  // Units for the currently selected variant
+  // Units for the currently selected variant — use master_product ID
   const activeUnits = useMemo(() => {
+    // Find master_product for selected color+storage+warranty
+    const masterMatch = allMasterProducts.find(m =>
+      m.warranty_type === selectedWarrantyType && m.color === selectedColor && m.storage_gb === selectedStorage
+    );
+    if (masterMatch) {
+      return allUnits.filter(u => u.product_id === masterMatch.id);
+    }
+    // Fallback to catalog-based
     if (!activeCatalog) return [];
     return allUnits.filter(u => u.product_id === activeCatalog.product_id);
-  }, [allUnits, activeCatalog]);
+  }, [allUnits, activeCatalog, allMasterProducts, selectedWarrantyType, selectedColor, selectedStorage]);
 
   // Check if a specific color+storage combination has stock
   const hasStockFor = (color: string, storage: number) => {
+    const masterMatch = allMasterProducts.find(m =>
+      m.warranty_type === selectedWarrantyType && m.color === color && m.storage_gb === storage
+    );
+    if (masterMatch) return allUnits.some(u => u.product_id === masterMatch.id);
     const cat = currentSiblings.find(s => s.master_products.color === color && s.master_products.storage_gb === storage);
     if (!cat) return false;
     return allUnits.some(u => u.product_id === cat.product_id);
   };
 
-  // Check if a specific color+storage combination has a catalog entry
+  // Check if a specific color+storage combination exists (master or catalog)
   const hasCatalogFor = (color: string, storage: number) => {
+    const hasMaster = allMasterProducts.some(m =>
+      m.warranty_type === selectedWarrantyType && m.color === color && m.storage_gb === storage
+    );
+    if (hasMaster) return true;
     return currentSiblings.some(s => s.master_products.color === color && s.master_products.storage_gb === storage);
   };
 
@@ -728,15 +760,15 @@ export default function ProductDetailPage() {
                   </Select>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <span
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white"
+                    className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-full text-white"
                     style={{ backgroundColor: WARRANTY_BADGE_COLORS[master.warranty_type] ?? "#666" }}
                   >
-                    <BadgeCheck className="w-3.5 h-3.5" />
+                    <BadgeCheck className="w-4 h-4" />
                     {WARRANTY_SHORT[master.warranty_type] ?? master.warranty_type}
                   </span>
-                  <span className="text-xs text-muted-foreground">{WARRANTY_LABELS[master.warranty_type]}</span>
+                  <span className="text-sm text-muted-foreground">{WARRANTY_LABELS[master.warranty_type]}</span>
                 </div>
               )}
 
