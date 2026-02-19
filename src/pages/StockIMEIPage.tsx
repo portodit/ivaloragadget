@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Search, LayoutGrid, List, X, RefreshCw, Download, AlertCircle, Trash2, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import { id as localeId } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -57,9 +58,8 @@ export default function StockIMEIPage() {
   const [seriesDropdownOpen, setSeriesDropdownOpen] = useState(false);
   const seriesRef = useRef<HTMLDivElement>(null);
 
-  // Date filter
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
-  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+   // Date filter
+   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   // Modals
   const [addOpen, setAddOpen] = useState(false);
@@ -116,15 +116,15 @@ export default function StockIMEIPage() {
     }
     if (filterSeries !== "all") query = query.ilike("master_products.series" as never, `%${filterSeries}%`);
 
-    // Date filter
-    if (dateFrom) {
-      const fromStr = format(dateFrom, "yyyy-MM-dd");
-      query = query.gte("received_at", fromStr as never);
-    }
-    if (dateTo) {
-      const toDate = new Date(dateTo);
-      toDate.setDate(toDate.getDate() + 1);
-      const toStr = format(toDate, "yyyy-MM-dd");
+     // Date filter
+     if (dateRange?.from) {
+       const fromStr = format(dateRange.from, "yyyy-MM-dd");
+       query = query.gte("received_at", fromStr as never);
+     }
+     if (dateRange?.to) {
+       const toDate = new Date(dateRange.to);
+       toDate.setDate(toDate.getDate() + 1);
+       const toStr = format(toDate, "yyyy-MM-dd");
       query = query.lt("received_at", toStr as never);
     }
 
@@ -142,7 +142,7 @@ export default function StockIMEIPage() {
     }
     setUnits(filtered);
     setLoading(false);
-  }, [search, filterStatuses, filterSeries, filterCondition, dateFrom, dateTo]);
+  }, [search, filterStatuses, filterSeries, filterCondition, dateRange]);
 
   const fetchSummary = useCallback(async () => {
     const counts: SummaryCount[] = [];
@@ -162,9 +162,9 @@ export default function StockIMEIPage() {
 
   const handleRefresh = () => { fetchUnits(); fetchSummary(); setSelectedIds(new Set()); setConfirmBulkDelete(false); };
   const isDefaultFilter = filterStatuses.size === DEFAULT_STATUSES.length && DEFAULT_STATUSES.every(s => filterStatuses.has(s));
-  const resetFilters = () => { setSearch(""); setFilterStatuses(new Set(DEFAULT_STATUSES)); setFilterSeries("all"); setFilterCondition("all"); setDateFrom(undefined); setDateTo(undefined); setSeriesSearch(""); };
+  const resetFilters = () => { setSearch(""); setFilterStatuses(new Set(DEFAULT_STATUSES)); setFilterSeries("all"); setFilterCondition("all"); setDateRange(undefined); setSeriesSearch(""); };
 
-  const hasActiveFilters = search || !isDefaultFilter || filterSeries !== "all" || filterCondition !== "all" || dateFrom || dateTo;
+  const hasActiveFilters = search || !isDefaultFilter || filterSeries !== "all" || filterCondition !== "all" || dateRange?.from;
 
   const filteredSeriesList = allSeries.filter(s => s.toLowerCase().includes(seriesSearch.toLowerCase()));
 
@@ -193,12 +193,11 @@ export default function StockIMEIPage() {
     handleRefresh();
   };
 
-  const dateLabel = () => {
-    if (dateFrom && dateTo) return `${format(dateFrom, "dd MMM", { locale: localeId })} — ${format(dateTo, "dd MMM yy", { locale: localeId })}`;
-    if (dateFrom) return `Dari ${format(dateFrom, "dd MMM yy", { locale: localeId })}`;
-    if (dateTo) return `s/d ${format(dateTo, "dd MMM yy", { locale: localeId })}`;
-    return "Tanggal";
-  };
+   const dateLabel = () => {
+     if (dateRange?.from && dateRange?.to) return `${format(dateRange.from, "dd MMM", { locale: localeId })} — ${format(dateRange.to, "dd MMM yy", { locale: localeId })}`;
+     if (dateRange?.from) return format(dateRange.from, "dd MMM yy", { locale: localeId });
+     return "Tanggal";
+   };
 
   return (
     <DashboardLayout pageTitle="Stok IMEI">
@@ -377,42 +376,30 @@ export default function StockIMEIPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={cn("h-9 gap-1.5 text-xs hidden sm:flex", (dateFrom || dateTo) && "border-primary text-primary")}
-                >
-                  <CalendarIcon className="w-3.5 h-3.5" />
-                  {dateLabel()}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-3 space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">Dari Tanggal</p>
-                    <Calendar
-                      mode="single"
-                      selected={dateFrom}
-                      onSelect={setDateFrom}
-                      className={cn("p-0 pointer-events-auto")}
-                      locale={localeId}
-                    />
-                  </div>
-                  <div className="border-t border-border pt-3 space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">Sampai Tanggal</p>
-                    <Calendar
-                      mode="single"
-                      selected={dateTo}
-                      onSelect={setDateTo}
-                      disabled={(date) => dateFrom ? date < dateFrom : false}
-                      className={cn("p-0 pointer-events-auto")}
-                      locale={localeId}
-                    />
-                  </div>
-                  {(dateFrom || dateTo) && (
-                    <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
-                      Reset Tanggal
-                    </Button>
-                  )}
-                </div>
-              </PopoverContent>
+                   className={cn("h-9 gap-1.5 text-xs hidden sm:flex", dateRange?.from && "border-primary text-primary")}
+                 >
+                   <CalendarIcon className="w-3.5 h-3.5" />
+                   {dateLabel()}
+                 </Button>
+               </PopoverTrigger>
+               <PopoverContent className="w-auto p-0" align="start">
+                 <div className="p-3 space-y-2">
+                   <p className="text-xs font-medium text-muted-foreground">Pilih tanggal atau rentang tanggal</p>
+                   <Calendar
+                     mode="range"
+                     selected={dateRange}
+                     onSelect={setDateRange}
+                     numberOfMonths={1}
+                     className={cn("p-0 pointer-events-auto")}
+                     locale={localeId}
+                   />
+                   {dateRange?.from && (
+                     <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setDateRange(undefined)}>
+                       Reset Tanggal
+                     </Button>
+                   )}
+                 </div>
+               </PopoverContent>
             </Popover>
             {/* View toggle */}
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1 h-9">
@@ -475,27 +462,28 @@ export default function StockIMEIPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={cn("h-8 gap-1 text-[11px] shrink-0", (dateFrom || dateTo) && "border-primary text-primary")}
-                >
-                  <CalendarIcon className="w-3 h-3" />
-                  {dateFrom || dateTo ? dateLabel() : "Tanggal"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <div className="p-3 space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">Dari</p>
-                    <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} className={cn("p-0 pointer-events-auto")} locale={localeId} />
-                  </div>
-                  <div className="border-t border-border pt-3 space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">Sampai</p>
-                    <Calendar mode="single" selected={dateTo} onSelect={setDateTo} disabled={(date) => dateFrom ? date < dateFrom : false} className={cn("p-0 pointer-events-auto")} locale={localeId} />
-                  </div>
-                  {(dateFrom || dateTo) && (
-                    <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>Reset</Button>
-                  )}
-                </div>
-              </PopoverContent>
+                   className={cn("h-8 gap-1 text-[11px] shrink-0", dateRange?.from && "border-primary text-primary")}
+                 >
+                   <CalendarIcon className="w-3 h-3" />
+                   {dateRange?.from ? dateLabel() : "Tanggal"}
+                 </Button>
+               </PopoverTrigger>
+               <PopoverContent className="w-auto p-0" align="end">
+                 <div className="p-3 space-y-2">
+                   <p className="text-xs font-medium text-muted-foreground">Pilih tanggal</p>
+                   <Calendar
+                     mode="range"
+                     selected={dateRange}
+                     onSelect={setDateRange}
+                     numberOfMonths={1}
+                     className={cn("p-0 pointer-events-auto")}
+                     locale={localeId}
+                   />
+                   {dateRange?.from && (
+                     <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setDateRange(undefined)}>Reset</Button>
+                   )}
+                 </div>
+               </PopoverContent>
             </Popover>
             {hasActiveFilters && (
               <button className="shrink-0 px-2 py-1 rounded-full text-[10px] font-medium border border-destructive/30 text-destructive" onClick={resetFilters}>
