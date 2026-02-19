@@ -38,9 +38,18 @@ Deno.serve(async (req) => {
     const result = await verifyRes.json();
 
     if (!result.success) {
-      return new Response(JSON.stringify({ success: false, error: "reCAPTCHA verification failed", details: result["error-codes"] }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const errorCodes: string[] = result["error-codes"] ?? [];
+      // "browser-error" means the domain isn't whitelisted in the reCAPTCHA console
+      // (common in preview/dev environments). Return 200 so the client treats it as
+      // a soft failure rather than an HTTP error.
+      const isBrowserError = errorCodes.includes("browser-error");
+      return new Response(
+        JSON.stringify({ success: false, error: "reCAPTCHA verification failed", details: errorCodes }),
+        {
+          status: isBrowserError ? 200 : 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     if (result.score < MIN_SCORE) {
