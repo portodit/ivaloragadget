@@ -21,6 +21,8 @@ import ProfilPage from "./pages/ProfilPage";
 import PengaturanPage from "./pages/PengaturanPage";
 import ActivityLogPage from "./pages/ActivityLogPage";
 import KatalogPage from "./pages/KatalogPage";
+import KatalogFormPage from "./pages/katalog/KatalogFormPage";
+import ProductDetailPage from "./pages/katalog/ProductDetailPage";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +53,9 @@ const App = () => (
             <Route path="/pengaturan" element={<ProtectedRoute><PengaturanPage /></ProtectedRoute>} />
             <Route path="/log-aktivitas" element={<ProtectedRoute requireRole="super_admin"><ActivityLogPage /></ProtectedRoute>} />
             <Route path="/katalog" element={<ProtectedRoute><KatalogPage /></ProtectedRoute>} />
+            <Route path="/katalog/tambah" element={<ProtectedRoute requireRole="super_admin"><KatalogFormPage /></ProtectedRoute>} />
+            <Route path="/katalog/edit/:id" element={<ProtectedRoute><KatalogFormPage /></ProtectedRoute>} />
+            <Route path="/produk/:slug" element={<ProductDetailPage />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
