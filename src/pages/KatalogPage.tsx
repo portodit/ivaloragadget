@@ -151,7 +151,7 @@ async function uploadImage(file: File, path: string): Promise<string | null> {
   const { data, error } = await supabase.storage
     .from("catalog-images")
     .upload(path, file, { upsert: true });
-  if (error) return null;
+  if (error) { console.error("Upload error:", error.message); return null; }
   const { data: urlData } = supabase.storage.from("catalog-images").getPublicUrl(data.path);
   return urlData.publicUrl;
 }

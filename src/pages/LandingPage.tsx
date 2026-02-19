@@ -356,7 +356,7 @@ export default function LandingPage() {
           style={{ background: "linear-gradient(0deg, hsl(0 0% 3% / 0.8) 0%, transparent 100%)" }} />
 
         <div className="max-w-6xl mx-auto px-6 w-full py-28 relative z-10">
-          <div className="max-w-2xl space-y-8">
+          <div className="max-w-3xl space-y-8">
             {/* Tag */}
             <div
               className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-widest"
@@ -376,7 +376,7 @@ export default function LandingPage() {
                   {t("iPhone Resmi Surabaya.", "Official iPhone Surabaya.")}
                 </span>
               </h1>
-              <p className="text-base md:text-lg leading-relaxed max-w-md text-white/80">
+              <p className="text-base md:text-lg leading-relaxed max-w-xl text-white">
                 {t(
                   "Unit bergaransi, IMEI terdaftar, kondisi transparan. Ribuan pelanggan sudah mempercayakan pembelian iPhone mereka ke Ivalora.",
                   "Warranted units, registered IMEI, transparent condition. Thousands of customers have trusted Ivalora for their iPhone purchases."
@@ -525,12 +525,12 @@ export default function LandingPage() {
                 <h2 className="text-2xl md:text-3xl font-bold text-white mt-2">
                   {t("Penawaran Terbatas, ", "Limited Offer, ")}<span style={{ color: "hsl(38 92% 55%)" }}>{t("Stok Cepat Habis.", "Selling Fast.")}</span>
                 </h2>
-                <p className="text-sm text-white/70">
+                <p className="text-sm text-white">
                   {t(`Harga spesial berlaku selama ${flashSale?.duration_hours ?? 6} jam`, `Special prices valid for ${flashSale?.duration_hours ?? 6} hours`)}
                 </p>
               </div>
               <div className="flex flex-col items-start sm:items-end gap-2">
-                <p className="text-xs uppercase tracking-widest text-white/70">{t("Berakhir dalam", "Ends in")}:</p>
+                <p className="text-xs uppercase tracking-widest text-white">{t("Berakhir dalam", "Ends in")}:</p>
                 <div className="flex items-center gap-2">
                   <CountdownBlock val={h} label={t("Jam", "Hr")} />
                   <span className="text-2xl font-bold pb-4" style={{ color: "hsl(38 92% 50%)" }}>:</span>
@@ -555,11 +555,6 @@ export default function LandingPage() {
             }
           </div>
 
-          <div className="text-center mt-8">
-            <Button variant="outline" className="rounded-xl gap-2 px-8" onClick={() => navigate("/katalog")}>
-              {t("Lihat Semua Produk", "View All Products")} <ArrowRight className="w-4 h-4" />
-            </Button>
-          </div>
         </div>
       </section>
       )}
@@ -575,12 +570,12 @@ export default function LandingPage() {
             <p className="text-sm text-muted-foreground mt-0.5">{t("Unit terpilih, kualitas terjamin, harga terbaik", "Hand-picked units, guaranteed quality, best prices")}</p>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-2">
             {IPHONE_CATEGORIES.map((cat) => (
               <div
                 key={cat.name}
                 onClick={() => navigate(`/katalog?search=${encodeURIComponent(cat.name)}`)}
-                className="rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1 min-w-[200px] shrink-0"
+                className="rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
                 style={{ background: "hsl(0 0% 8%)", border: "1px solid hsl(0 0% 15%)" }}
               >
                 <div
