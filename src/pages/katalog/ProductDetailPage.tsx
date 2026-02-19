@@ -250,9 +250,12 @@ export default function ProductDetailPage() {
   // User-selected filters (state-based, no navigation)
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedStorage, setSelectedStorage] = useState<number>(0);
+  const [selectedWarrantyType, setSelectedWarrantyType] = useState<string>("");
 
   // All warranty siblings for warranty dropdown (different warranty_type)
   const [otherWarrantySlugs, setOtherWarrantySlugs] = useState<{ warrantyType: string; slug: string }[]>([]);
+  // All catalogs cache for warranty switching without navigation
+  const [allCatalogsCache, setAllCatalogsCache] = useState<CatalogProduct[]>([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -273,6 +276,7 @@ export default function ProductDetailPage() {
       setActiveImg(data.thumbnail_url);
       setSelectedColor(data.master_products.color);
       setSelectedStorage(data.master_products.storage_gb);
+      setSelectedWarrantyType(data.master_products.warranty_type);
 
       // 2. Load ALL published catalogs for same series
       const { data: allCatalogs } = await db.from("catalog_products")
@@ -281,17 +285,22 @@ export default function ProductDetailPage() {
 
       const series = data.master_products.series;
       const wt = data.master_products.warranty_type;
-      const siblings = (allCatalogs ?? []).filter((c: CatalogProduct) =>
-        c.master_products?.series === series && c.master_products?.warranty_type === wt
+      const allForSeries = (allCatalogs ?? []).filter((c: CatalogProduct) =>
+        c.master_products?.series === series
       ).map((c: CatalogProduct) => ({
         ...c,
         bonus_items: Array.isArray(c.bonus_items) ? c.bonus_items : [],
       }));
+      setAllCatalogsCache(allForSeries);
+      
+      const siblings = allForSeries.filter((c: CatalogProduct) =>
+        c.master_products?.warranty_type === wt
+      );
       setSiblingCatalogs(siblings);
 
       // Other warranty type slugs for warranty dropdown
-      const otherWt = (allCatalogs ?? []).filter((c: CatalogProduct) =>
-        c.master_products?.series === series && c.master_products?.warranty_type !== wt
+      const otherWt = allForSeries.filter((c: CatalogProduct) =>
+        c.master_products?.warranty_type !== wt
       );
       const wtMap = new Map<string, string>();
       for (const c of otherWt) {
@@ -301,11 +310,11 @@ export default function ProductDetailPage() {
       }
       setOtherWarrantySlugs(Array.from(wtMap.entries()).map(([warrantyType, slug]) => ({ warrantyType, slug })));
 
-      // 3. Load units for ALL sibling product_ids
-      const productIds = siblings.map((s: CatalogProduct) => s.product_id);
+      // 3. Load units for ALL series product_ids (all warranty types for instant switching)
+      const allProductIds = allForSeries.map((s: CatalogProduct) => s.product_id);
       const { data: stockData } = await db.from("stock_units")
         .select("id, imei, condition_status, minus_severity, minus_description, selling_price, stock_status, product_id")
-        .in("product_id", productIds)
+        .in("product_id", allProductIds)
         .eq("stock_status", "available")
         .order("selling_price", { ascending: true });
       setAllUnits(stockData ?? []);
