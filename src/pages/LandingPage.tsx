@@ -249,6 +249,7 @@ export default function LandingPage() {
   const [flashEndTime, setFlashEndTime] = useState<Date | null>(null);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [featuredVariants, setFeaturedVariants] = useState<FeaturedVariant[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const { h, m, s, expired: flashExpired } = useCountdown(flashEndTime);
   const [activeUvp, setActiveUvp] = useState(0);
   const [activeBranch, setActiveBranch] = useState(0);
@@ -352,10 +353,11 @@ export default function LandingPage() {
         setCategoryCounts(counts);
 
         // Build featured variants: individual master products with stock > 0
-        // matched to highlight catalog items
+        // Use highlight catalog items, fallback to all published catalogs
         const highlightCatalogs = data.filter((p: Product) => p.highlight_product);
+        const sourceCatalogs = highlightCatalogs.length > 0 ? highlightCatalogs : data;
         const variants: FeaturedVariant[] = [];
-        for (const cat of highlightCatalogs) {
+        for (const cat of sourceCatalogs) {
           const matchingMs = masters.filter(m => m.series === cat.catalog_series && m.warranty_type === cat.catalog_warranty_type);
           for (const m of matchingMs) {
             const unitCount = stockAll.filter(s => s.product_id === m.id).length;
@@ -378,6 +380,7 @@ export default function LandingPage() {
           }
         }
         setFeaturedVariants(variants.slice(0, 8));
+        setDataLoaded(true);
       }
     })();
   }, []);
@@ -671,13 +674,19 @@ export default function LandingPage() {
             </Button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-2">
-            {featuredVariants.length > 0
+            {!dataLoaded
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))
+              : featuredVariants.length > 0
               ? featuredVariants.map((v) => (
                   <FeaturedVariantCard key={v.id} variant={v} formatPrice={formatPrice} />
                 ))
-              : Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonCard key={i} />
-                ))
+              : (
+                <div className="col-span-full text-center py-10">
+                  <p className="text-sm text-muted-foreground">Belum ada produk unggulan tersedia saat ini.</p>
+                </div>
+              )
             }
           </div>
         </div>
