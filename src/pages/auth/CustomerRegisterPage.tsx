@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import logoFull from "@/assets/logo-full.svg";
 
 const schema = z.object({
@@ -37,7 +38,6 @@ export default function CustomerRegisterPage() {
   const [resending, setResending] = useState(false);
   const [resendError, setResendError] = useState<string | null>(null);
   const [resendSuccess, setResendSuccess] = useState(false);
-  // Store last resend time in state (also persisted via DB)
   const [lastResendAt, setLastResendAt] = useState<Date | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -66,7 +66,7 @@ export default function CustomerRegisterPage() {
     }
 
     setRegisteredEmail(data.email);
-    setLastResendAt(new Date()); // treat initial signup as first send
+    setLastResendAt(new Date());
     setDone(true);
   };
 
@@ -89,7 +89,6 @@ export default function CustomerRegisterPage() {
     setResendError(null);
     setResendSuccess(false);
 
-    // Check DB cooldown via user_profiles
     const { data: profile } = await supabase
       .from("user_profiles")
       .select("last_resend_at")
@@ -124,7 +123,6 @@ export default function CustomerRegisterPage() {
       setLastResendAt(now);
       setResendSuccess(true);
 
-      // Update last_resend_at in DB
       await supabase
         .from("user_profiles")
         .update({ last_resend_at: now.toISOString() })
@@ -139,11 +137,7 @@ export default function CustomerRegisterPage() {
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <div className="border-b border-border px-6 py-4">
-          <Link to="/katalog">
-            <img src={logoFull} alt="Ivalora Gadget" className="h-6 invert" />
-          </Link>
-        </div>
+        <PublicNavbar />
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-sm w-full text-center space-y-6">
             <div className="w-16 h-16 rounded-full bg-foreground flex items-center justify-center mx-auto">
@@ -165,7 +159,6 @@ export default function CustomerRegisterPage() {
               </div>
             </div>
 
-            {/* Resend section */}
             <div className="space-y-2">
               {resendSuccess && (
                 <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground text-left flex items-center gap-2">
@@ -211,14 +204,7 @@ export default function CustomerRegisterPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="border-b border-border px-6 py-4 flex items-center justify-between">
-        <Link to="/katalog">
-          <img src={logoFull} alt="Ivalora Gadget" className="h-6 invert" />
-        </Link>
-        <Link to="/katalog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-          Kembali ke Katalog
-        </Link>
-      </div>
+      <PublicNavbar />
 
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm space-y-8">

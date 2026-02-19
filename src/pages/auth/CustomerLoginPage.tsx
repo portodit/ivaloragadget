@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import logoFull from "@/assets/logo-full.svg";
+import { PublicNavbar } from "@/components/layout/PublicNavbar";
 
 const schema = z.object({
   email: z.string().email("Email tidak valid"),
@@ -53,15 +53,7 @@ export default function CustomerLoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="border-b border-border px-6 py-4 flex items-center justify-between">
-        <Link to="/katalog">
-          <img src={logoFull} alt="Ivalora Gadget" className="h-6 invert" />
-        </Link>
-        <Link to="/katalog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-          Kembali ke Katalog
-        </Link>
-      </div>
+      <PublicNavbar />
 
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm space-y-8">
