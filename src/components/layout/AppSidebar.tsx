@@ -47,7 +47,7 @@ const superAdminNavItems: NavItem[] = [
       { title: "Master Produk", url: "/master-produk", icon: Database },
       { title: "Stok IMEI", url: "/stok-imei", icon: Barcode },
       { title: "Stok Opname", url: "/stok-opname", icon: ClipboardList },
-      { title: "Katalog", url: "/katalog", icon: BookOpen },
+      { title: "Katalog", url: "/admin/katalog", icon: BookOpen },
     ],
   },
   {
@@ -70,7 +70,7 @@ const adminNavItems: NavItem[] = [
     children: [
       { title: "Stok IMEI", url: "/stok-imei", icon: Barcode },
       { title: "Stok Opname", url: "/stok-opname", icon: ClipboardList },
-      { title: "Katalog", url: "/katalog", icon: BookOpen },
+      { title: "Katalog", url: "/admin/katalog", icon: BookOpen },
     ],
   },
   {

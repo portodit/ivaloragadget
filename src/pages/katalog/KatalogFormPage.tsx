@@ -106,6 +106,7 @@ interface BonusItem {
   id: string;
   name: string;
   description: string;
+  quantity?: number;
 }
 
 function generateId() {
@@ -184,6 +185,20 @@ export default function KatalogFormPage() {
   const [freeShipping, setFreeShipping] = useState(false);
   const [bonusItems, setBonusItems] = useState<BonusItem[]>([]);
 
+  // Spec fields
+  const [specCondition, setSpecCondition] = useState("Bekas");
+  const [specBrand, setSpecBrand] = useState("iPhone Apple");
+  const [specWarrantyDuration, setSpecWarrantyDuration] = useState("");
+  const [specScreenProtector, setSpecScreenProtector] = useState("Lainnya");
+  const [specCaseType, setSpecCaseType] = useState("Lainnya");
+  const [specCustomProduct, setSpecCustomProduct] = useState("Tidak");
+  const [specBuiltInBattery, setSpecBuiltInBattery] = useState("Ya");
+  const [specConditionDetail, setSpecConditionDetail] = useState("");
+  const [specCableType, setSpecCableType] = useState("");
+  const [specPhoneModel, setSpecPhoneModel] = useState("");
+  const [specPostelCert, setSpecPostelCert] = useState("-");
+  const [specShippedFrom, setSpecShippedFrom] = useState("Kota Surabaya");
+
   // Fetch initial data
   useEffect(() => {
     async function fetchData() {
@@ -241,6 +256,19 @@ export default function KatalogFormPage() {
             if (Array.isArray(raw)) {
               setBonusItems(raw.map((b: Record<string, string>) => ({ id: generateId(), name: b.name ?? "", description: b.description ?? "" })));
             }
+            // Spec fields
+            setSpecCondition(catData.spec_condition ?? "Bekas");
+            setSpecBrand(catData.spec_brand ?? "iPhone Apple");
+            setSpecWarrantyDuration(catData.spec_warranty_duration ?? "");
+            setSpecScreenProtector(catData.spec_screen_protector_type ?? "Lainnya");
+            setSpecCaseType(catData.spec_case_type ?? "Lainnya");
+            setSpecCustomProduct(catData.spec_custom_product ?? "Tidak");
+            setSpecBuiltInBattery(catData.spec_built_in_battery ?? "Ya");
+            setSpecConditionDetail(catData.spec_condition_detail ?? "");
+            setSpecCableType(catData.spec_cable_type ?? "");
+            setSpecPhoneModel(catData.spec_phone_model ?? "");
+            setSpecPostelCert(catData.spec_postel_cert ?? "-");
+            setSpecShippedFrom(catData.spec_shipped_from ?? "Kota Surabaya");
             // Set masters list including this product's master even if not "available"
             const withAll = masters.some(m => m.id === catData.product_id)
               ? masters
@@ -330,6 +358,19 @@ export default function KatalogFormPage() {
       free_shipping: freeShipping,
       bonus_items: bonusJson,
       updated_by: user?.id,
+      // Spec fields
+      spec_condition: specCondition.trim() || null,
+      spec_brand: specBrand.trim() || null,
+      spec_warranty_duration: specWarrantyDuration.trim() || null,
+      spec_screen_protector_type: specScreenProtector.trim() || null,
+      spec_case_type: specCaseType.trim() || null,
+      spec_custom_product: specCustomProduct.trim() || null,
+      spec_built_in_battery: specBuiltInBattery.trim() || null,
+      spec_condition_detail: specConditionDetail.trim() || null,
+      spec_cable_type: specCableType.trim() || null,
+      spec_phone_model: specPhoneModel.trim() || null,
+      spec_postel_cert: specPostelCert.trim() || null,
+      spec_shipped_from: specShippedFrom.trim() || null,
     };
 
     if (!isEdit) {
@@ -640,7 +681,51 @@ export default function KatalogFormPage() {
           </div>
         </Section>
 
-        {/* Section: Pengaturan */}
+        {/* Section: Spesifikasi Produk */}
+        <Section title="Spesifikasi Produk">
+          <p className="text-xs text-muted-foreground mb-4">
+            Informasi ini tampil di halaman detail produk (seperti Tokopedia/Shopee). Isi sesuai kondisi unit.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Kondisi">
+              <Input value={specCondition} onChange={e => setSpecCondition(e.target.value)} placeholder="Contoh: Bekas, Baru" />
+            </Field>
+            <Field label="Merek">
+              <Input value={specBrand} onChange={e => setSpecBrand(e.target.value)} placeholder="Contoh: iPhone Apple" />
+            </Field>
+            <Field label="Masa Garansi">
+              <Input value={specWarrantyDuration} onChange={e => setSpecWarrantyDuration(e.target.value)} placeholder="Contoh: 12 Bulan" />
+            </Field>
+            <Field label="Tipe Pengaman Layar">
+              <Input value={specScreenProtector} onChange={e => setSpecScreenProtector(e.target.value)} placeholder="Contoh: Lainnya, Tempered Glass" />
+            </Field>
+            <Field label="Tipe Case">
+              <Input value={specCaseType} onChange={e => setSpecCaseType(e.target.value)} placeholder="Contoh: Lainnya, Softcase" />
+            </Field>
+            <Field label="Produk Custom">
+              <Input value={specCustomProduct} onChange={e => setSpecCustomProduct(e.target.value)} placeholder="Ya / Tidak" />
+            </Field>
+            <Field label="Build-in Battery">
+              <Input value={specBuiltInBattery} onChange={e => setSpecBuiltInBattery(e.target.value)} placeholder="Ya / Tidak" />
+            </Field>
+            <Field label="Kondisi Detail">
+              <Input value={specConditionDetail} onChange={e => setSpecConditionDetail(e.target.value)} placeholder="Contoh: Like New Garansi ON 10 Bulan" />
+            </Field>
+            <Field label="Tipe Kabel Seluler">
+              <Input value={specCableType} onChange={e => setSpecCableType(e.target.value)} placeholder="Contoh: Lightning, USB-C" />
+            </Field>
+            <Field label="Model Handphone">
+              <Input value={specPhoneModel} onChange={e => setSpecPhoneModel(e.target.value)} placeholder="Contoh: iPhone 15 Pro" />
+            </Field>
+            <Field label="No.Sertifikat (POSTEL)">
+              <Input value={specPostelCert} onChange={e => setSpecPostelCert(e.target.value)} placeholder="Contoh: -" />
+            </Field>
+            <Field label="Dikirim Dari">
+              <Input value={specShippedFrom} onChange={e => setSpecShippedFrom(e.target.value)} placeholder="Contoh: Kota Surabaya" />
+            </Field>
+          </div>
+        </Section>
+
         {isSuperAdmin && (
           <Section title="Pengaturan Tampilan">
             <div className="grid grid-cols-2 gap-3">

@@ -99,12 +99,12 @@ function formatRupiah(n: number | null | undefined) {
 
 function catalogStatusBadge(status: string) {
   const map: Record<string, { label: string; class: string }> = {
-    draft:       { label: "Draft",       class: "bg-muted text-muted-foreground" },
-    published:   { label: "Aktif",       class: "bg-[hsl(var(--status-available-bg))] text-[hsl(var(--status-available-fg))]" },
-    unpublished: { label: "Nonaktif",    class: "bg-[hsl(var(--status-minus-bg))] text-[hsl(var(--status-minus-fg))]" },
+    draft:       { label: "Draft",    class: "bg-zinc-500 text-white" },
+    published:   { label: "Aktif",   class: "bg-emerald-500 text-white" },
+    unpublished: { label: "Nonaktif", class: "bg-zinc-400 text-white" },
   };
   const s = map[status] ?? map.draft;
-  return <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full ${s.class}`}>{s.label}</span>;
+  return <span className={`inline-flex items-center justify-center text-[10px] font-bold px-2 py-0.5 rounded-md ${s.class}`}>{s.label}</span>;
 }
 
 function PriceDisplay({ agg }: { agg?: StockAggregate }) {
@@ -356,8 +356,8 @@ export default function KatalogPage() {
                 <Ticket className="w-4 h-4" /> Kelola Diskon
               </Button>
             )}
-            {isSuperAdmin && (
-              <Button onClick={() => navigate("/katalog/tambah")} className="flex items-center gap-2">
+          {isSuperAdmin && (
+              <Button onClick={() => navigate("/admin/katalog/tambah")} className="flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Tambah ke Katalog
               </Button>
             )}
@@ -443,7 +443,7 @@ export default function KatalogPage() {
               </p>
             </div>
             {catalogs.length === 0 && isSuperAdmin && (
-              <Button onClick={() => navigate("/katalog/tambah")} className="flex items-center gap-2">
+              <Button onClick={() => navigate("/admin/katalog/tambah")} className="flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Tambahkan Produk ke Katalog
               </Button>
             )}
@@ -486,16 +486,16 @@ export default function KatalogPage() {
                       </div>
                     )}
                     {/* Badges */}
-                    <div className="absolute top-2 left-2 flex flex-col gap-1">
+                    <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
                       {catalogStatusBadge(cat.catalog_status)}
                       {cat.highlight_product && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[hsl(var(--status-coming-soon-bg))] text-[hsl(var(--status-coming-soon-fg))]">
-                          <Star className="w-2.5 h-2.5" /> Unggulan
+                        <span className="inline-flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500 text-white shadow-sm whitespace-nowrap">
+                          <Star className="w-2.5 h-2.5 fill-current shrink-0" /> Unggulan
                         </span>
                       )}
                       {cat.promo_label && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[hsl(var(--status-minus-bg))] text-[hsl(var(--status-minus-fg))]">
-                          <Tag className="w-2.5 h-2.5" /> {cat.promo_label}
+                        <span className="inline-flex items-center justify-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-600 text-white shadow-sm whitespace-nowrap">
+                          <Tag className="w-2.5 h-2.5 shrink-0" /> {cat.promo_label}
                         </span>
                       )}
                     </div>
@@ -543,7 +543,7 @@ export default function KatalogPage() {
                       </button>
                     )}
                     {(isSuperAdmin || role === "admin") && (
-                      <button onClick={() => navigate(`/katalog/edit/${cat.id}`)}
+                       <button onClick={() => navigate(`/admin/katalog/edit/${cat.id}`)}
                         className="flex-1 flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
                         <Edit3 className="w-3.5 h-3.5" /> Edit
                       </button>
@@ -624,7 +624,7 @@ export default function KatalogPage() {
                               </button>
                             )}
                             {(isSuperAdmin || role === "admin") && (
-                              <button onClick={() => navigate(`/katalog/edit/${cat.id}`)} className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
+                              <button onClick={() => navigate(`/admin/katalog/edit/${cat.id}`)} className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
                                 <Edit3 className="w-4 h-4" />
                               </button>
                             )}
