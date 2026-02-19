@@ -475,20 +475,20 @@ export default function ShopPage() {
                     {/* Info */}
                     <div className="p-3 flex-1 flex flex-col gap-1">
                       {/* Warranty label above title */}
-                      <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">
+                      <p className="text-xs font-semibold text-primary uppercase tracking-wide">
                         {WARRANTY_SHORT[g.warranty_type] ?? g.warranty_type}
                       </p>
-                      <p className="text-sm font-bold text-foreground leading-tight line-clamp-2">{displayName}</p>
+                      <p className="text-[15px] font-semibold text-foreground leading-tight line-clamp-2">{displayName}</p>
                       <div className="mt-auto">
                         {outOfStock ? (
-                          <span className="text-sm text-destructive font-bold">STOK HABIS</span>
+                          <span className="text-base text-destructive font-bold">STOK HABIS</span>
                         ) : (
                           <>
-                            <p className="text-[10px] text-muted-foreground">{lang === "en" ? "From" : "Mulai"}</p>
+                            <p className="text-[11px] text-muted-foreground">{lang === "en" ? "From" : "Mulai"}</p>
                             <div className="flex items-center justify-between gap-1">
-                              <p className="text-base font-bold text-foreground">{formatPrice(g.minPrice)}</p>
+                              <p className="text-lg font-bold text-foreground">{formatPrice(g.minPrice)}</p>
                               {g.totalStock > 0 && (
-                                <p className="text-xs font-bold text-foreground whitespace-nowrap">{g.totalStock} unit</p>
+                                <p className="text-sm text-foreground whitespace-nowrap">{g.totalStock} unit</p>
                               )}
                             </div>
                           </>
