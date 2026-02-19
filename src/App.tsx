@@ -23,6 +23,7 @@ import ActivityLogPage from "./pages/ActivityLogPage";
 import KatalogPage from "./pages/KatalogPage";
 import KatalogFormPage from "./pages/katalog/KatalogFormPage";
 import ProductDetailPage from "./pages/katalog/ProductDetailPage";
+import ShopPage from "./pages/ShopPage";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,10 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/waiting-approval" element={<WaitingApprovalPage />} />
 
+            {/* Public catalog/shop routes (no auth needed) */}
+            <Route path="/katalog" element={<ShopPage />} />
+            <Route path="/produk/:slug" element={<ProductDetailPage />} />
+
             {/* Protected dashboard routes */}
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/master-produk" element={<ProtectedRoute><MasterProductsPage /></ProtectedRoute>} />
@@ -52,10 +57,9 @@ const App = () => (
             <Route path="/profil" element={<ProtectedRoute><ProfilPage /></ProtectedRoute>} />
             <Route path="/pengaturan" element={<ProtectedRoute><PengaturanPage /></ProtectedRoute>} />
             <Route path="/log-aktivitas" element={<ProtectedRoute requireRole="super_admin"><ActivityLogPage /></ProtectedRoute>} />
-            <Route path="/katalog" element={<ProtectedRoute><KatalogPage /></ProtectedRoute>} />
-            <Route path="/katalog/tambah" element={<ProtectedRoute requireRole="super_admin"><KatalogFormPage /></ProtectedRoute>} />
-            <Route path="/katalog/edit/:id" element={<ProtectedRoute><KatalogFormPage /></ProtectedRoute>} />
-            <Route path="/produk/:slug" element={<ProductDetailPage />} />
+            <Route path="/admin/katalog" element={<ProtectedRoute><KatalogPage /></ProtectedRoute>} />
+            <Route path="/admin/katalog/tambah" element={<ProtectedRoute requireRole="super_admin"><KatalogFormPage /></ProtectedRoute>} />
+            <Route path="/admin/katalog/edit/:id" element={<ProtectedRoute><KatalogFormPage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

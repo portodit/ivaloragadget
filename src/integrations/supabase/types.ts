@@ -106,10 +106,24 @@ export type Database = {
           publish_to_marketplace: boolean
           publish_to_pos: boolean
           publish_to_web: boolean
+          rating_count: number | null
+          rating_score: number | null
           shopee_url: string | null
           short_description: string | null
           show_condition_breakdown: boolean
           slug: string | null
+          spec_brand: string | null
+          spec_built_in_battery: string | null
+          spec_cable_type: string | null
+          spec_case_type: string | null
+          spec_condition: string | null
+          spec_condition_detail: string | null
+          spec_custom_product: string | null
+          spec_phone_model: string | null
+          spec_postel_cert: string | null
+          spec_screen_protector_type: string | null
+          spec_shipped_from: string | null
+          spec_warranty_duration: string | null
           thumbnail_url: string | null
           tokopedia_url: string | null
           updated_at: string
@@ -134,10 +148,24 @@ export type Database = {
           publish_to_marketplace?: boolean
           publish_to_pos?: boolean
           publish_to_web?: boolean
+          rating_count?: number | null
+          rating_score?: number | null
           shopee_url?: string | null
           short_description?: string | null
           show_condition_breakdown?: boolean
           slug?: string | null
+          spec_brand?: string | null
+          spec_built_in_battery?: string | null
+          spec_cable_type?: string | null
+          spec_case_type?: string | null
+          spec_condition?: string | null
+          spec_condition_detail?: string | null
+          spec_custom_product?: string | null
+          spec_phone_model?: string | null
+          spec_postel_cert?: string | null
+          spec_screen_protector_type?: string | null
+          spec_shipped_from?: string | null
+          spec_warranty_duration?: string | null
           thumbnail_url?: string | null
           tokopedia_url?: string | null
           updated_at?: string
@@ -162,10 +190,24 @@ export type Database = {
           publish_to_marketplace?: boolean
           publish_to_pos?: boolean
           publish_to_web?: boolean
+          rating_count?: number | null
+          rating_score?: number | null
           shopee_url?: string | null
           short_description?: string | null
           show_condition_breakdown?: boolean
           slug?: string | null
+          spec_brand?: string | null
+          spec_built_in_battery?: string | null
+          spec_cable_type?: string | null
+          spec_case_type?: string | null
+          spec_condition?: string | null
+          spec_condition_detail?: string | null
+          spec_custom_product?: string | null
+          spec_phone_model?: string | null
+          spec_postel_cert?: string | null
+          spec_screen_protector_type?: string | null
+          spec_shipped_from?: string | null
+          spec_warranty_duration?: string | null
           thumbnail_url?: string | null
           tokopedia_url?: string | null
           updated_at?: string
