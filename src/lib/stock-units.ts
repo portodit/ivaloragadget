@@ -26,10 +26,17 @@ export const MINUS_SEVERITY_LABELS: Record<MinusSeverity, string> = {
 };
 
 export const SOLD_CHANNEL_LABELS: Record<SoldChannel, string> = {
-  pos: "POS (Offline Store)",
-  ecommerce_tokopedia: "E-Commerce Tokopedia",
-  ecommerce_shopee: "E-Commerce Shopee",
-  website: "Website",
+  pos: "Terjual Offline Store (POS)",
+  ecommerce_tokopedia: "Terjual Online (Tokopedia)",
+  ecommerce_shopee: "Terjual Online (Shopee)",
+  website: "Terjual Online (Website)",
+};
+
+export const SOLD_CHANNEL_SHORT: Record<SoldChannel, string> = {
+  pos: "Offline Store (POS)",
+  ecommerce_tokopedia: "Online (Tokopedia)",
+  ecommerce_shopee: "Online (Shopee)",
+  website: "Online (Website)",
 };
 
 // Status badge color mapping using CSS variables

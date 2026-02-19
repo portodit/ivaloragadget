@@ -16,6 +16,7 @@ import {
   StockStatus,
   STOCK_STATUS_LABELS,
   STOCK_STATUS_STYLES,
+  SOLD_CHANNEL_SHORT,
   formatCurrency,
   formatDate,
 } from "@/lib/stock-units";
@@ -43,9 +44,10 @@ export default function StockIMEIPage() {
 
   // Filters
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState<StockStatus | "default">("default");
+  const [filterStatuses, setFilterStatuses] = useState<Set<StockStatus>>(new Set(DEFAULT_STATUSES));
   const [filterSeries, setFilterSeries] = useState("all");
   const [filterCondition, setFilterCondition] = useState("all");
+  const [allSeries, setAllSeries] = useState<string[]>([]);
 
   // Modals
   const [addOpen, setAddOpen] = useState(false);
@@ -57,11 +59,24 @@ export default function StockIMEIPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
+  // Fetch all unique series from master_products
+  const fetchAllSeries = useCallback(async () => {
+    const { data } = await supabase
+      .from("master_products")
+      .select("series")
+      .is("deleted_at", null)
+      .eq("is_active", true);
+    if (data) {
+      const unique = Array.from(new Set(data.map((d: { series: string }) => d.series))).sort();
+      setAllSeries(unique);
+    }
+  }, []);
+
   const fetchUnits = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    const activeStatuses = filterStatus === "default" ? DEFAULT_STATUSES : [filterStatus];
+    const activeStatuses = Array.from(filterStatuses);
 
     let query = supabase
       .from("stock_units")
@@ -69,7 +84,13 @@ export default function StockIMEIPage() {
       .in("stock_status", activeStatuses)
       .order("received_at", { ascending: false });
 
-    if (filterCondition !== "all") query = query.eq("condition_status", filterCondition as never);
+    if (filterCondition === "no_minus") query = query.eq("condition_status", "no_minus" as never);
+    else if (filterCondition === "minus") query = query.eq("condition_status", "minus" as never);
+    else if (filterCondition === "minus_minor") {
+      query = query.eq("condition_status", "minus" as never).eq("minus_severity", "minor" as never);
+    } else if (filterCondition === "minus_mayor") {
+      query = query.eq("condition_status", "minus" as never).eq("minus_severity", "mayor" as never);
+    }
     if (filterSeries !== "all") query = query.ilike("master_products.series" as never, `%${filterSeries}%`);
 
     const { data, error: fetchError } = await query;
@@ -86,7 +107,7 @@ export default function StockIMEIPage() {
     }
     setUnits(filtered);
     setLoading(false);
-  }, [search, filterStatus, filterSeries, filterCondition]);
+  }, [search, filterStatuses, filterSeries, filterCondition]);
 
   const fetchSummary = useCallback(async () => {
     const counts: SummaryCount[] = [];
@@ -102,14 +123,13 @@ export default function StockIMEIPage() {
 
   useEffect(() => { fetchUnits(); }, [fetchUnits]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
+  useEffect(() => { fetchAllSeries(); }, [fetchAllSeries]);
 
   const handleRefresh = () => { fetchUnits(); fetchSummary(); setSelectedIds(new Set()); setConfirmBulkDelete(false); };
-  const resetFilters = () => { setSearch(""); setFilterStatus("default"); setFilterSeries("all"); setFilterCondition("all"); };
+  const isDefaultFilter = filterStatuses.size === DEFAULT_STATUSES.length && DEFAULT_STATUSES.every(s => filterStatuses.has(s));
+  const resetFilters = () => { setSearch(""); setFilterStatuses(new Set(DEFAULT_STATUSES)); setFilterSeries("all"); setFilterCondition("all"); };
 
-  const hasActiveFilters = search || filterStatus !== "default" || filterSeries !== "all" || filterCondition !== "all";
-
-  // Unique series for filter
-  const seriesList = Array.from(new Set(units.map((u) => u.master_products?.series).filter(Boolean)));
+  const hasActiveFilters = search || !isDefaultFilter || filterSeries !== "all" || filterCondition !== "all";
 
   // Bulk delete
   const toggleSelect = (id: string) => {
@@ -215,16 +235,27 @@ export default function StockIMEIPage() {
           </div>
         </div>
 
-        {/* ── Summary bar ── */}
+        {/* ── Summary bar (multi-select) ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {ALL_STATUSES.map((s) => {
             const count = summary.find((c) => c.status === s)?.count ?? 0;
             const style = STOCK_STATUS_STYLES[s];
-            const isActive = filterStatus === s || (filterStatus === "default" && DEFAULT_STATUSES.includes(s));
+            const isActive = filterStatuses.has(s);
             return (
               <button
                 key={s}
-                onClick={() => setFilterStatus(filterStatus === s ? "default" : s)}
+                onClick={() => {
+                  setFilterStatuses(prev => {
+                    const next = new Set(prev);
+                    if (next.has(s)) {
+                      next.delete(s);
+                      if (next.size === 0) next.add(s); // Prevent empty
+                    } else {
+                      next.add(s);
+                    }
+                    return next;
+                  });
+                }}
                 className={`rounded-xl border p-3 text-left transition-all duration-150 hover:shadow-sm ${
                   isActive ? `${style.bg} border-transparent` : "bg-card border-border hover:border-border/70"
                 }`}
@@ -254,13 +285,29 @@ export default function StockIMEIPage() {
             {/* Condition — hidden on mobile, shown inline on desktop */}
             <div className="hidden sm:block">
               <Select value={filterCondition} onValueChange={setFilterCondition}>
-                <SelectTrigger className="h-9 w-36 text-sm">
+                <SelectTrigger className="h-9 w-40 text-sm">
                   <SelectValue placeholder="Kondisi" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua Kondisi</SelectItem>
                   <SelectItem value="no_minus">No Minus</SelectItem>
                   <SelectItem value="minus">Ada Minus</SelectItem>
+                  <SelectItem value="minus_minor">Minus Minor</SelectItem>
+                  <SelectItem value="minus_mayor">Minus Mayor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Series filter */}
+            <div className="hidden sm:block">
+              <Select value={filterSeries} onValueChange={setFilterSeries}>
+                <SelectTrigger className="h-9 w-44 text-sm">
+                  <SelectValue placeholder="Seri Produk" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Seri</SelectItem>
+                  {allSeries.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -287,7 +334,13 @@ export default function StockIMEIPage() {
           </div>
           {/* Mobile: condition filter as pill chips */}
           <div className="flex sm:hidden items-center gap-2 overflow-x-auto pb-0.5">
-            {["all", "no_minus", "minus"].map((v) => (
+            {[
+              { v: "all", label: "Semua Kondisi" },
+              { v: "no_minus", label: "No Minus" },
+              { v: "minus", label: "Ada Minus" },
+              { v: "minus_minor", label: "Minus Minor" },
+              { v: "minus_mayor", label: "Minus Mayor" },
+            ].map(({ v, label }) => (
               <button
                 key={v}
                 onClick={() => setFilterCondition(v)}
@@ -297,7 +350,7 @@ export default function StockIMEIPage() {
                     : "bg-background text-muted-foreground border-border"
                 }`}
               >
-                {v === "all" ? "Semua Kondisi" : v === "no_minus" ? "No Minus" : "Ada Minus"}
+                {label}
               </button>
             ))}
             {hasActiveFilters && (
@@ -309,11 +362,11 @@ export default function StockIMEIPage() {
               </button>
             )}
           </div>
-          {filterStatus !== "default" && (
+          {!isDefaultFilter && (
             <p className="text-xs text-muted-foreground">
-              Filter aktif: <span className="font-medium text-foreground">{STOCK_STATUS_LABELS[filterStatus]}</span>
+              Filter aktif: <span className="font-medium text-foreground">{Array.from(filterStatuses).map(s => STOCK_STATUS_LABELS[s]).join(", ")}</span>
               {" · "}
-              <button className="underline" onClick={() => setFilterStatus("default")}>tampilkan default</button>
+              <button className="underline" onClick={() => setFilterStatuses(new Set(DEFAULT_STATUSES))}>tampilkan default</button>
             </p>
           )}
         </div>
@@ -425,6 +478,9 @@ export default function StockIMEIPage() {
                       </td>
                       <td className="px-4 py-3">
                         <StockStatusBadge status={unit.stock_status} />
+                        {unit.stock_status === "sold" && unit.sold_channel && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{SOLD_CHANNEL_SHORT[unit.sold_channel]}</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                         {formatDate(unit.received_at)}
