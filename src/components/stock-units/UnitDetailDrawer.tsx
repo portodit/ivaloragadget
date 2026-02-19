@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Package, Clock, TrendingDown, ShieldCheck, AlertTriangle, Trash2 } from "lucide-react";
+import { X, Package, Clock, TrendingDown, ShieldCheck, AlertTriangle, Trash2, Pencil, Flag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { StockUnit, StockUnitLog, STOCK_STATUS_LABELS, VALID_TRANSITIONS, SOLD_CHANNEL_LABELS, MINUS_SEVERITY_LABELS, formatCurrency, formatDate, StockStatus, SoldChannel } from "@/lib/stock-units";
 import { StockStatusBadge, ConditionBadge } from "./StockBadges";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { EditUnitModal } from "./EditUnitModal";
+import { ReportUnitModal } from "./ReportUnitModal";
 
 interface UnitDetailDrawerProps {
   unit: StockUnit | null;
@@ -25,7 +27,10 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const isSuperAdmin = role === "super_admin";
+  const isAdmin = role === "admin";
 
   useEffect(() => {
     if (!unit) return;
@@ -134,6 +139,20 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Action buttons: Edit (super_admin) / Report (admin) */}
+          <div className="px-6 py-2 border-b border-border flex gap-2">
+            {isSuperAdmin && (
+              <Button variant="outline" size="sm" className="flex-1 h-8 gap-1.5 text-xs" onClick={() => setEditOpen(true)}>
+                <Pencil className="w-3 h-3" /> Edit Unit
+              </Button>
+            )}
+            {isAdmin && !isSuperAdmin && (
+              <Button variant="outline" size="sm" className="flex-1 h-8 gap-1.5 text-xs" onClick={() => setReportOpen(true)}>
+                <Flag className="w-3 h-3" /> Laporkan Koreksi
+              </Button>
+            )}
           </div>
 
           {/* Key fields */}
@@ -323,6 +342,8 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
           </div>
         </div>
       </div>
+      <EditUnitModal unit={unit} open={editOpen} onClose={() => setEditOpen(false)} onSuccess={() => { onUpdate(); }} />
+      <ReportUnitModal unit={unit} open={reportOpen} onClose={() => setReportOpen(false)} />
     </div>
   );
 }

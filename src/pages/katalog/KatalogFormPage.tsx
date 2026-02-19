@@ -222,6 +222,13 @@ export default function KatalogFormPage() {
   const [freeShipping, setFreeShipping] = useState(false);
   const [bonusItems, setBonusItems] = useState<BonusItem[]>([]);
 
+  // Discount state
+  const [discountActive, setDiscountActive] = useState(false);
+  const [discountTypeVal, setDiscountTypeVal] = useState("percentage");
+  const [discountValueStr, setDiscountValueStr] = useState("");
+  const [discountStartAt, setDiscountStartAt] = useState("");
+  const [discountEndAt, setDiscountEndAt] = useState("");
+
   // Spec fields
   const [specCondition, setSpecCondition] = useState("Bekas");
   const [specBrand, setSpecBrand] = useState("iPhone Apple");
@@ -306,6 +313,12 @@ export default function KatalogFormPage() {
             setSpecPhoneModel(catData.spec_phone_model ?? "");
             setSpecPostelCert(catData.spec_postel_cert ?? "-");
             setSpecShippedFrom(catData.spec_shipped_from ?? "Kota Surabaya");
+            // Load discount
+            setDiscountActive(catData.discount_active ?? false);
+            setDiscountTypeVal(catData.discount_type ?? "percentage");
+            setDiscountValueStr(catData.discount_value != null ? String(catData.discount_value) : "");
+            setDiscountStartAt(catData.discount_start_at ? catData.discount_start_at.slice(0, 16) : "");
+            setDiscountEndAt(catData.discount_end_at ? catData.discount_end_at.slice(0, 16) : "");
             const withAll = masters.some(m => m.id === catData.product_id)
               ? masters
               : [catData.master_products, ...masters].filter(Boolean);
@@ -424,6 +437,12 @@ export default function KatalogFormPage() {
       spec_phone_model: specPhoneModel.trim() || null,
       spec_postel_cert: specPostelCert.trim() || null,
       spec_shipped_from: specShippedFrom.trim() || null,
+      // Discount
+      discount_active: discountActive,
+      discount_type: discountActive ? discountTypeVal : null,
+      discount_value: discountActive && discountValueStr ? Number(discountValueStr) : null,
+      discount_start_at: discountActive && discountStartAt ? new Date(discountStartAt).toISOString() : null,
+      discount_end_at: discountActive && discountEndAt ? new Date(discountEndAt).toISOString() : null,
     };
 
     if (!isEdit) {
@@ -617,6 +636,55 @@ export default function KatalogFormPage() {
                 </div>
               </div>
             </Section>
+
+            {/* Discount section - super admin only */}
+            {isSuperAdmin && (
+              <Section title="Potongan Harga (Diskon)">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 rounded-xl border border-border">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Tag className="w-4 h-4 text-muted-foreground" />
+                      <span>Aktifkan Diskon</span>
+                    </div>
+                    <button type="button" onClick={() => setDiscountActive(!discountActive)}
+                      className={cn("w-11 h-6 rounded-full transition-colors relative shrink-0",
+                        discountActive ? "bg-foreground" : "bg-muted-foreground/30")}>
+                      <span className={cn("absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                        discountActive && "translate-x-5")} />
+                    </button>
+                  </div>
+
+                  {discountActive && (
+                    <div className="space-y-3 p-4 rounded-xl bg-muted/40 border border-border">
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Tipe Diskon">
+                          <Select value={discountTypeVal} onValueChange={setDiscountTypeVal}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="percentage">Persentase (%)</SelectItem>
+                              <SelectItem value="fixed_amount">Nominal (Rp)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label={discountTypeVal === "percentage" ? "Diskon (%)" : "Diskon (Rp)"}>
+                          <Input type="number" value={discountValueStr} onChange={e => setDiscountValueStr(e.target.value)}
+                            placeholder={discountTypeVal === "percentage" ? "10" : "500000"} />
+                        </Field>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Mulai (opsional)" hint="Kosongkan jika berlaku segera.">
+                          <Input type="datetime-local" value={discountStartAt} onChange={e => setDiscountStartAt(e.target.value)} />
+                        </Field>
+                        <Field label="Berakhir (opsional)" hint="Kosongkan jika tanpa batas waktu.">
+                          <Input type="datetime-local" value={discountEndAt} onChange={e => setDiscountEndAt(e.target.value)} />
+                        </Field>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Diskon akan ditampilkan sebagai harga coret di halaman produk.</p>
+                    </div>
+                  )}
+                </div>
+              </Section>
+            )}
           </TabsContent>
 
           {/* ── Tab: Distribusi ───────────────────────── */}
