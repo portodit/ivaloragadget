@@ -169,7 +169,7 @@ export default function ShopPage() {
   return (
     <div className="min-h-screen bg-background">
       <PublicNavbar />
-      <div className="pt-16">
+      <div className="pt-4">
 
         {/* Hero */}
         <div className="bg-muted/30 border-b border-border py-6 px-4">

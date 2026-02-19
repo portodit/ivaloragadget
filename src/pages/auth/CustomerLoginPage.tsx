@@ -9,16 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const schema = z.object({
-  email: z.string().email("Email tidak valid"),
-  password: z.string().min(1, "Password wajib diisi"),
+  email: z.string().email("Invalid email"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormData = z.infer<typeof schema>;
 
 export default function CustomerLoginPage() {
   const navigate = useNavigate();
+  const { lang } = useLocale();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -34,16 +36,16 @@ export default function CustomerLoginPage() {
       password: data.password,
     });
 
-    if (error) {
-      if (error.message.includes("Email not confirmed")) {
-        setServerError("Email belum diverifikasi. Periksa inbox Anda dan klik link verifikasi.");
-      } else if (error.message.includes("Invalid login credentials")) {
-        setServerError("Email atau password salah.");
-      } else {
-        setServerError(error.message);
+      if (error) {
+        if (error.message.includes("Email not confirmed")) {
+          setServerError(lang === "en" ? "Email not verified. Check your inbox and click the verification link." : "Email belum diverifikasi. Periksa inbox Anda dan klik link verifikasi.");
+        } else if (error.message.includes("Invalid login credentials")) {
+          setServerError(lang === "en" ? "Invalid email or password." : "Email atau password salah.");
+        } else {
+          setServerError(error.message);
+        }
+        return;
       }
-      return;
-    }
 
     if (!authData.user) return;
 
@@ -62,24 +64,24 @@ export default function CustomerLoginPage() {
             <div className="w-14 h-14 rounded-2xl bg-foreground/5 border border-border flex items-center justify-center mx-auto">
               <ShoppingBag className="w-7 h-7 text-foreground" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Masuk ke akun</h1>
-            <p className="text-sm text-muted-foreground">Belanja lebih mudah dengan akun Ivalora</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{lang === "en" ? "Sign in to your account" : "Masuk ke akun"}</h1>
+            <p className="text-sm text-muted-foreground">{lang === "en" ? "Shop easier with your Ivalora account" : "Belanja lebih mudah dengan akun Ivalora"}</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Email</Label>
-              <Input id="email" type="email" placeholder="Masukkan email Anda" autoComplete="email" {...register("email")} className="h-11" />
+              <Input id="email" type="email" placeholder={lang === "en" ? "Enter your email" : "Masukkan email Anda"} autoComplete="email" {...register("email")} className="h-11" />
               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Password</Label>
-                <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Lupa password?</Link>
+                <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground transition-colors">{lang === "en" ? "Forgot password?" : "Lupa password?"}</Link>
               </div>
               <div className="relative">
-                <Input id="password" type={showPassword ? "text" : "password"} placeholder="Masukkan password" autoComplete="current-password" {...register("password")} className="h-11 pr-10" />
+                <Input id="password" type={showPassword ? "text" : "password"} placeholder={lang === "en" ? "Enter password" : "Masukkan password"} autoComplete="current-password" {...register("password")} className="h-11 pr-10" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -94,14 +96,14 @@ export default function CustomerLoginPage() {
             <Button type="submit" className="w-full h-11 gap-2 font-semibold" disabled={isSubmitting}>
               {isSubmitting ? (
                 <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              ) : (<>Masuk <ArrowRight className="w-4 h-4" /></>)}
+              ) : (<>{lang === "en" ? "Sign In" : "Masuk"} <ArrowRight className="w-4 h-4" /></>)}
             </Button>
           </form>
 
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
-              Belum punya akun?{" "}
-              <Link to="/register" className="font-semibold text-foreground hover:underline underline-offset-4">Daftar sekarang</Link>
+              {lang === "en" ? "Don't have an account?" : "Belum punya akun?"}{" "}
+              <Link to="/register" className="font-semibold text-foreground hover:underline underline-offset-4">{lang === "en" ? "Sign up" : "Daftar sekarang"}</Link>
             </p>
           </div>
         </div>
