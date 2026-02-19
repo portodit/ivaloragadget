@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,6 +39,26 @@ interface StockPrice {
   product_id: string;
   min_price: number | null;
   total: number;
+}
+
+// A grouped card = 1 series + 1 warranty_type
+interface GroupedProduct {
+  key: string; // series + warranty_type
+  series: string;
+  warranty_type: string;
+  category: string;
+  // Representative data (from the first/best variant)
+  representative: CatalogItem;
+  variants: CatalogItem[];
+  // Aggregated
+  minPrice: number | null;
+  maxPrice: number | null;
+  totalStock: number;
+  hasFlashSale: boolean;
+  hasDiscount: boolean;
+  hasFreeShipping: boolean;
+  hasHighlight: boolean;
+  thumbnailUrl: string | null;
 }
 
 const WARRANTY_SHORT: Record<string, string> = {
@@ -94,7 +114,7 @@ export default function ShopPage() {
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [filterCategory, setFilterCategory] = useState(searchParams.get("filter") === "flash_sale" ? "flash_sale" : "all");
   const [filterWarranty, setFilterWarranty] = useState("all");
-  const [filterPrice, setFilterPrice] = useState("all"); // all, under5, 5to10, above10
+  const [filterPrice, setFilterPrice] = useState("all");
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [flashSale, setFlashSale] = useState<FlashSaleSettings | null>(null);
@@ -104,13 +124,14 @@ export default function ShopPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [catRes, stockRes] = await Promise.all([
+    const [catRes, stockRes, fsRes] = await Promise.all([
       db.from("catalog_products")
         .select("id, product_id, slug, display_name, short_description, thumbnail_url, highlight_product, free_shipping, promo_label, promo_badge, is_flash_sale, discount_active, discount_type, discount_value, discount_start_at, discount_end_at, master_products(series, storage_gb, color, category, warranty_type)")
         .eq("catalog_status", "published"),
       db.from("stock_units")
         .select("product_id, selling_price")
         .eq("stock_status", "available"),
+      db.from("flash_sale_settings").select("is_active, start_time, duration_hours").limit(1).single(),
     ]);
 
     const rawStock = stockRes.data ?? [];
@@ -126,13 +147,11 @@ export default function ShopPage() {
         priceMap[unit.product_id].min_price = cur === null ? p : Math.min(cur, p);
       }
     }
-    // Fetch flash sale settings
-    const { data: fsData } = await db.from("flash_sale_settings").select("is_active, start_time, duration_hours").limit(1).single();
-    if (fsData) {
-      setFlashSale(fsData as FlashSaleSettings);
-      if (fsData.is_active) {
-        const start = new Date(fsData.start_time);
-        const end = new Date(start.getTime() + fsData.duration_hours * 3600000);
+    if (fsRes.data) {
+      setFlashSale(fsRes.data as FlashSaleSettings);
+      if (fsRes.data.is_active) {
+        const start = new Date(fsRes.data.start_time);
+        const end = new Date(start.getTime() + fsRes.data.duration_hours * 3600000);
         if (end.getTime() > Date.now()) setFlashEndTime(end);
       }
     }
@@ -144,35 +163,81 @@ export default function ShopPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Filter
-  const filtered = items.filter(item => {
+  // Group items by series + warranty_type
+  const grouped: GroupedProduct[] = useMemo(() => {
+    const map = new Map<string, GroupedProduct>();
+    for (const item of items) {
+      const m = item.master_products;
+      if (!m) continue;
+      const key = `${m.series}__${m.warranty_type}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          series: m.series,
+          warranty_type: m.warranty_type,
+          category: m.category,
+          representative: item,
+          variants: [],
+          minPrice: null,
+          maxPrice: null,
+          totalStock: 0,
+          hasFlashSale: false,
+          hasDiscount: false,
+          hasFreeShipping: false,
+          hasHighlight: false,
+          thumbnailUrl: null,
+        });
+      }
+      const g = map.get(key)!;
+      g.variants.push(item);
+      // Aggregate stock & price from ALL variants
+      const sp = prices[item.product_id];
+      if (sp) {
+        g.totalStock += sp.total;
+        if (sp.min_price != null) {
+          g.minPrice = g.minPrice === null ? sp.min_price : Math.min(g.minPrice, sp.min_price);
+          g.maxPrice = g.maxPrice === null ? sp.min_price : Math.max(g.maxPrice!, sp.min_price);
+        }
+      }
+      if (item.is_flash_sale) g.hasFlashSale = true;
+      if (item.discount_active && item.discount_value) g.hasDiscount = true;
+      if (item.free_shipping) g.hasFreeShipping = true;
+      if (item.highlight_product) g.hasHighlight = true;
+      if (!g.thumbnailUrl && item.thumbnail_url) g.thumbnailUrl = item.thumbnail_url;
+    }
+
+    // Pick best representative (one with thumbnail, or highlight, or most stock)
+    for (const g of map.values()) {
+      const withThumb = g.variants.find(v => v.thumbnail_url);
+      const withHighlight = g.variants.find(v => v.highlight_product);
+      g.representative = withThumb ?? withHighlight ?? g.variants[0];
+      g.thumbnailUrl = g.representative.thumbnail_url ?? g.thumbnailUrl;
+    }
+    return Array.from(map.values());
+  }, [items, prices]);
+
+  // Filter grouped
+  const filtered = grouped.filter(g => {
     const q = search.toLowerCase();
-    const master = item.master_products;
     const matchSearch = !q ||
-      item.display_name.toLowerCase().includes(q) ||
-      master?.series?.toLowerCase().includes(q) ||
-      master?.color?.toLowerCase().includes(q);
-    const matchCat = filterCategory === "all" ||
-      filterCategory === "flash_sale" ? item.is_flash_sale : (filterCategory === "all" || master?.category === filterCategory);
-    const matchFlash = filterCategory === "flash_sale" ? item.is_flash_sale : true;
-    const matchCatActual = filterCategory === "flash_sale" || filterCategory === "all" || master?.category === filterCategory;
-    const matchWar = filterWarranty === "all" || master?.warranty_type === filterWarranty;
-    const p = prices[item.product_id];
-    const minP = p?.min_price ?? 0;
+      g.series.toLowerCase().includes(q) ||
+      g.variants.some(v => v.display_name.toLowerCase().includes(q) || v.master_products?.color?.toLowerCase().includes(q));
+    const matchFlash = filterCategory === "flash_sale" ? g.hasFlashSale : true;
+    const matchCat = filterCategory === "flash_sale" || filterCategory === "all" || g.category === filterCategory;
+    const matchWar = filterWarranty === "all" || g.warranty_type === filterWarranty;
+    const minP = g.minPrice ?? 0;
     let matchPrice = true;
     if (filterPrice === "under5") matchPrice = minP < 5_000_000;
     else if (filterPrice === "5to10") matchPrice = minP >= 5_000_000 && minP <= 10_000_000;
     else if (filterPrice === "above10") matchPrice = minP > 10_000_000;
-    return matchSearch && matchFlash && matchCatActual && matchWar && matchPrice;
+    return matchSearch && matchFlash && matchCat && matchWar && matchPrice;
   });
 
-  // Sort: highlight first, then by availability
+  // Sort
   const sorted = [...filtered].sort((a, b) => {
-    if (a.highlight_product && !b.highlight_product) return -1;
-    if (!a.highlight_product && b.highlight_product) return 1;
-    const aStock = prices[a.product_id]?.total ?? 0;
-    const bStock = prices[b.product_id]?.total ?? 0;
-    return bStock - aStock;
+    if (a.hasHighlight && !b.hasHighlight) return -1;
+    if (!a.hasHighlight && b.hasHighlight) return 1;
+    return b.totalStock - a.totalStock;
   });
 
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
@@ -186,11 +251,11 @@ export default function ShopPage() {
     setPage(1);
   }
 
-  const flashSaleCount = items.filter(i => i.is_flash_sale).length;
+  const flashSaleCount = grouped.filter(g => g.hasFlashSale).length;
   const filterChips = [
     { label: "Semua", active: filterCategory === "all", onClick: () => handleFilter("cat", "all") },
     ...(flashSaleCount > 0 ? [{
-      label: "⚡ Flash Sale",
+      label: "\u26A1 Flash Sale",
       active: filterCategory === "flash_sale",
       onClick: () => handleFilter("cat", "flash_sale"),
     }] : []),
@@ -198,6 +263,13 @@ export default function ShopPage() {
     { label: "iPad", active: filterCategory === "ipad", onClick: () => handleFilter("cat", "ipad") },
     { label: "Aksesori", active: filterCategory === "accessory", onClick: () => handleFilter("cat", "accessory") },
   ];
+
+  // Build display name for a grouped product
+  function groupDisplayName(g: GroupedProduct) {
+    const storages = Array.from(new Set(g.variants.map(v => v.master_products.storage_gb))).sort((a, b) => a - b);
+    const storageStr = storages.map(s => s >= 1024 ? `${s / 1024}TB` : `${s}GB`).join("/");
+    return `${g.series} ${storageStr} ${WARRANTY_SHORT[g.warranty_type] ?? g.warranty_type}`;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -209,13 +281,12 @@ export default function ShopPage() {
           <div className="max-w-6xl mx-auto">
             <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">Katalog Produk</h1>
             <p className="text-muted-foreground text-sm mb-5">iPhone, iPad, dan aksesori original berkualitas dengan harga terbaik.</p>
-            {/* Search bar */}
             <div className="relative max-w-xl">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={e => handleSearch(e.target.value)}
-                placeholder="Cari produk, model, warna…"
+                placeholder="Cari produk, model, warna..."
                 className="pl-10 h-11 text-sm"
               />
             </div>
@@ -224,7 +295,7 @@ export default function ShopPage() {
 
         <div className="max-w-6xl mx-auto px-4 py-6">
 
-          {/* Category chips + filter toggle */}
+          {/* Category chips */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
             {filterChips.map(c => (
               <button
@@ -292,6 +363,7 @@ export default function ShopPage() {
                     { val: "ibox", label: "iBox" },
                     { val: "inter", label: "Inter" },
                     { val: "whitelist", label: "Whitelist" },
+                    { val: "digimap", label: "Digimap" },
                   ].map(w => (
                     <button
                       key={w.val}
@@ -310,7 +382,7 @@ export default function ShopPage() {
                   {[
                     { val: "all", label: "Semua" },
                     { val: "under5", label: "< Rp 5 jt" },
-                    { val: "5to10", label: "Rp 5–10 jt" },
+                    { val: "5to10", label: "Rp 5\u201310 jt" },
                     { val: "above10", label: "> Rp 10 jt" },
                   ].map(p => (
                     <button
@@ -351,40 +423,24 @@ export default function ShopPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {paginated.map(item => {
-                const p = prices[item.product_id];
-                const outOfStock = !p || p.total === 0;
-                const master = item.master_products;
-
-                // Compute discount
-                const now = Date.now();
-                const hasDiscount = item.discount_active && item.discount_value && item.discount_value > 0
-                  && (!item.discount_start_at || new Date(item.discount_start_at).getTime() <= now)
-                  && (!item.discount_end_at || new Date(item.discount_end_at).getTime() > now);
-                const hasFlashSale = item.is_flash_sale;
-                const originalPrice = p?.min_price ?? 0;
-                let discountedPrice = originalPrice;
-                if (hasDiscount && originalPrice > 0) {
-                  if (item.discount_type === "percentage") {
-                    discountedPrice = Math.round(originalPrice * (1 - (item.discount_value! / 100)));
-                  } else {
-                    discountedPrice = Math.max(0, originalPrice - item.discount_value!);
-                  }
-                }
-                const showStrikethrough = (hasDiscount || hasFlashSale) && !outOfStock && discountedPrice < originalPrice;
+              {paginated.map(g => {
+                const outOfStock = g.totalStock === 0;
+                const displayName = groupDisplayName(g);
+                // Pick slug from representative
+                const slug = g.representative.slug;
 
                 return (
                   <Link
-                    key={item.id}
-                    to={item.slug ? `/produk/${item.slug}` : "#"}
+                    key={g.key}
+                    to={slug ? `/produk/${slug}` : "#"}
                     className="bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-all group flex flex-col"
                   >
                     {/* Image */}
                     <div className="relative aspect-square bg-muted/40 flex items-center justify-center overflow-hidden">
-                      {item.thumbnail_url ? (
+                      {g.thumbnailUrl ? (
                         <img
-                          src={item.thumbnail_url}
-                          alt={item.display_name}
+                          src={g.thumbnailUrl}
+                          alt={displayName}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
@@ -396,19 +452,24 @@ export default function ShopPage() {
 
                       {/* Badges */}
                       <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
-                        {item.highlight_product && (
+                        {g.hasHighlight && (
                           <span className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500 text-white whitespace-nowrap">
                             <Star className="w-3 h-3 fill-current shrink-0" /> Unggulan
                           </span>
                         )}
-                        {item.free_shipping && (
+                        {g.hasFreeShipping && (
                           <span className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-green-500 text-white whitespace-nowrap">
                             <Truck className="w-3 h-3 shrink-0" /> Gratis Ongkir
                           </span>
                         )}
-                        {(hasDiscount || hasFlashSale) && (
+                        {g.hasFlashSale && (
                           <span className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground whitespace-nowrap">
-                            <Zap className="w-3 h-3 shrink-0" /> {hasFlashSale ? "Flash Sale" : "Diskon"}
+                            <Zap className="w-3 h-3 shrink-0" /> Flash Sale
+                          </span>
+                        )}
+                        {g.hasDiscount && !g.hasFlashSale && (
+                          <span className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground whitespace-nowrap">
+                            <Tag className="w-3 h-3 shrink-0" /> Diskon
                           </span>
                         )}
                       </div>
@@ -422,25 +483,19 @@ export default function ShopPage() {
 
                     {/* Info */}
                     <div className="p-3 flex-1 flex flex-col gap-1.5">
-                      <p className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{item.display_name}</p>
-                      {master && (
-                        <p className="text-[10px] text-muted-foreground">
-                          {WARRANTY_SHORT[master.warranty_type] ?? master.warranty_type}
-                        </p>
-                      )}
+                      <p className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{displayName}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {g.variants.length} varian · {WARRANTY_SHORT[g.warranty_type] ?? g.warranty_type}
+                      </p>
                       <div className="mt-auto">
                         {outOfStock ? (
                           <span className="text-xs text-muted-foreground font-medium">Stok Habis</span>
                         ) : (
                           <>
                             <p className="text-xs text-muted-foreground">{lang === "en" ? "From" : "Mulai"}</p>
-                            {showStrikethrough ? (
-                              <>
-                                <p className="text-[11px] text-muted-foreground line-through">{formatPrice(originalPrice)}</p>
-                                <p className="text-sm font-bold text-destructive">{formatPrice(discountedPrice)}</p>
-                              </>
-                            ) : (
-                              <p className="text-sm font-bold text-foreground">{formatPrice(p?.min_price)}</p>
+                            <p className="text-sm font-bold text-foreground">{formatPrice(g.minPrice)}</p>
+                            {g.totalStock > 0 && (
+                              <p className="text-[10px] text-muted-foreground">{g.totalStock} unit tersedia</p>
                             )}
                           </>
                         )}

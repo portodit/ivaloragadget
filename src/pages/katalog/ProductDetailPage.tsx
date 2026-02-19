@@ -86,19 +86,7 @@ interface StockUnit {
   minus_description: string | null;
   selling_price: number | null;
   stock_status: string;
-}
-
-interface SiblingCatalog {
-  id: string;
   product_id: string;
-  slug: string | null;
-  display_name: string;
-  master_products: {
-    storage_gb: number;
-    color: string;
-    warranty_type: string;
-    series: string;
-  };
 }
 
 interface BonusItem {
@@ -143,7 +131,7 @@ const USD_RATE = 15500;
 function useFormatPrice() {
   const { currency } = useLocale();
   return (n: number | null | undefined) => {
-    if (!n) return "—";
+    if (!n) return "\u2014";
     if (currency === "USD") {
       const usd = n / USD_RATE;
       return "$" + usd.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -208,8 +196,6 @@ function calcDiscountedPrice(
   flashSaleSettings: { is_active: boolean; start_time: string; duration_hours: number } | null
 ): { finalPrice: number; discountLabel: string; hasDiscount: boolean } {
   const now = Date.now();
-  
-  // Flash sale takes priority
   if (catalog.is_flash_sale && flashSaleSettings?.is_active) {
     const start = new Date(flashSaleSettings.start_time);
     const end = new Date(start.getTime() + flashSaleSettings.duration_hours * 3600000);
@@ -225,8 +211,6 @@ function calcDiscountedPrice(
       }
     }
   }
-
-  // Regular discount
   const hasDiscount = catalog.discount_active && catalog.discount_value != null && catalog.discount_value > 0
     && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
     && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
@@ -239,7 +223,6 @@ function calcDiscountedPrice(
       : `-Rp${catalog.discount_value!.toLocaleString("id-ID")}`;
     return { finalPrice, discountLabel, hasDiscount: finalPrice < originalPrice };
   }
-
   return { finalPrice: originalPrice, discountLabel: "", hasDiscount: false };
 }
 
@@ -251,8 +234,10 @@ export default function ProductDetailPage() {
   const { toast } = useToast();
 
   const [catalog, setCatalog] = useState<CatalogProduct | null>(null);
-  const [units, setUnits] = useState<StockUnit[]>([]);
-  const [allSiblings, setAllSiblings] = useState<SiblingCatalog[]>([]);
+  // All sibling catalogs with same series + warranty_type
+  const [siblingCatalogs, setSiblingCatalogs] = useState<CatalogProduct[]>([]);
+  // Units for ALL sibling product_ids
+  const [allUnits, setAllUnits] = useState<StockUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [activeImg, setActiveImg] = useState<string | null>(null);
@@ -262,9 +247,17 @@ export default function ProductDetailPage() {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [countdownStr, setCountdownStr] = useState("");
 
+  // User-selected filters (state-based, no navigation)
+  const [selectedColor, setSelectedColor] = useState<string>("");
+  const [selectedStorage, setSelectedStorage] = useState<number>(0);
+
+  // All warranty siblings for warranty dropdown (different warranty_type)
+  const [otherWarrantySlugs, setOtherWarrantySlugs] = useState<{ warrantyType: string; slug: string }[]>([]);
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
+      // 1. Load the clicked catalog product
       const { data } = await db.from("catalog_products")
         .select("*, master_products(*)")
         .eq("slug", slug)
@@ -275,38 +268,57 @@ export default function ProductDetailPage() {
 
       const rawBonus = data.bonus_items;
       const bonusItems: BonusItem[] = Array.isArray(rawBonus) ? rawBonus : [];
-      setCatalog({ ...data, bonus_items: bonusItems });
+      const mainCatalog: CatalogProduct = { ...data, bonus_items: bonusItems };
+      setCatalog(mainCatalog);
       setActiveImg(data.thumbnail_url);
+      setSelectedColor(data.master_products.color);
+      setSelectedStorage(data.master_products.storage_gb);
 
+      // 2. Load ALL published catalogs for same series
+      const { data: allCatalogs } = await db.from("catalog_products")
+        .select("*, master_products(*)")
+        .eq("catalog_status", "published");
+
+      const series = data.master_products.series;
+      const wt = data.master_products.warranty_type;
+      const siblings = (allCatalogs ?? []).filter((c: CatalogProduct) =>
+        c.master_products?.series === series && c.master_products?.warranty_type === wt
+      ).map((c: CatalogProduct) => ({
+        ...c,
+        bonus_items: Array.isArray(c.bonus_items) ? c.bonus_items : [],
+      }));
+      setSiblingCatalogs(siblings);
+
+      // Other warranty type slugs for warranty dropdown
+      const otherWt = (allCatalogs ?? []).filter((c: CatalogProduct) =>
+        c.master_products?.series === series && c.master_products?.warranty_type !== wt
+      );
+      const wtMap = new Map<string, string>();
+      for (const c of otherWt) {
+        if (!wtMap.has(c.master_products.warranty_type) && c.slug) {
+          wtMap.set(c.master_products.warranty_type, c.slug);
+        }
+      }
+      setOtherWarrantySlugs(Array.from(wtMap.entries()).map(([warrantyType, slug]) => ({ warrantyType, slug })));
+
+      // 3. Load units for ALL sibling product_ids
+      const productIds = siblings.map((s: CatalogProduct) => s.product_id);
       const { data: stockData } = await db.from("stock_units")
-        .select("id, imei, condition_status, minus_severity, minus_description, selling_price, stock_status")
-        .eq("product_id", data.product_id)
+        .select("id, imei, condition_status, minus_severity, minus_description, selling_price, stock_status, product_id")
+        .in("product_id", productIds)
         .eq("stock_status", "available")
         .order("selling_price", { ascending: true });
-      setUnits(stockData ?? []);
+      setAllUnits(stockData ?? []);
 
-      // Fetch siblings and flash sale settings in parallel
-      const sibPromise = data.master_products
-        ? db.from("catalog_products")
-            .select("id, product_id, slug, display_name, master_products(storage_gb, color, warranty_type, series)")
-            .eq("catalog_status", "published")
-        : Promise.resolve({ data: null });
-
-      const fsPromise = data.is_flash_sale
-        ? db.from("flash_sale_settings").select("is_active, start_time, duration_hours").limit(1).single()
-        : Promise.resolve({ data: null });
-
-      const [sibResult, fsResult] = await Promise.all([sibPromise, fsPromise]);
-
-      if (sibResult.data) {
-        const sibs = sibResult.data.filter((c: SiblingCatalog) => {
-          const m = c.master_products;
-          return m.series === data.master_products.series;
-        });
-        setAllSiblings(sibs);
+      // 4. Flash sale settings
+      const hasAnyFlashSale = siblings.some((s: CatalogProduct) => s.is_flash_sale);
+      if (hasAnyFlashSale) {
+        const { data: fsData } = await db.from("flash_sale_settings")
+          .select("is_active, start_time, duration_hours")
+          .limit(1)
+          .single();
+        if (fsData) setFlashSaleSettings(fsData);
       }
-
-      if (fsResult.data) setFlashSaleSettings(fsResult.data);
 
       setLoading(false);
     }
@@ -340,6 +352,40 @@ export default function ProductDetailPage() {
     return () => clearInterval(iv);
   }, [catalog, flashSaleSettings]);
 
+  // Derive all available colors and storages from siblings
+  const allColors = useMemo(() => {
+    return Array.from(new Set(siblingCatalogs.map(s => s.master_products.color)));
+  }, [siblingCatalogs]);
+
+  const allStorages = useMemo(() => {
+    return Array.from(new Set(siblingCatalogs.map(s => s.master_products.storage_gb))).sort((a, b) => a - b);
+  }, [siblingCatalogs]);
+
+  // Find the catalog matching current selected color + storage
+  const activeCatalog = useMemo(() => {
+    return siblingCatalogs.find(s =>
+      s.master_products.color === selectedColor && s.master_products.storage_gb === selectedStorage
+    ) ?? catalog;
+  }, [siblingCatalogs, selectedColor, selectedStorage, catalog]);
+
+  // Units for the currently selected variant
+  const activeUnits = useMemo(() => {
+    if (!activeCatalog) return [];
+    return allUnits.filter(u => u.product_id === activeCatalog.product_id);
+  }, [allUnits, activeCatalog]);
+
+  // Check if a specific color+storage combination has stock
+  const hasStockFor = (color: string, storage: number) => {
+    const cat = siblingCatalogs.find(s => s.master_products.color === color && s.master_products.storage_gb === storage);
+    if (!cat) return false;
+    return allUnits.some(u => u.product_id === cat.product_id);
+  };
+
+  // Check if a specific color+storage combination has a catalog entry
+  const hasCatalogFor = (color: string, storage: number) => {
+    return siblingCatalogs.some(s => s.master_products.color === color && s.master_products.storage_gb === storage);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -361,7 +407,7 @@ export default function ProductDetailPage() {
     );
   }
 
-  if (notFound || !catalog) {
+  if (notFound || !catalog || !activeCatalog) {
     return (
       <div className="min-h-screen bg-background">
         <PublicNavbar />
@@ -375,66 +421,38 @@ export default function ProductDetailPage() {
     );
   }
 
-  const allImages = [catalog.thumbnail_url, ...(catalog.gallery_urls ?? [])].filter(Boolean) as string[];
-  const master = catalog.master_products;
-  const noMinusUnits = units.filter(u => u.condition_status === "no_minus");
-  const minusUnits = units.filter(u => u.condition_status === "minus");
-  const minPrice = units.length > 0 ? Math.min(...units.filter(u => u.selling_price).map(u => u.selling_price!)) : null;
-  const maxPrice = units.length > 0 ? Math.max(...units.filter(u => u.selling_price).map(u => u.selling_price!)) : null;
-  const outOfStock = units.length === 0;
+  const master = activeCatalog.master_products;
+  const allImages = [activeCatalog.thumbnail_url, ...(activeCatalog.gallery_urls ?? [])].filter(Boolean) as string[];
+  const noMinusUnits = activeUnits.filter(u => u.condition_status === "no_minus");
+  const minusUnits = activeUnits.filter(u => u.condition_status === "minus");
+  const minPrice = activeUnits.length > 0 ? Math.min(...activeUnits.filter(u => u.selling_price).map(u => u.selling_price!)) : null;
+  const maxPrice = activeUnits.length > 0 ? Math.max(...activeUnits.filter(u => u.selling_price).map(u => u.selling_price!)) : null;
+  const outOfStock = activeUnits.length === 0;
 
-  // Compute discounted hero price
-  const heroDiscount = minPrice ? calcDiscountedPrice(minPrice, catalog, flashSaleSettings) : null;
+  const heroDiscount = minPrice ? calcDiscountedPrice(minPrice, activeCatalog, flashSaleSettings) : null;
 
-  // ── Warranty type selectors
-  const warrantyGroups = Array.from(
-    new Map(allSiblings.map(s => [s.master_products.warranty_type, s])).entries()
-  ).map(([wt, sib]) => ({ warrantyType: wt, catalog: sib }));
-  const currentWarrantyInGroups = warrantyGroups.some(g => g.warrantyType === master.warranty_type);
-  if (!currentWarrantyInGroups) {
-    warrantyGroups.unshift({ warrantyType: master.warranty_type, catalog: { id: catalog.id, product_id: catalog.product_id, slug: catalog.slug, display_name: catalog.display_name, master_products: master } });
-  }
-  warrantyGroups.sort((a, b) => a.warrantyType === master.warranty_type ? -1 : b.warrantyType === master.warranty_type ? 1 : 0);
+  // Warranty groups for dropdown (other warranty types for this series)
+  const warrantyOptions = [
+    { warrantyType: catalog.master_products.warranty_type, slug: null as string | null },
+    ...otherWarrantySlugs,
+  ];
 
-  // ── Color selectors — always show
-  const colorSiblings = allSiblings.filter(s => s.master_products.warranty_type === master.warranty_type);
-  const uniqueColors = Array.from(new Set([master.color, ...colorSiblings.map(s => s.master_products.color)]));
-
-  // ── Storage selectors
-  const storageSiblings = colorSiblings.filter(s => s.master_products.color === master.color);
-  const uniqueStorages = Array.from(new Set([master.storage_gb, ...storageSiblings.map(s => s.master_products.storage_gb)])).sort((a, b) => a - b);
-
-  const isFullySpecific = true;
-
-  function getSlugForWarranty(warrantyType: string) {
-    if (warrantyType === master.warranty_type) return null;
-    const match = allSiblings.find(s => s.master_products.warranty_type === warrantyType && s.master_products.color === master.color && s.master_products.storage_gb === master.storage_gb);
-    return match?.slug ?? allSiblings.find(s => s.master_products.warranty_type === warrantyType)?.slug ?? null;
-  }
-
-  function getSlugForColor(color: string) {
-    if (color === master.color) return null;
-    const match = colorSiblings.find(s => s.master_products.color === color && s.master_products.storage_gb === master.storage_gb);
-    return match?.slug ?? colorSiblings.find(s => s.master_products.color === color)?.slug ?? null;
-  }
-
-  function getSlugForStorage(gb: number) {
-    if (gb === master.storage_gb) return null;
-    const match = storageSiblings.find(s => s.master_products.storage_gb === gb);
-    return match?.slug ?? null;
-  }
+  // Flash sale info — check if all siblings have flash sale or just specific ones
+  const flashSaleCatalogs = siblingCatalogs.filter(s => s.is_flash_sale);
+  const allHaveFlashSale = flashSaleCatalogs.length === siblingCatalogs.length;
+  const someHaveFlashSale = flashSaleCatalogs.length > 0 && !allHaveFlashSale;
 
   function handleAddToCart() {
     if (outOfStock) return;
-    if (catalog?.is_flash_sale && flashSaleSettings?.is_active && new Date(flashSaleSettings.start_time).getTime() > Date.now()) {
+    if (activeCatalog?.is_flash_sale && flashSaleSettings?.is_active && new Date(flashSaleSettings.start_time).getTime() > Date.now()) {
       setShowFlashSalePopup(true);
       return;
     }
-    const targetUnit = selectedUnitId ? units.find(u => u.id === selectedUnitId) : units[0];
+    const targetUnit = selectedUnitId ? activeUnits.find(u => u.id === selectedUnitId) : activeUnits[0];
     if (!targetUnit) return;
     const item: CartItem = {
       unitId: targetUnit.id,
-      productName: catalog.display_name,
+      productName: activeCatalog.display_name,
       color: master.color,
       storageGb: master.storage_gb,
       warrantyType: master.warranty_type,
@@ -442,12 +460,12 @@ export default function ProductDetailPage() {
       minusDescription: targetUnit.minus_description,
       sellingPrice: targetUnit.selling_price ?? 0,
       imeiCensored: censorImei(targetUnit.imei),
-      thumbnailUrl: catalog.thumbnail_url,
-      slug: catalog.slug,
+      thumbnailUrl: activeCatalog.thumbnail_url,
+      slug: activeCatalog.slug,
     };
     const added = addToCart(item);
     if (added) {
-      toast({ title: "Ditambahkan ke keranjang", description: catalog.display_name });
+      toast({ title: "Ditambahkan ke keranjang", description: activeCatalog.display_name });
     } else {
       toast({ title: "Unit sudah ada di keranjang", variant: "destructive" });
     }
@@ -456,7 +474,7 @@ export default function ProductDetailPage() {
   function handleShare() {
     const url = window.location.href;
     if (navigator.share) {
-      navigator.share({ title: catalog.display_name, url }).catch(() => {});
+      navigator.share({ title: activeCatalog.display_name, url }).catch(() => {});
     } else {
       navigator.clipboard.writeText(url).then(() => {
         toast({ title: "Link disalin", description: "Link produk berhasil disalin ke clipboard" });
@@ -464,56 +482,73 @@ export default function ProductDetailPage() {
     }
   }
 
-  // ── Specs table data
+  function handleColorChange(color: string) {
+    setSelectedColor(color);
+    setSelectedUnitId(null);
+    // Update image if the new variant has a thumbnail
+    const match = siblingCatalogs.find(s => s.master_products.color === color && s.master_products.storage_gb === selectedStorage);
+    if (match?.thumbnail_url) setActiveImg(match.thumbnail_url);
+    else if (match) setActiveImg(null);
+  }
+
+  function handleStorageChange(gb: number) {
+    setSelectedStorage(gb);
+    setSelectedUnitId(null);
+    const match = siblingCatalogs.find(s => s.master_products.color === selectedColor && s.master_products.storage_gb === gb);
+    if (match?.thumbnail_url) setActiveImg(match.thumbnail_url);
+  }
+
+  // Page title = series name
+  const seriesName = catalog.master_products.series;
+  const pageTitle = `${seriesName} ${WARRANTY_SHORT[catalog.master_products.warranty_type] ?? catalog.master_products.warranty_type}`;
+
+  // Specs
   const specsRows: { label: string; value: string | null | undefined }[] = [
-    { label: "Stok", value: outOfStock ? "Habis" : String(units.length) },
-    { label: "Kondisi", value: catalog.spec_condition || "Bekas" },
-    { label: "Merek", value: catalog.spec_brand || "iPhone Apple" },
+    { label: "Stok", value: outOfStock ? "Habis" : String(activeUnits.length) },
+    { label: "Kondisi", value: activeCatalog.spec_condition || "Bekas" },
+    { label: "Merek", value: activeCatalog.spec_brand || "iPhone Apple" },
     { label: "Kapasitas Penyimpanan", value: storageLabel(master.storage_gb) },
     { label: "Jenis Garansi", value: WARRANTY_LABELS[master.warranty_type] || master.warranty_type },
-    { label: "Produk Custom", value: catalog.spec_custom_product || "Tidak" },
-    { label: "Build-in Battery", value: catalog.spec_built_in_battery || "Ya" },
-    { label: "Model Handphone", value: catalog.spec_phone_model || master.series },
-    { label: "No.Sertifikat (POSTEL)", value: catalog.spec_postel_cert || "-" },
-    { label: "Dikirim Dari", value: catalog.spec_shipped_from || "Kota Surabaya" },
+    { label: "Produk Custom", value: activeCatalog.spec_custom_product || "Tidak" },
+    { label: "Build-in Battery", value: activeCatalog.spec_built_in_battery || "Ya" },
+    { label: "Model Handphone", value: activeCatalog.spec_phone_model || master.series },
+    { label: "No.Sertifikat (POSTEL)", value: activeCatalog.spec_postel_cert || "-" },
+    { label: "Dikirim Dari", value: activeCatalog.spec_shipped_from || "Kota Surabaya" },
   ];
-  if (catalog.spec_warranty_duration) specsRows.splice(5, 0, { label: "Masa Garansi", value: catalog.spec_warranty_duration });
-  if (catalog.spec_screen_protector_type) specsRows.push({ label: "Tipe Pengaman Layar", value: catalog.spec_screen_protector_type });
-  if (catalog.spec_case_type) specsRows.push({ label: "Tipe Case", value: catalog.spec_case_type });
-  if (catalog.spec_cable_type) specsRows.push({ label: "Tipe Kabel Seluler", value: catalog.spec_cable_type });
+  if (activeCatalog.spec_warranty_duration) specsRows.splice(5, 0, { label: "Masa Garansi", value: activeCatalog.spec_warranty_duration });
 
   const tabs = [
     { key: "detail", label: "Detail Produk" },
-    { key: "kondisi", label: `Kondisi Unit (${units.length})` },
-    { key: "rating", label: `Penilaian (${catalog.rating_count ?? 0})` },
+    { key: "kondisi", label: `Kondisi Unit (${activeUnits.length})` },
+    { key: "rating", label: `Penilaian (${activeCatalog.rating_count ?? 0})` },
     { key: "garansi", label: "Informasi Garansi" },
     { key: "pengiriman", label: "Pengiriman" },
   ] as const;
 
-  // Badge components
+  // Badges
   const badges = [];
-  if (catalog.is_flash_sale) {
+  if (activeCatalog.is_flash_sale) {
     badges.push(
       <span key="flash" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground shadow-sm whitespace-nowrap">
         <Zap className="w-3.5 h-3.5 shrink-0" /> Flash Sale
       </span>
     );
   }
-  if (catalog.discount_active && catalog.discount_value && !catalog.is_flash_sale) {
+  if (activeCatalog.discount_active && activeCatalog.discount_value && !activeCatalog.is_flash_sale) {
     badges.push(
       <span key="disc" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground shadow-sm whitespace-nowrap">
-        <Tag className="w-3.5 h-3.5 shrink-0" /> Diskon {catalog.discount_type === "percentage" ? `${catalog.discount_value}%` : `Rp${catalog.discount_value.toLocaleString("id-ID")}`}
+        <Tag className="w-3.5 h-3.5 shrink-0" /> Diskon
       </span>
     );
   }
-  if (catalog.free_shipping) {
+  if (activeCatalog.free_shipping) {
     badges.push(
       <span key="ship" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-green-500 text-white shadow-sm whitespace-nowrap">
         <Truck className="w-3.5 h-3.5 shrink-0" /> Gratis Ongkir
       </span>
     );
   }
-  if (catalog.highlight_product) {
+  if (activeCatalog.highlight_product) {
     badges.push(
       <span key="high" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm whitespace-nowrap">
         <Star className="w-3.5 h-3.5 fill-current shrink-0" /> Unggulan
@@ -533,17 +568,17 @@ export default function ProductDetailPage() {
             <ChevronRight className="w-3 h-3" />
             <Link to="/katalog" className="hover:text-foreground transition-colors">Katalog</Link>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-foreground font-medium truncate max-w-xs">{catalog.display_name}</span>
+            <span className="text-foreground font-medium truncate max-w-xs">{pageTitle}</span>
           </nav>
 
-          {/* Hero Section */}
+          {/* Hero */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_320px] gap-6 pb-8">
 
             {/* LEFT — Media */}
             <div className="space-y-3">
               <div className="relative aspect-square rounded-2xl overflow-hidden bg-muted border border-border">
                 {activeImg ? (
-                  <img src={activeImg} alt={catalog.display_name} className="w-full h-full object-cover" />
+                  <img src={activeImg} alt={activeCatalog.display_name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-muted-foreground/40">
                     <ImageOff className="w-16 h-16" />
@@ -574,23 +609,30 @@ export default function ProductDetailPage() {
 
             {/* MIDDLE — Info */}
             <div className="space-y-4">
-              {/* Badges — horizontal row above title */}
+              {/* Badges */}
               {badges.length > 0 && (
                 <div className="flex flex-wrap gap-2">{badges}</div>
               )}
 
-              {/* Product name */}
-              <h1 className="text-xl font-bold text-foreground leading-tight">{catalog.display_name}</h1>
+              {/* Product name — shows current variant */}
+              <h1 className="text-xl font-bold text-foreground leading-tight">
+                {activeCatalog.display_name}
+              </h1>
 
               {/* Rating */}
               <div className="flex items-center gap-3 pb-1 border-b border-border">
-                <StarRating score={catalog.rating_score ?? 0} count={catalog.rating_count ?? 0} />
+                <StarRating score={activeCatalog.rating_score ?? 0} count={activeCatalog.rating_count ?? 0} />
               </div>
 
-              {/* Price — always show original + discount info */}
+              {/* Price */}
               {(() => {
                 if (outOfStock) {
-                  return <div className="text-2xl font-bold text-muted-foreground">Stok Habis</div>;
+                  return (
+                    <div className="space-y-1">
+                      <div className="text-2xl font-bold text-muted-foreground">Stok Habis</div>
+                      <p className="text-sm text-destructive">Maaf stok sedang habis, hubungi admin untuk tanya kapan restoknya.</p>
+                    </div>
+                  );
                 }
                 if (heroDiscount?.hasDiscount) {
                   return (
@@ -619,22 +661,45 @@ export default function ProductDetailPage() {
                 );
               })()}
 
-              {/* ① Pilih Tipe Garansi — DROPDOWN */}
-              {warrantyGroups.length > 1 ? (
+              {/* Flash sale specific units info */}
+              {someHaveFlashSale && flashSaleSettings?.is_active && (
+                <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="text-sm font-semibold text-amber-800">Flash Sale untuk unit tertentu:</span>
+                  </div>
+                  <ul className="space-y-0.5 ml-6">
+                    {flashSaleCatalogs.map(fc => (
+                      <li key={fc.id} className="text-xs text-amber-700 flex items-center gap-1.5">
+                        <Zap className="w-3 h-3 shrink-0" />
+                        {fc.master_products.series} {storageLabel(fc.master_products.storage_gb)} {fc.master_products.color}
+                      </li>
+                    ))}
+                  </ul>
+                  {countdownStr && countdownStr !== "Berakhir" && (
+                    <p className="text-xs text-amber-600 flex items-center gap-1 ml-6">
+                      <Clock className="w-3 h-3" /> Berakhir dalam {countdownStr}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* ① Pilih Tipe Garansi — navigates to different page */}
+              {warrantyOptions.length > 1 ? (
                 <div className="space-y-1.5">
                   <p className="text-sm font-medium text-foreground">Tipe Garansi</p>
                   <Select
-                    value={master.warranty_type}
+                    value={catalog.master_products.warranty_type}
                     onValueChange={(val) => {
-                      const targetSlug = getSlugForWarranty(val);
-                      if (targetSlug) navigate(`/produk/${targetSlug}`);
+                      const match = otherWarrantySlugs.find(o => o.warrantyType === val);
+                      if (match) navigate(`/produk/${match.slug}`);
                     }}
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {warrantyGroups.map(({ warrantyType }) => (
+                      {warrantyOptions.map(({ warrantyType }) => (
                         <SelectItem key={warrantyType} value={warrantyType}>
                           {WARRANTY_FRIENDLY[warrantyType] ?? WARRANTY_LABELS[warrantyType] ?? warrantyType}
                         </SelectItem>
@@ -655,23 +720,22 @@ export default function ProductDetailPage() {
                 </div>
               )}
 
-              {/* ② Pilih Warna — always show */}
+              {/* ② Pilih Warna — state-based, no navigation */}
               <div className="space-y-2">
                 <p className="text-sm font-medium text-foreground">
-                  Pilih warna: <span className="text-muted-foreground font-normal">{master.color}</span>
+                  Pilih warna: <span className="text-muted-foreground font-normal">{selectedColor}</span>
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {uniqueColors.map(color => {
-                    const isCurrent = color === master.color;
-                    const targetSlug = getSlugForColor(color);
+                  {allColors.map(color => {
+                    const isCurrent = color === selectedColor;
+                    const exists = hasCatalogFor(color, selectedStorage);
                     return (
                       <button key={color}
-                        onClick={() => targetSlug && navigate(`/produk/${targetSlug}`)}
-                        disabled={!targetSlug && !isCurrent}
+                        onClick={() => handleColorChange(color)}
                         className={cn("px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
                           isCurrent ? "border-foreground bg-foreground text-background"
-                            : targetSlug ? "border-border text-foreground hover:border-foreground/60 bg-background"
-                            : "border-border text-muted-foreground/40 bg-muted/20 cursor-not-allowed line-through")}>
+                            : exists ? "border-border text-foreground hover:border-foreground/60 bg-background"
+                            : "border-border text-foreground hover:border-foreground/60 bg-background")}>
                         {color}
                       </button>
                     );
@@ -679,24 +743,21 @@ export default function ProductDetailPage() {
                 </div>
               </div>
 
-              {/* ③ Pilih Kapasitas */}
-              {uniqueStorages.length > 1 && (
+              {/* ③ Pilih Kapasitas — state-based */}
+              {allStorages.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-foreground">
-                    Pilih kapasitas: <span className="text-muted-foreground font-normal">{storageLabel(master.storage_gb)}</span>
+                    Pilih kapasitas: <span className="text-muted-foreground font-normal">{storageLabel(selectedStorage)}</span>
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {uniqueStorages.map(gb => {
-                      const isCurrent = gb === master.storage_gb;
-                      const targetSlug = getSlugForStorage(gb);
+                    {allStorages.map(gb => {
+                      const isCurrent = gb === selectedStorage;
                       return (
                         <button key={gb}
-                          onClick={() => targetSlug && navigate(`/produk/${targetSlug}`)}
-                          disabled={!targetSlug && !isCurrent}
+                          onClick={() => handleStorageChange(gb)}
                           className={cn("px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
                             isCurrent ? "border-foreground bg-foreground text-background"
-                              : targetSlug ? "border-border text-foreground hover:border-foreground/60 bg-background"
-                              : "border-border text-muted-foreground/40 bg-muted/20 cursor-not-allowed line-through")}>
+                              : "border-border text-foreground hover:border-foreground/60 bg-background")}>
                           {storageLabel(gb)}
                         </button>
                       );
@@ -706,20 +767,20 @@ export default function ProductDetailPage() {
               )}
 
               {/* Marketplace links */}
-              {(catalog.tokopedia_url || catalog.shopee_url) && (
+              {(activeCatalog.tokopedia_url || activeCatalog.shopee_url) && (
                 <div className="space-y-2 pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground">Tersedia juga di marketplace resmi:</p>
                   <div className="flex gap-2 flex-wrap">
-                    {catalog.tokopedia_url && (
-                      <a href={catalog.tokopedia_url} target="_blank" rel="noopener noreferrer"
+                    {activeCatalog.tokopedia_url && (
+                      <a href={activeCatalog.tokopedia_url} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-accent transition-colors"
                         style={{ color: "#03AC0E" }}>
                         <span className="w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ backgroundColor: "#03AC0E" }}>T</span>
                         Tokopedia <ExternalLink className="w-3 h-3" />
                       </a>
                     )}
-                    {catalog.shopee_url && (
-                      <a href={catalog.shopee_url} target="_blank" rel="noopener noreferrer"
+                    {activeCatalog.shopee_url && (
+                      <a href={activeCatalog.shopee_url} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-accent transition-colors"
                         style={{ color: "#EE4D2D" }}>
                         <span className="w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold shrink-0" style={{ backgroundColor: "#EE4D2D" }}>S</span>
@@ -735,25 +796,28 @@ export default function ProductDetailPage() {
             <div className="lg:self-start">
               <div className="border border-border rounded-xl p-4 space-y-4 sticky top-20">
                 <p className="text-sm font-semibold text-foreground">Atur pembelian</p>
-                <p className="text-xs text-muted-foreground">{master.color} · {storageLabel(master.storage_gb)}</p>
+                <p className="text-xs text-muted-foreground">{selectedColor} · {storageLabel(selectedStorage)}</p>
                 {!outOfStock && (
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
                     <span className="text-foreground font-medium">
-                      Stok: <span className="text-amber-500 font-bold">Tersedia {units.length}</span>
+                      Stok: <span className="text-amber-500 font-bold">Tersedia {activeUnits.length}</span>
                     </span>
                   </div>
                 )}
+                {outOfStock && (
+                  <p className="text-sm text-destructive font-medium">Stok habis untuk varian ini</p>
+                )}
                 {/* Unit selector */}
-                {!outOfStock && units.length > 1 && (
+                {!outOfStock && activeUnits.length > 1 && (
                   <div className="space-y-1.5">
                     <p className="text-xs text-muted-foreground">Pilih unit:</p>
-                    <Select value={selectedUnitId ?? units[0]?.id ?? ""} onValueChange={setSelectedUnitId}>
+                    <Select value={selectedUnitId ?? activeUnits[0]?.id ?? ""} onValueChange={setSelectedUnitId}>
                       <SelectTrigger className="h-9 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {units.map(u => (
+                        {activeUnits.map(u => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.condition_status === "no_minus" ? "No Minus" : "Minus"} — {formatRupiah(u.selling_price)} — IMEI: {censorImei(u.imei)}
                           </SelectItem>
@@ -762,32 +826,12 @@ export default function ProductDetailPage() {
                     </Select>
                   </div>
                 )}
-                {/* Flash sale indicator */}
-                {(() => {
-                  const isFlashNotStarted = catalog?.is_flash_sale && flashSaleSettings?.is_active && 
-                    new Date(flashSaleSettings.start_time).getTime() > Date.now();
-                  if (isFlashNotStarted) {
-                    const startAt = new Date(flashSaleSettings!.start_time);
-                    return (
-                      <div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
-                        <Zap className="w-4 h-4 text-amber-500 shrink-0" />
-                        <div className="text-xs">
-                          <p className="font-semibold text-amber-700 dark:text-amber-400">Flash Sale Segera Dimulai</p>
-                          <p className="text-amber-600 dark:text-amber-500 mt-0.5">
-                            {startAt.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })} pukul {startAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} WIB
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                {/* Purchase price with discount */}
-                {(() => {
-                  const selUnit = selectedUnitId ? units.find(u => u.id === selectedUnitId) : units[0];
+                {/* Purchase price */}
+                {!outOfStock && (() => {
+                  const selUnit = selectedUnitId ? activeUnits.find(u => u.id === selectedUnitId) : activeUnits[0];
                   const selPrice = selUnit?.selling_price ?? minPrice;
-                  if (!selPrice) return <div className="text-xl font-bold text-foreground">—</div>;
-                  const disc = calcDiscountedPrice(selPrice, catalog, flashSaleSettings);
+                  if (!selPrice) return <div className="text-xl font-bold text-foreground">\u2014</div>;
+                  const disc = calcDiscountedPrice(selPrice, activeCatalog, flashSaleSettings);
                   if (disc.hasDiscount) {
                     return (
                       <div className="space-y-0.5">
@@ -835,10 +879,10 @@ export default function ProductDetailPage() {
                     onClick={() => {
                       const hour = new Date().getHours();
                       const greeting = hour < 11 ? "Selamat pagi" : hour < 15 ? "Selamat siang" : hour < 18 ? "Selamat sore" : "Selamat malam";
-                      const selectedUnit = selectedUnitId ? units.find(u => u.id === selectedUnitId) : units[0];
+                      const selectedUnit = selectedUnitId ? activeUnits.find(u => u.id === selectedUnitId) : activeUnits[0];
                       const imeiLast4 = selectedUnit ? selectedUnit.imei.slice(-4) : "****";
                       const conditionText = selectedUnit?.condition_status === "minus" ? "minus" : "no minus";
-                      const msg = `${greeting} Admin Ivalora Gadget\n\nSaya ingin bertanya tentang unit:\n\n*${catalog.display_name}*\nWarna: ${master.color}\nKapasitas: ${storageLabel(master.storage_gb)}\nKondisi: ${conditionText}\nIMEI (4 digit terakhir): ${imeiLast4}\n\nApakah unit ini masih tersedia? Terima kasih!`;
+                      const msg = `${greeting} Admin Ivalora Gadget\n\nSaya ingin bertanya tentang unit:\n\n*${activeCatalog.display_name}*\nWarna: ${master.color}\nKapasitas: ${storageLabel(master.storage_gb)}\nKondisi: ${conditionText}\nIMEI (4 digit terakhir): ${imeiLast4}\n\nApakah unit ini masih tersedia? Terima kasih!`;
                       const encoded = encodeURIComponent(msg);
                       window.open(`https://wa.me/6285123456789?text=${encoded}`, "_blank");
                     }}
@@ -846,10 +890,7 @@ export default function ProductDetailPage() {
                   >
                     <MessageCircle className="w-4 h-4" /> Chat Admin
                   </button>
-                  <button
-                    onClick={handleShare}
-                    className="flex items-center gap-1.5 hover:text-foreground transition-colors"
-                  >
+                  <button onClick={handleShare} className="flex items-center gap-1.5 hover:text-foreground transition-colors">
                     <Share2 className="w-4 h-4" /> Bagikan
                   </button>
                 </div>
@@ -857,14 +898,14 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* Why Ivalora section */}
+          {/* Why Ivalora */}
           <div className="py-6 border-t border-border">
             <h2 className="text-base font-bold text-foreground mb-3">Kenapa Memilih Ivalora?</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {[
                 { icon: Shield, label: "IMEI Aman & Terdaftar" },
                 { icon: CheckCircle2, label: "QC 30+ Checkpoint" },
-                { icon: Zap, label: "Battery Health ≥ 81%" },
+                { icon: Zap, label: "Battery Health \u2265 81%" },
                 { icon: BadgeCheck, label: "Tidak iCloud Lock" },
                 { icon: Truck, label: "Packing Aman" },
                 { icon: MessageCircle, label: "After Sales 30 Hari" },
@@ -877,250 +918,242 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* ── TABS ── */}
-          {isFullySpecific && (
-            <div className="border-t border-border">
-              <div className="flex overflow-x-auto border-b border-border -mb-px scrollbar-hide w-full">
-                {tabs.map(t => (
-                  <Tab key={t.key} label={t.label} active={activeTab === t.key} onClick={() => setActiveTab(t.key as typeof activeTab)} />
-                ))}
-              </div>
-
-              <div className="py-6 w-full">
-                {/* TAB: Detail Produk */}
-                {activeTab === "detail" && (
-                  <div className="space-y-6">
-                    {catalog.full_description && (
-                      <div>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{catalog.full_description}</p>
-                      </div>
-                    )}
-                    <table className="w-full">
-                      <tbody>
-                        {specsRows.map(r => <SpecRow key={r.label} label={r.label} value={r.value} />)}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* TAB: Kondisi Unit */}
-                {activeTab === "kondisi" && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
-                      <div className="p-3 rounded-xl border border-border bg-muted/20 text-center">
-                        <p className="text-2xl font-bold text-foreground">{units.length}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Total Tersedia</p>
-                      </div>
-                      <div className="p-3 rounded-xl border border-green-200 bg-green-50 text-center">
-                        <p className="text-2xl font-bold text-green-700">{noMinusUnits.length}</p>
-                        <p className="text-xs text-green-600 mt-0.5">No Minus</p>
-                      </div>
-                      <div className="p-3 rounded-xl border border-orange-200 bg-orange-50 text-center">
-                        <p className="text-2xl font-bold text-orange-700">{minusUnits.length}</p>
-                        <p className="text-xs text-orange-600 mt-0.5">Ada Minus</p>
-                      </div>
-                    </div>
-
-                    {/* Flash sale / discount info banner */}
-                    {(() => {
-                      const hasFlash = catalog.is_flash_sale && flashSaleSettings?.is_active;
-                      const hasDisc = heroDiscount?.hasDiscount;
-                      if (!hasDisc && !hasFlash) return null;
-                      return (
-                        <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-sm">
-                          <Tag className="w-4 h-4 text-amber-600 shrink-0" />
-                          <span className="text-amber-800 font-medium">
-                            {hasFlash ? "Flash Sale aktif" : "Diskon aktif"} — harga di bawah sudah termasuk potongan {heroDiscount?.discountLabel ? `(${heroDiscount.discountLabel})` : ""}.
-                          </span>
-                          {countdownStr && countdownStr !== "Berakhir" && (
-                            <span className="ml-auto text-xs text-amber-600 font-semibold whitespace-nowrap flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> {countdownStr}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* No minus units */}
-                    {noMinusUnits.length > 0 && (
-                      <div>
-                        <p className="text-sm font-semibold text-foreground mb-2">Unit No Minus ({noMinusUnits.length} unit)</p>
-                        <div className="space-y-2">
-                          {noMinusUnits.map((unit) => {
-                            const originalPrice = unit.selling_price ?? 0;
-                            const disc = calcDiscountedPrice(originalPrice, catalog, flashSaleSettings);
-                            return (
-                              <div key={unit.id} className="p-4 rounded-xl border border-green-200 bg-green-50">
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <div className="flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                                    <span className="text-sm font-semibold text-green-800">No Minus</span>
-                                  </div>
-                                  <div className="text-right">
-                                    {disc.hasDiscount ? (
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs text-muted-foreground line-through">{formatRupiah(originalPrice)}</span>
-                                        <span className="text-xs font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">{disc.discountLabel}</span>
-                                        <span className="text-sm font-bold text-destructive">{formatRupiah(disc.finalPrice)}</span>
-                                      </div>
-                                    ) : (
-                                      <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
-                                    )}
-                                  </div>
-                                </div>
-                                <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
-                                <p className="text-xs text-green-700">Barang dalam kondisi prima — telah melewati quality control 30+ checkpoint.</p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Minus units */}
-                    {minusUnits.length > 0 && (
-                      <div>
-                        <p className="text-sm font-semibold text-foreground mb-2">Unit Ada Minus ({minusUnits.length} unit)</p>
-                        <div className="space-y-2">
-                          {minusUnits.map((unit) => {
-                            const originalPrice = unit.selling_price ?? 0;
-                            const disc = calcDiscountedPrice(originalPrice, catalog, flashSaleSettings);
-                            return (
-                              <div key={unit.id} className="p-4 rounded-xl border border-orange-200 bg-orange-50">
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <div className="flex items-center gap-2">
-                                    <AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />
-                                    <span className="text-sm font-semibold text-orange-800">
-                                      Minus {unit.minus_severity === "minor" ? "Minor" : unit.minus_severity === "mayor" ? "Mayor" : ""}
-                                    </span>
-                                  </div>
-                                  <div className="text-right">
-                                    {disc.hasDiscount ? (
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs text-muted-foreground line-through">{formatRupiah(originalPrice)}</span>
-                                        <span className="text-xs font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">{disc.discountLabel}</span>
-                                        <span className="text-sm font-bold text-destructive">{formatRupiah(disc.finalPrice)}</span>
-                                      </div>
-                                    ) : (
-                                      <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
-                                    )}
-                                  </div>
-                                </div>
-                                <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
-                                {unit.minus_description ? (
-                                  <p className="text-xs text-orange-700">Keterangan: {unit.minus_description}</p>
-                                ) : (
-                                  <p className="text-xs text-orange-700">Terdapat minus pada unit ini. Hubungi admin untuk detail lebih lanjut.</p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {units.length === 0 && (
-                      <div className="text-center py-10 text-muted-foreground">
-                        <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                        <p className="text-sm">Stok habis</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* TAB: Penilaian */}
-                {activeTab === "rating" && (
-                  <div>
-                    <div className="flex flex-col md:flex-row gap-6 items-start">
-                      <div className="flex flex-col items-center justify-center bg-muted/30 border border-border rounded-2xl p-6 min-w-[160px] gap-2">
-                        <span className="text-5xl font-black text-foreground">{(catalog.rating_score ?? 0).toFixed(1)}</span>
-                        <StarRating score={catalog.rating_score ?? 0} count={catalog.rating_count ?? 0} />
-                        <span className="text-xs text-muted-foreground mt-1">dari 5</span>
-                      </div>
-                      <div className="flex-1 space-y-2 w-full">
-                        {[5, 4, 3, 2, 1].map(star => (
-                          <div key={star} className="flex items-center gap-3">
-                            <span className="text-xs text-muted-foreground w-4 text-right">{star}</span>
-                            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
-                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-amber-400 rounded-full" style={{ width: "0%" }} />
-                            </div>
-                            <span className="text-xs text-muted-foreground w-4">0</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {(catalog.rating_count ?? 0) === 0 && (
-                      <div className="mt-6 text-center py-10 rounded-xl border border-border bg-muted/10">
-                        <Star className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-                        <p className="text-sm font-semibold text-foreground">Belum ada ulasan</p>
-                        <p className="text-xs text-muted-foreground mt-1">Jadilah yang pertama memberikan ulasan.</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* TAB: Garansi */}
-                {activeTab === "garansi" && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl border border-border">
-                      <p className="text-sm font-semibold text-foreground mb-2">Termasuk dalam Garansi</p>
-                      <ul className="space-y-1 text-sm text-muted-foreground">
-                        <li>Garansi toko 30 hari mesin</li>
-                        <li>IMEI lifetime aktif terdaftar</li>
-                        <li>{WARRANTY_LABELS[master.warranty_type] ?? master.warranty_type}</li>
-                        {catalog.spec_warranty_duration && <li>Masa garansi: {catalog.spec_warranty_duration}</li>}
-                      </ul>
-                    </div>
-                    <div className="p-4 rounded-xl border border-border">
-                      <p className="text-sm font-semibold text-foreground mb-2">Tidak Termasuk</p>
-                      <ul className="space-y-1 text-sm text-muted-foreground">
-                        <li>Kerusakan akibat jatuh/benturan</li>
-                        <li>Kerusakan akibat air/cairan</li>
-                        <li>Human error</li>
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB: Pengiriman */}
-                {activeTab === "pengiriman" && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
-                      <Truck className="w-5 h-5 text-muted-foreground shrink-0" />
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">Dikirim dari</p>
-                        <p className="text-sm text-muted-foreground">{catalog.spec_shipped_from || "Kota Surabaya, Jawa Timur"}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
-                      <CheckCircle2 className="w-5 h-5 text-muted-foreground shrink-0" />
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">Pengemasan</p>
-                        <p className="text-sm text-muted-foreground">Bubble wrap + kardus tebal + asuransi pengiriman</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
-                      <Shield className="w-5 h-5 text-muted-foreground shrink-0" />
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">Pemeriksaan sebelum kirim</p>
-                        <p className="text-sm text-muted-foreground">Semua unit dicek ulang dan dipacking oleh tim kami</p>
-                      </div>
-                    </div>
-                    {catalog.free_shipping && (
-                      <div className="flex items-center gap-3 p-4 rounded-xl border border-green-200 bg-green-50">
-                        <Truck className="w-5 h-5 text-green-600 shrink-0" />
-                        <div>
-                          <p className="text-sm font-semibold text-green-800">Gratis Ongkos Kirim</p>
-                          <p className="text-sm text-green-700">Produk ini gratis ongkir ke seluruh Indonesia</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+          {/* TABS */}
+          <div className="border-t border-border">
+            <div className="flex overflow-x-auto border-b border-border -mb-px scrollbar-hide w-full">
+              {tabs.map(t => (
+                <Tab key={t.key} label={t.label} active={activeTab === t.key} onClick={() => setActiveTab(t.key as typeof activeTab)} />
+              ))}
             </div>
-          )}
+
+            <div className="py-6 w-full">
+              {/* TAB: Detail */}
+              {activeTab === "detail" && (
+                <div className="space-y-6">
+                  {activeCatalog.full_description && (
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{activeCatalog.full_description}</p>
+                  )}
+                  <table className="w-full">
+                    <tbody>
+                      {specsRows.map(r => <SpecRow key={r.label} label={r.label} value={r.value} />)}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* TAB: Kondisi Unit */}
+              {activeTab === "kondisi" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
+                    <div className="p-3 rounded-xl border border-border bg-muted/20 text-center">
+                      <p className="text-2xl font-bold text-foreground">{activeUnits.length}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Total Tersedia</p>
+                    </div>
+                    <div className="p-3 rounded-xl border border-green-200 bg-green-50 text-center">
+                      <p className="text-2xl font-bold text-green-700">{noMinusUnits.length}</p>
+                      <p className="text-xs text-green-600 mt-0.5">No Minus</p>
+                    </div>
+                    <div className="p-3 rounded-xl border border-orange-200 bg-orange-50 text-center">
+                      <p className="text-2xl font-bold text-orange-700">{minusUnits.length}</p>
+                      <p className="text-xs text-orange-600 mt-0.5">Ada Minus</p>
+                    </div>
+                  </div>
+
+                  {/* Discount banner */}
+                  {heroDiscount?.hasDiscount && (
+                    <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-sm">
+                      <Tag className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="text-amber-800 font-medium">
+                        {activeCatalog.is_flash_sale ? "Flash Sale aktif" : "Diskon aktif"} — harga di bawah sudah termasuk potongan ({heroDiscount.discountLabel}).
+                      </span>
+                      {countdownStr && countdownStr !== "Berakhir" && (
+                        <span className="ml-auto text-xs text-amber-600 font-semibold whitespace-nowrap flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {countdownStr}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* No minus units */}
+                  {noMinusUnits.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-foreground mb-2">Unit No Minus ({noMinusUnits.length} unit)</p>
+                      <div className="space-y-2">
+                        {noMinusUnits.map((unit) => {
+                          const originalPrice = unit.selling_price ?? 0;
+                          const disc = calcDiscountedPrice(originalPrice, activeCatalog, flashSaleSettings);
+                          return (
+                            <div key={unit.id} className="p-4 rounded-xl border border-green-200 bg-green-50">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                                  <span className="text-sm font-semibold text-green-800">No Minus</span>
+                                </div>
+                                <div className="text-right">
+                                  {disc.hasDiscount ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground line-through">{formatRupiah(originalPrice)}</span>
+                                      <span className="text-xs font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">{disc.discountLabel}</span>
+                                      <span className="text-sm font-bold text-destructive">{formatRupiah(disc.finalPrice)}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
+                              <p className="text-xs text-green-700">Barang dalam kondisi prima — telah melewati quality control 30+ checkpoint.</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Minus units */}
+                  {minusUnits.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-foreground mb-2">Unit Ada Minus ({minusUnits.length} unit)</p>
+                      <div className="space-y-2">
+                        {minusUnits.map((unit) => {
+                          const originalPrice = unit.selling_price ?? 0;
+                          const disc = calcDiscountedPrice(originalPrice, activeCatalog, flashSaleSettings);
+                          return (
+                            <div key={unit.id} className="p-4 rounded-xl border border-orange-200 bg-orange-50">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />
+                                  <span className="text-sm font-semibold text-orange-800">
+                                    Minus {unit.minus_severity === "minor" ? "Minor" : unit.minus_severity === "mayor" ? "Mayor" : ""}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  {disc.hasDiscount ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground line-through">{formatRupiah(originalPrice)}</span>
+                                      <span className="text-xs font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">{disc.discountLabel}</span>
+                                      <span className="text-sm font-bold text-destructive">{formatRupiah(disc.finalPrice)}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
+                              {unit.minus_description ? (
+                                <p className="text-xs text-orange-700">Keterangan: {unit.minus_description}</p>
+                              ) : (
+                                <p className="text-xs text-orange-700">Terdapat minus pada unit ini. Hubungi admin untuk detail lebih lanjut.</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeUnits.length === 0 && (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm font-medium">Stok habis untuk varian ini</p>
+                      <p className="text-xs mt-1">Coba pilih warna atau kapasitas lain, atau hubungi admin untuk info restock.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB: Penilaian */}
+              {activeTab === "rating" && (
+                <div>
+                  <div className="flex flex-col md:flex-row gap-6 items-start">
+                    <div className="flex flex-col items-center justify-center bg-muted/30 border border-border rounded-2xl p-6 min-w-[160px] gap-2">
+                      <span className="text-5xl font-black text-foreground">{(activeCatalog.rating_score ?? 0).toFixed(1)}</span>
+                      <StarRating score={activeCatalog.rating_score ?? 0} count={activeCatalog.rating_count ?? 0} />
+                      <span className="text-xs text-muted-foreground mt-1">dari 5</span>
+                    </div>
+                    <div className="flex-1 space-y-2 w-full">
+                      {[5, 4, 3, 2, 1].map(star => (
+                        <div key={star} className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground w-4 text-right">{star}</span>
+                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-400 rounded-full" style={{ width: "0%" }} />
+                          </div>
+                          <span className="text-xs text-muted-foreground w-4">0</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {(activeCatalog.rating_count ?? 0) === 0 && (
+                    <div className="mt-6 text-center py-10 rounded-xl border border-border bg-muted/10">
+                      <Star className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-foreground">Belum ada ulasan</p>
+                      <p className="text-xs text-muted-foreground mt-1">Jadilah yang pertama memberikan ulasan.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB: Garansi */}
+              {activeTab === "garansi" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl border border-border">
+                    <p className="text-sm font-semibold text-foreground mb-2">Termasuk dalam Garansi</p>
+                    <ul className="space-y-1 text-sm text-muted-foreground">
+                      <li>Garansi toko 30 hari mesin</li>
+                      <li>IMEI lifetime aktif terdaftar</li>
+                      <li>{WARRANTY_LABELS[master.warranty_type] ?? master.warranty_type}</li>
+                      {activeCatalog.spec_warranty_duration && <li>Masa garansi: {activeCatalog.spec_warranty_duration}</li>}
+                    </ul>
+                  </div>
+                  <div className="p-4 rounded-xl border border-border">
+                    <p className="text-sm font-semibold text-foreground mb-2">Tidak Termasuk</p>
+                    <ul className="space-y-1 text-sm text-muted-foreground">
+                      <li>Kerusakan akibat jatuh/benturan</li>
+                      <li>Kerusakan akibat air/cairan</li>
+                      <li>Human error</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: Pengiriman */}
+              {activeTab === "pengiriman" && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
+                    <Truck className="w-5 h-5 text-muted-foreground shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Dikirim dari</p>
+                      <p className="text-sm text-muted-foreground">{activeCatalog.spec_shipped_from || "Kota Surabaya, Jawa Timur"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
+                    <CheckCircle2 className="w-5 h-5 text-muted-foreground shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Pengemasan</p>
+                      <p className="text-sm text-muted-foreground">Bubble wrap + kardus tebal + asuransi pengiriman</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
+                    <Shield className="w-5 h-5 text-muted-foreground shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Pemeriksaan sebelum kirim</p>
+                      <p className="text-sm text-muted-foreground">Semua unit dicek ulang dan dipacking oleh tim kami</p>
+                    </div>
+                  </div>
+                  {activeCatalog.free_shipping && (
+                    <div className="flex items-center gap-3 p-4 rounded-xl border border-green-200 bg-green-50">
+                      <Truck className="w-5 h-5 text-green-600 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-green-800">Gratis Ongkos Kirim</p>
+                        <p className="text-sm text-green-700">Produk ini gratis ongkir ke seluruh Indonesia</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
 
           <div className="pb-16" />
         </div>
