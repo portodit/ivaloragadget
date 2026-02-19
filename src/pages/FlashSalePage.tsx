@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Zap, Save, Tag, Check, Search, Percent, DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
+import { Zap, Save, Tag, Check, Search, Percent, DollarSign, ChevronLeft, ChevronRight, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -96,7 +97,6 @@ export default function FlashSalePage() {
   // Toggle flash sale for a product
   async function toggleFlashSale(productId: string, current: boolean) {
     const update: Record<string, unknown> = { is_flash_sale: !current };
-    // When enabling, apply default discount if product doesn't have one
     if (!current && defaultDiscountValue > 0) {
       const product = products.find(p => p.id === productId);
       if (!product?.flash_sale_discount_value) {
@@ -114,6 +114,39 @@ export default function FlashSalePage() {
         flash_sale_discount_value: update.flash_sale_discount_value as number,
       } : {}),
     } : p));
+  }
+
+  // Select all / deselect all visible products
+  async function toggleSelectAll() {
+    const visibleIds = filtered.map(p => p.id);
+    const allSelected = filtered.every(p => p.is_flash_sale);
+    const newValue = !allSelected;
+
+    const update: Record<string, unknown> = { is_flash_sale: newValue };
+    if (newValue && defaultDiscountValue > 0) {
+      update.flash_sale_discount_type = defaultDiscountType;
+      update.flash_sale_discount_value = defaultDiscountValue;
+    }
+
+    const { error } = await db.from("catalog_products")
+      .update(update)
+      .in("id", visibleIds);
+
+    if (error) { toast.error("Gagal mengubah: " + error.message); return; }
+
+    setProducts(prev => prev.map(p => visibleIds.includes(p.id) ? {
+      ...p,
+      is_flash_sale: newValue,
+      ...(newValue && update.flash_sale_discount_type ? {
+        flash_sale_discount_type: update.flash_sale_discount_type as string,
+        flash_sale_discount_value: update.flash_sale_discount_value as number,
+      } : {}),
+    } : p));
+
+    toast.success(newValue
+      ? `${visibleIds.length} produk ditandai sebagai flash sale`
+      : `${visibleIds.length} produk dihapus dari flash sale`
+    );
   }
 
   // Update individual product discount
@@ -150,6 +183,10 @@ export default function FlashSalePage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const flashSaleCount = products.filter(p => p.is_flash_sale).length;
+  const allVisibleSelected = filtered.length > 0 && filtered.every(p => p.is_flash_sale);
+  const someVisibleSelected = filtered.some(p => p.is_flash_sale) && !allVisibleSelected;
+
   useEffect(() => { setPage(1); }, [search]);
 
   const endTime = startDate && startTime
@@ -177,6 +214,11 @@ export default function FlashSalePage() {
             </TabsTrigger>
             <TabsTrigger value="products" className="flex-1 gap-2">
               <Tag className="w-4 h-4" /> Produk Flash Sale
+              {flashSaleCount > 0 && (
+                <span className="ml-1 text-[10px] bg-foreground text-background rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                  {flashSaleCount}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -259,18 +301,41 @@ export default function FlashSalePage() {
           {/* ── Products Tab ─────────────────────────────────── */}
           <TabsContent value="products">
             <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
-              {/* Search + bulk action */}
+              {/* Search + select all + bulk action */}
               <div className="flex items-center gap-3">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Cari produk…" className="pl-9" />
                 </div>
-                {defaultDiscountValue > 0 && (
-                  <Button variant="outline" size="sm" onClick={applyBulkDiscount} className="shrink-0 text-xs">
-                    Terapkan Diskon Massal
-                  </Button>
-                )}
+              </div>
+
+              {/* Select all bar + bulk actions */}
+              <div className="flex items-center justify-between p-3 border border-border rounded-xl bg-muted/30">
+                <button
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-2 text-sm font-medium text-foreground hover:opacity-80 transition-opacity"
+                >
+                  <div className={cn(
+                    "w-5 h-5 rounded flex items-center justify-center border transition-colors",
+                    allVisibleSelected ? "bg-foreground border-foreground" :
+                    someVisibleSelected ? "bg-foreground/50 border-foreground" : "border-border"
+                  )}>
+                    {(allVisibleSelected || someVisibleSelected) && <Check className="w-3 h-3 text-background" />}
+                  </div>
+                  {allVisibleSelected ? "Batal Pilih Semua" : "Pilih Semua"}
+                  <span className="text-xs text-muted-foreground">
+                    ({filtered.filter(p => p.is_flash_sale).length}/{filtered.length})
+                  </span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  {defaultDiscountValue > 0 && (
+                    <Button variant="outline" size="sm" onClick={applyBulkDiscount} className="shrink-0 text-xs">
+                      Terapkan Diskon Massal
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Product list */}

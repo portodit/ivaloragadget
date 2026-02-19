@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 const db = supabase as any;
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import { Input } from "@/components/ui/input";
-import { Search, Star, Truck, ImageOff, ChevronLeft, ChevronRight, Tag, Filter } from "lucide-react";
+import { Search, Star, Truck, ImageOff, ChevronLeft, ChevronRight, Tag, Filter, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/contexts/LocaleContext";
 
@@ -20,6 +20,7 @@ interface CatalogItem {
   free_shipping: boolean;
   promo_label: string | null;
   promo_badge: string | null;
+  is_flash_sale: boolean;
   master_products: {
     series: string;
     storage_gb: number;
@@ -68,7 +69,7 @@ export default function ShopPage() {
   const [prices, setPrices] = useState<Record<string, StockPrice>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterCategory, setFilterCategory] = useState(searchParams.get("filter") === "flash_sale" ? "flash_sale" : "all");
   const [filterWarranty, setFilterWarranty] = useState("all");
   const [filterPrice, setFilterPrice] = useState("all"); // all, under5, 5to10, above10
   const [page, setPage] = useState(1);
@@ -78,7 +79,7 @@ export default function ShopPage() {
     setLoading(true);
     const [catRes, stockRes] = await Promise.all([
       db.from("catalog_products")
-        .select("id, product_id, slug, display_name, short_description, thumbnail_url, highlight_product, free_shipping, promo_label, promo_badge, master_products(series, storage_gb, color, category, warranty_type)")
+        .select("id, product_id, slug, display_name, short_description, thumbnail_url, highlight_product, free_shipping, promo_label, promo_badge, is_flash_sale, master_products(series, storage_gb, color, category, warranty_type)")
         .eq("catalog_status", "published"),
       db.from("stock_units")
         .select("product_id, selling_price")
@@ -113,7 +114,10 @@ export default function ShopPage() {
       item.display_name.toLowerCase().includes(q) ||
       master?.series?.toLowerCase().includes(q) ||
       master?.color?.toLowerCase().includes(q);
-    const matchCat = filterCategory === "all" || master?.category === filterCategory;
+    const matchCat = filterCategory === "all" ||
+      filterCategory === "flash_sale" ? item.is_flash_sale : (filterCategory === "all" || master?.category === filterCategory);
+    const matchFlash = filterCategory === "flash_sale" ? item.is_flash_sale : true;
+    const matchCatActual = filterCategory === "flash_sale" || filterCategory === "all" || master?.category === filterCategory;
     const matchWar = filterWarranty === "all" || master?.warranty_type === filterWarranty;
     const p = prices[item.product_id];
     const minP = p?.min_price ?? 0;
@@ -121,7 +125,7 @@ export default function ShopPage() {
     if (filterPrice === "under5") matchPrice = minP < 5_000_000;
     else if (filterPrice === "5to10") matchPrice = minP >= 5_000_000 && minP <= 10_000_000;
     else if (filterPrice === "above10") matchPrice = minP > 10_000_000;
-    return matchSearch && matchCat && matchWar && matchPrice;
+    return matchSearch && matchFlash && matchCatActual && matchWar && matchPrice;
   });
 
   // Sort: highlight first, then by availability
@@ -144,8 +148,14 @@ export default function ShopPage() {
     setPage(1);
   }
 
+  const flashSaleCount = items.filter(i => i.is_flash_sale).length;
   const filterChips = [
     { label: "Semua", active: filterCategory === "all", onClick: () => handleFilter("cat", "all") },
+    ...(flashSaleCount > 0 ? [{
+      label: "⚡ Flash Sale",
+      active: filterCategory === "flash_sale",
+      onClick: () => handleFilter("cat", "flash_sale"),
+    }] : []),
     { label: "iPhone", active: filterCategory === "iphone", onClick: () => handleFilter("cat", "iphone") },
     { label: "iPad", active: filterCategory === "ipad", onClick: () => handleFilter("cat", "ipad") },
     { label: "Aksesori", active: filterCategory === "accessory", onClick: () => handleFilter("cat", "accessory") },

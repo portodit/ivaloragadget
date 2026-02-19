@@ -49,7 +49,7 @@ export default function CustomerRegisterPage() {
   const onSubmit = async (data: FormData) => {
     setServerError(null);
 
-    const { error } = await supabase.auth.signUp({
+    const { error } = await supabaseCustomer.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -91,7 +91,7 @@ export default function CustomerRegisterPage() {
     setResendError(null);
     setResendSuccess(false);
 
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseCustomer
       .from("user_profiles")
       .select("last_resend_at")
       .eq("email", registeredEmail)
@@ -112,7 +112,7 @@ export default function CustomerRegisterPage() {
       }
     }
 
-    const { error } = await supabase.auth.resend({
+    const { error } = await supabaseCustomer.auth.resend({
       type: "signup",
       email: registeredEmail,
       options: { emailRedirectTo: `${window.location.origin}/login` },
@@ -125,7 +125,7 @@ export default function CustomerRegisterPage() {
       setLastResendAt(now);
       setResendSuccess(true);
 
-      await supabase
+      await supabaseCustomer
         .from("user_profiles")
         .update({ last_resend_at: now.toISOString() })
         .eq("email", registeredEmail);

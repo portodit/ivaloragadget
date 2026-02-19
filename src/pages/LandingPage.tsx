@@ -234,7 +234,8 @@ export default function LandingPage() {
   const [activeBranch, setActiveBranch] = useState(0);
   const uvpImgRef = useRef<HTMLDivElement>(null);
 
-  const flashSaleActive = flashSale?.is_active && !flashExpired;
+  const flashSaleStarted = flashSale ? new Date(flashSale.start_time).getTime() <= Date.now() : false;
+  const flashSaleActive = flashSale?.is_active && !flashExpired && flashSaleStarted;
 
   useEffect(() => {
     (async () => {
@@ -261,8 +262,7 @@ export default function LandingPage() {
         .from("catalog_products")
         .select("id, display_name, slug, thumbnail_url, override_display_price, highlight_product, promo_badge, promo_label, rating_score, free_shipping, spec_warranty_duration, product_id, is_flash_sale")
         .eq("catalog_status", "published")
-        .eq("publish_to_web", true)
-        .limit(12);
+        .eq("publish_to_web", true);
       if (data) {
         setHighlight(data.filter((p: Product) => p.highlight_product).slice(0, 4));
         setFlashSaleProducts(data.filter((p: Product) => p.is_flash_sale));
