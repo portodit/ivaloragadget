@@ -64,6 +64,21 @@ interface StockPriceInfo {
   max_price: number | null;
 }
 
+interface FeaturedVariant {
+  id: string;
+  series: string;
+  color: string;
+  storage_gb: number;
+  warranty_type: string;
+  category: string;
+  price: number | null;
+  stock: number;
+  catalogSlug: string | null;
+  catalogThumbnail: string | null;
+  catalogSeries: string;
+  catalogWarrantyType: string;
+}
+
 interface FlashSaleSettings {
   is_active: boolean;
   start_time: string;
@@ -233,6 +248,7 @@ export default function LandingPage() {
   const [flashSale, setFlashSale] = useState<FlashSaleSettings | null>(null);
   const [flashEndTime, setFlashEndTime] = useState<Date | null>(null);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const [featuredVariants, setFeaturedVariants] = useState<FeaturedVariant[]>([]);
   const { h, m, s, expired: flashExpired } = useCountdown(flashEndTime);
   const [activeUvp, setActiveUvp] = useState(0);
   const [activeBranch, setActiveBranch] = useState(0);
@@ -282,12 +298,12 @@ export default function LandingPage() {
 
         // Fetch all master products & stock to aggregate by catalog series+type
         const [masterRes, stockAllRes] = await Promise.all([
-          supabase.from("master_products").select("id, series, warranty_type").eq("is_active", true).is("deleted_at", null),
+          supabase.from("master_products").select("id, series, warranty_type, color, storage_gb, category").eq("is_active", true).is("deleted_at", null),
           supabase.from("stock_units").select("product_id, selling_price").eq("stock_status", "available").not("selling_price", "is", null),
         ]);
 
-        const masters = masterRes.data ?? [];
-        const stockAll = stockAllRes.data ?? [];
+        const masters: { id: string; series: string; warranty_type: string; color: string; storage_gb: number; category: string }[] = masterRes.data ?? [];
+        const stockAll: { product_id: string; selling_price: number | null }[] = stockAllRes.data ?? [];
 
         // Build per-product price map
         const perProductPrice: Record<string, { min: number; max: number }> = {};
@@ -334,6 +350,34 @@ export default function LandingPage() {
           counts[cat.name] = count;
         }
         setCategoryCounts(counts);
+
+        // Build featured variants: individual master products with stock > 0
+        // matched to highlight catalog items
+        const highlightCatalogs = data.filter((p: Product) => p.highlight_product);
+        const variants: FeaturedVariant[] = [];
+        for (const cat of highlightCatalogs) {
+          const matchingMs = masters.filter(m => m.series === cat.catalog_series && m.warranty_type === cat.catalog_warranty_type);
+          for (const m of matchingMs) {
+            const unitCount = stockAll.filter(s => s.product_id === m.id).length;
+            if (unitCount === 0) continue; // skip out of stock
+            const pp = perProductPrice[m.id];
+            variants.push({
+              id: m.id,
+              series: m.series,
+              color: m.color,
+              storage_gb: m.storage_gb,
+              warranty_type: m.warranty_type,
+              category: m.category,
+              price: pp?.min ?? null,
+              stock: unitCount,
+              catalogSlug: cat.slug,
+              catalogThumbnail: cat.thumbnail_url,
+              catalogSeries: cat.catalog_series ?? "",
+              catalogWarrantyType: cat.catalog_warranty_type ?? "",
+            });
+          }
+        }
+        setFeaturedVariants(variants.slice(0, 8));
       }
     })();
   }, []);
@@ -365,7 +409,7 @@ export default function LandingPage() {
         <div className="absolute inset-x-0 bottom-0 h-32"
           style={{ background: "linear-gradient(0deg, hsl(0 0% 3% / 0.8) 0%, transparent 100%)" }} />
 
-        <div className="max-w-6xl mx-auto px-6 w-full py-28 relative z-10">
+        <div className="max-w-7xl mx-auto px-6 w-full py-28 relative z-10">
           <div className="max-w-3xl space-y-8">
             {/* Tag */}
             <div
@@ -440,7 +484,7 @@ export default function LandingPage() {
           KENAPA IVALORA — 2-column interactive cards (MOVED UP)
       ══════════════════════════════════════════════════════════════ */}
       <section className="py-20 px-6" style={{ background: "hsl(0 0% 97%)" }}>
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="mb-12">
             <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">{t("Kenapa Ivalora?", "Why Ivalora?")}</p>
             <h2 className="text-3xl md:text-4xl font-bold leading-tight">
@@ -508,7 +552,7 @@ export default function LandingPage() {
       ══════════════════════════════════════════════════════════════ */}
       {flashSaleActive && (
       <section className="py-16 px-6">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div
             className="rounded-2xl p-6 md:p-8 mb-8 relative overflow-hidden"
             style={{ background: "linear-gradient(135deg, hsl(0 0% 6%) 0%, hsl(15 60% 8%) 50%, hsl(0 0% 5%) 100%)" }}
@@ -573,7 +617,7 @@ export default function LandingPage() {
           KOLEKSI PILIHAN — (MOVED DOWN — after Flash Sale)
       ══════════════════════════════════════════════════════════════ */}
       <section className="py-14 px-6">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="mb-6">
             <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-1">{t("Koleksi Pilihan", "Curated Collection")}</p>
             <h2 className="text-2xl font-bold">{t("iPhone Tersedia", "Available iPhones")}</h2>
@@ -613,10 +657,10 @@ export default function LandingPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════
-          PRODUK UNGGULAN — Grid layout (no scrollbar)
+          PRODUK UNGGULAN — Individual variants, in-stock only
       ══════════════════════════════════════════════════════════════ */}
       <section className="py-8 pb-16 px-6">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div>
               <h2 className="text-2xl font-bold">{t("Produk Unggulan", "Featured Products")}</h2>
@@ -626,17 +670,13 @@ export default function LandingPage() {
               {t("Semua Produk", "All Products")} <ChevronRight className="w-3.5 h-3.5" />
             </Button>
           </div>
-          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-            {products.length > 0
-              ? products.map((p) => (
-                  <div key={p.id} className="min-w-[220px] max-w-[260px] shrink-0">
-                    <ProductCard product={p} stockPrices={stockPrices} formatPrice={formatPrice} />
-                  </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-2">
+            {featuredVariants.length > 0
+              ? featuredVariants.map((v) => (
+                  <FeaturedVariantCard key={v.id} variant={v} formatPrice={formatPrice} />
                 ))
               : Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="min-w-[220px] max-w-[260px] shrink-0">
-                    <SkeletonCard />
-                  </div>
+                  <SkeletonCard key={i} />
                 ))
             }
           </div>
@@ -693,7 +733,7 @@ export default function LandingPage() {
           TOKO FISIK
       ══════════════════════════════════════════════════════════════ */}
       <section className="py-20 px-6" style={{ background: "hsl(0 0% 97%)" }} id="tentang">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="mb-10">
             <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">{t("Toko Fisik", "Physical Store")}</p>
             <h2 className="text-3xl font-bold leading-tight">
@@ -778,7 +818,7 @@ export default function LandingPage() {
       {/* ══════════════════════════════════════════════════════════════
           TESTIMONIALS
       ══════════════════════════════════════════════════════════════ */}
-      <section className="py-20 px-6 max-w-6xl mx-auto">
+      <section className="py-20 px-6 max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">{t("Apa Kata Mereka", "What They Say")}</p>
           <h2 className="text-2xl font-bold">{t("Dipercaya 5.000+ Pembeli", "Trusted by 5,000+ Buyers")}</h2>
@@ -839,7 +879,7 @@ export default function LandingPage() {
           FOOTER
       ══════════════════════════════════════════════════════════════ */}
       <footer className="bg-background border-t border-border py-14 px-6">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-4 gap-10 mb-10">
             <div className="md:col-span-1 space-y-4">
               <img src={logoHorizontal} alt="Ivalora Gadget" className="h-7" />
@@ -902,6 +942,65 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// ─── Featured Variant Card (individual master product) ────────────────────────
+const WARRANTY_SHORT_MAP: Record<string, string> = {
+  resmi_bc: "Resmi BC",
+  ibox: "Resmi iBox",
+  inter: "Inter",
+  whitelist: "Whitelist",
+  digimap: "Digimap",
+};
+
+function FeaturedVariantCard({
+  variant,
+  formatPrice,
+}: {
+  variant: FeaturedVariant;
+  formatPrice: (n: number | null | undefined) => string;
+}) {
+  const navigate = useNavigate();
+  const href = variant.catalogSlug ? `/produk/${variant.catalogSlug}` : "#";
+  const label = `${variant.series} ${variant.storage_gb}GB ${variant.color}`;
+
+  return (
+    <div
+      onClick={() => navigate(href)}
+      className="border border-border rounded-2xl overflow-hidden bg-card hover:shadow-lg transition-all duration-200 cursor-pointer group h-full flex flex-col"
+    >
+      <div className="relative bg-secondary/30 h-44 flex items-center justify-center overflow-hidden">
+        {variant.catalogThumbnail ? (
+          <img
+            src={variant.catalogThumbnail}
+            alt={label}
+            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-2xl bg-foreground/10 flex items-center justify-center">
+            <ShoppingBag className="w-8 h-8 text-foreground/20" />
+          </div>
+        )}
+      </div>
+      <div className="p-4 space-y-1.5 flex-1 flex flex-col">
+        <p className="text-[11px] font-medium text-muted-foreground">
+          {WARRANTY_SHORT_MAP[variant.warranty_type] ?? variant.warranty_type}
+        </p>
+        <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">{label}</p>
+        <div className="mt-auto pt-1">
+          <p className="text-base font-bold text-foreground">{formatPrice(variant.price)}</p>
+          <p className="text-xs text-muted-foreground">{variant.stock} unit tersedia</p>
+        </div>
+        <Button
+          size="sm"
+          className="w-full rounded-xl text-xs mt-1"
+          onClick={(e) => { e.stopPropagation(); navigate(href); }}
+        >
+          Lihat Detail
+        </Button>
+      </div>
     </div>
   );
 }

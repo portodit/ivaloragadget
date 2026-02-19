@@ -270,7 +270,7 @@ export default function ShopPage() {
 
         {/* Hero */}
         <div className="bg-muted/30 border-b border-border py-6 px-4">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">Katalog Produk</h1>
             <p className="text-muted-foreground text-sm mb-5">iPhone, iPad, dan aksesori original berkualitas dengan harga terbaik.</p>
             <div className="relative max-w-xl">
@@ -285,7 +285,7 @@ export default function ShopPage() {
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-4 py-6">
 
           {/* Category chips */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
@@ -467,7 +467,7 @@ export default function ShopPage() {
 
                       {outOfStock && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <span className="text-white text-xs font-bold bg-black/60 px-3 py-1 rounded-full">Stok Habis</span>
+                          <span className="text-white text-sm font-bold bg-black/60 px-4 py-2 rounded-full">Stok Habis</span>
                         </div>
                       )}
                     </div>
@@ -480,13 +480,13 @@ export default function ShopPage() {
                       </p>
                       <div className="mt-auto">
                         {outOfStock ? (
-                          <span className="text-xs text-muted-foreground font-medium">Stok Habis</span>
+                          <span className="text-sm text-destructive font-bold">Stok Habis</span>
                         ) : (
                           <>
                             <p className="text-xs text-muted-foreground">{lang === "en" ? "From" : "Mulai"}</p>
                             <p className="text-sm font-bold text-foreground">{formatPrice(g.minPrice)}</p>
                             {g.totalStock > 0 && (
-                              <p className="text-[10px] text-muted-foreground">{g.totalStock} unit tersedia</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{g.totalStock} unit tersedia</p>
                             )}
                           </>
                         )}
