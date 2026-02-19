@@ -50,6 +50,39 @@ export type Database = {
         }
         Relationships: []
       }
+      bonus_products: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       catalog_discount_codes: {
         Row: {
           catalog_product_id: string
@@ -734,6 +767,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          last_resend_at: string | null
           status: Database["public"]["Enums"]["account_status"]
           updated_at: string
         }
@@ -742,6 +776,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          last_resend_at?: string | null
           status?: Database["public"]["Enums"]["account_status"]
           updated_at?: string
         }
@@ -750,6 +785,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          last_resend_at?: string | null
           status?: Database["public"]["Enums"]["account_status"]
           updated_at?: string
         }
@@ -879,7 +915,7 @@ export type Database = {
     }
     Enums: {
       account_status: "pending" | "active" | "suspended" | "rejected"
-      app_role: "super_admin" | "admin"
+      app_role: "super_admin" | "admin" | "customer"
       catalog_status: "draft" | "published" | "unpublished"
       condition_status: "no_minus" | "minus"
       discount_type:
@@ -1028,7 +1064,7 @@ export const Constants = {
   public: {
     Enums: {
       account_status: ["pending", "active", "suspended", "rejected"],
-      app_role: ["super_admin", "admin"],
+      app_role: ["super_admin", "admin", "customer"],
       catalog_status: ["draft", "published", "unpublished"],
       condition_status: ["no_minus", "minus"],
       discount_type: [
