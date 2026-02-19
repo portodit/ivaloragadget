@@ -108,12 +108,11 @@ export default function StockIMEIPage() {
       .in("stock_status", activeStatuses)
       .order("received_at", { ascending: sortOrder === "asc" });
 
-    if (filterCondition === "no_minus") query = query.eq("condition_status", "no_minus" as never);
-    else if (filterCondition === "minus") query = query.eq("condition_status", "minus" as never);
-    else if (filterCondition === "minus_minor") {
-      query = query.eq("condition_status", "minus" as never).eq("minus_severity", "minor" as never);
-    } else if (filterCondition === "minus_mayor") {
-      query = query.eq("condition_status", "minus" as never).eq("minus_severity", "mayor" as never);
+     if (filterCondition === "no_minus") query = query.eq("condition_status", "no_minus" as never);
+     else if (filterCondition === "minus_minor") {
+       query = query.eq("condition_status", "minus" as never).eq("minus_severity", "minor" as never);
+     } else if (filterCondition === "minus_mayor") {
+       query = query.eq("condition_status", "minus" as never).eq("minus_severity", "mayor" as never);
     }
     if (filterSeries !== "all") query = query.ilike("master_products.series" as never, `%${filterSeries}%`);
 
@@ -262,7 +261,7 @@ export default function StockIMEIPage() {
         </div>
 
         {/* ── Summary bar (multi-select) ── */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 sm:gap-2">
+        <div className="flex overflow-x-auto gap-1.5 sm:gap-2 pb-1 -mx-1 px-1 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-4 lg:grid-cols-7 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {ALL_STATUSES.map((s) => {
             const count = summary.find((c) => c.status === s)?.count ?? 0;
             const style = STOCK_STATUS_STYLES[s];
@@ -282,7 +281,7 @@ export default function StockIMEIPage() {
                     return next;
                   });
                 }}
-                className={`rounded-xl border p-2 sm:p-3 text-left transition-all duration-150 hover:shadow-sm ${
+                className={`shrink-0 min-w-[80px] sm:min-w-0 rounded-xl border p-2 sm:p-3 text-left transition-all duration-150 hover:shadow-sm ${
                   isActive ? `${style.bg} border-transparent` : "bg-card border-border hover:border-border/70"
                 }`}
               >
@@ -318,7 +317,6 @@ export default function StockIMEIPage() {
                 <SelectContent>
                   <SelectItem value="all">Semua Kondisi</SelectItem>
                   <SelectItem value="no_minus">No Minus</SelectItem>
-                  <SelectItem value="minus">Ada Minus</SelectItem>
                   <SelectItem value="minus_minor">Minus Minor</SelectItem>
                   <SelectItem value="minus_mayor">Minus Mayor</SelectItem>
                 </SelectContent>
@@ -434,18 +432,17 @@ export default function StockIMEIPage() {
             )}
           </div>
           {/* Mobile filters */}
-          <div className="flex sm:hidden items-center gap-2 overflow-x-auto pb-0.5 -mx-1 px-1">
+          <div className="flex sm:hidden items-center gap-2 pb-0.5 -mx-1 px-1">
             {[
               { v: "all", label: "Semua" },
               { v: "no_minus", label: "No Minus" },
-              { v: "minus", label: "Ada Minus" },
               { v: "minus_minor", label: "Minor" },
               { v: "minus_mayor", label: "Mayor" },
             ].map(({ v, label }) => (
               <button
                 key={v}
                 onClick={() => setFilterCondition(v)}
-                className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                className={`shrink-0 flex-1 px-2 py-1 rounded-full text-[11px] font-medium border transition-all text-center ${
                   filterCondition === v
                     ? "bg-foreground text-background border-foreground"
                     : "bg-background text-muted-foreground border-border"
