@@ -17,31 +17,29 @@ interface Props {
   onClose: () => void;
   onConfirm: () => void;
   product: MasterProduct | null;
-  hasAvailableStock: boolean;
   loading: boolean;
+  cannotDeleteReason?: string | null;
 }
 
-export function DeactivateModal({ open, onClose, onConfirm, product, hasAvailableStock, loading }: Props) {
+export function DeactivateModal({ open, onClose, onConfirm, product, loading, cannotDeleteReason }: Props) {
   if (!product) return null;
   return (
     <AlertDialog open={open} onOpenChange={(v) => !v && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {product.is_active ? "Nonaktifkan SKU?" : "Aktifkan Kembali SKU?"}
+            Hapus Master Produk?
           </AlertDialogTitle>
           <AlertDialogDescription className="text-sm">
-            {product.is_active
-              ? `SKU "${product.series} ${product.storage_gb}GB ${product.color}" akan dinonaktifkan dan tidak bisa dipilih untuk stok baru.`
-              : `SKU "${product.series} ${product.storage_gb}GB ${product.color}" akan diaktifkan kembali dan bisa digunakan untuk stok baru.`}
+            SKU "{product.series} {product.storage_gb}GB {product.color}" akan dihapus permanen.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        {product.is_active && hasAvailableStock && (
-          <Alert className="border-border bg-muted my-0">
-            <AlertTriangle className="h-4 w-4 text-foreground/60" />
-            <AlertDescription className="text-muted-foreground text-xs">
-              SKU ini masih memiliki unit tersedia di stok. Anda tetap bisa melanjutkan — unit yang sudah ada tidak akan terhapus.
+        {cannotDeleteReason && (
+          <Alert variant="destructive" className="my-0">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              {cannotDeleteReason}
             </AlertDescription>
           </Alert>
         )}
@@ -50,12 +48,12 @@ export function DeactivateModal({ open, onClose, onConfirm, product, hasAvailabl
         <AlertDialogCancel disabled={loading}>Batal</AlertDialogCancel>
         <AlertDialogAction
           onClick={onConfirm}
-          disabled={loading}
-          className={product.is_active ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""}
+          disabled={loading || !!cannotDeleteReason}
+          className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
         >
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
-          ) : product.is_active ? "Ya, Nonaktifkan" : "Ya, Aktifkan Kembali"}
+          ) : "Ya, Hapus"}
         </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
