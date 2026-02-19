@@ -126,6 +126,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           display_name: string
+          flash_sale_discount_type: string | null
+          flash_sale_discount_value: number | null
           free_shipping: boolean
           full_description: string | null
           gallery_urls: string[] | null
@@ -169,6 +171,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           display_name: string
+          flash_sale_discount_type?: string | null
+          flash_sale_discount_value?: number | null
           free_shipping?: boolean
           full_description?: string | null
           gallery_urls?: string[] | null
@@ -212,6 +216,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           display_name?: string
+          flash_sale_discount_type?: string | null
+          flash_sale_discount_value?: number | null
           free_shipping?: boolean
           full_description?: string | null
           gallery_urls?: string[] | null
@@ -334,6 +340,8 @@ export type Database = {
       flash_sale_settings: {
         Row: {
           created_at: string
+          default_discount_type: string | null
+          default_discount_value: number | null
           duration_hours: number
           id: string
           is_active: boolean
@@ -343,6 +351,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_discount_type?: string | null
+          default_discount_value?: number | null
           duration_hours?: number
           id?: string
           is_active?: boolean
@@ -352,6 +362,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_discount_type?: string | null
+          default_discount_value?: number | null
           duration_hours?: number
           id?: string
           is_active?: boolean

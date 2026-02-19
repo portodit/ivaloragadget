@@ -10,13 +10,14 @@ import { logActivity } from "@/lib/activity-log";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   ChevronLeft, Star, Eye, Store, Globe, ShoppingCart, Camera,
   X, Package, Loader2, Trash2, Plus, GripVertical, ExternalLink,
-  Tag, Truck,
+  Tag, Truck, Search, FileText, Image as ImageIcon, Settings2, Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -106,7 +107,15 @@ interface BonusItem {
   id: string;
   name: string;
   description: string;
+  icon: string | null;
   quantity?: number;
+}
+
+interface BonusProductRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
 }
 
 function generateId() {
@@ -137,7 +146,6 @@ function formatRupiah(n: number | null | undefined) {
   return "Rp" + n.toLocaleString("id-ID");
 }
 
-// ── WARRANTY labels ───────────────────────────────────────────────────────────
 const WARRANTY_LABELS: Record<string, string> = {
   resmi_bc: "Resmi BC (Bea Cukai)",
   ibox: "Resmi iBox Indonesia",
@@ -164,6 +172,10 @@ export default function KatalogFormPage() {
   const [masterProducts, setMasterProducts] = useState<MasterProduct[]>([]);
   const [stockAgg, setStockAgg] = useState<StockAggregate[]>([]);
 
+  // Bonus products from DB
+  const [bonusProductRecords, setBonusProductRecords] = useState<BonusProductRecord[]>([]);
+  const [bonusSearch, setBonusSearch] = useState("");
+
   // Form state
   const [selectedId, setSelectedId] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -172,7 +184,7 @@ export default function KatalogFormPage() {
   const [shortDesc, setShortDesc] = useState("");
   const [fullDesc, setFullDesc] = useState("");
   const [promoLabel, setPromoLabel] = useState("");
-  const [promoLabel2, setPromoLabel2] = useState(""); // promo_badge field
+  const [promoLabel2, setPromoLabel2] = useState("");
   const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [gallery, setGallery] = useState<(string | null)[]>([null, null, null, null]);
   const [publishPos, setPublishPos] = useState(false);
@@ -204,15 +216,16 @@ export default function KatalogFormPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const [masterRes, stockRes] = await Promise.all([
+        const [masterRes, stockRes, bonusRes] = await Promise.all([
           db.from("master_products").select("*").eq("is_active", true).is("deleted_at", null),
           db.from("stock_units").select("product_id, selling_price, condition_status").eq("stock_status", "available"),
+          db.from("bonus_products").select("id, name, description, icon").eq("is_active", true).order("sort_order"),
         ]);
 
         const masters: MasterProduct[] = masterRes.data ?? [];
         const rawStock = stockRes.data ?? [];
+        setBonusProductRecords(bonusRes.data ?? []);
 
-        // Build stock aggregate
         const aggMap: Record<string, StockAggregate> = {};
         for (const unit of rawStock) {
           if (!aggMap[unit.product_id]) {
@@ -228,7 +241,6 @@ export default function KatalogFormPage() {
         setStockAgg(Object.values(aggMap));
 
         if (isEdit && id) {
-          // Load existing catalog product
           const { data: catData } = await db.from("catalog_products").select("*, master_products(*)").eq("id", id).single();
           if (catData) {
             setSelectedId(catData.product_id);
@@ -251,12 +263,12 @@ export default function KatalogFormPage() {
             setHighlight(catData.highlight_product);
             setShowCondition(catData.show_condition_breakdown);
             setFreeShipping(catData.free_shipping ?? false);
-            // Parse bonus items
             const raw = catData.bonus_items;
             if (Array.isArray(raw)) {
-              setBonusItems(raw.map((b: Record<string, string>) => ({ id: generateId(), name: b.name ?? "", description: b.description ?? "" })));
+              setBonusItems(raw.map((b: Record<string, string>) => ({
+                id: generateId(), name: b.name ?? "", description: b.description ?? "", icon: b.icon ?? null,
+              })));
             }
-            // Spec fields
             setSpecCondition(catData.spec_condition ?? "Bekas");
             setSpecBrand(catData.spec_brand ?? "iPhone Apple");
             setSpecWarrantyDuration(catData.spec_warranty_duration ?? "");
@@ -269,14 +281,12 @@ export default function KatalogFormPage() {
             setSpecPhoneModel(catData.spec_phone_model ?? "");
             setSpecPostelCert(catData.spec_postel_cert ?? "-");
             setSpecShippedFrom(catData.spec_shipped_from ?? "Kota Surabaya");
-            // Set masters list including this product's master even if not "available"
             const withAll = masters.some(m => m.id === catData.product_id)
               ? masters
               : [catData.master_products, ...masters].filter(Boolean);
             setMasterProducts(withAll);
           }
         } else {
-          // Only products with available stock and not yet in catalog
           const { data: existingCats } = await db.from("catalog_products").select("product_id");
           const inCatalogIds = new Set((existingCats ?? []).map((c: { product_id: string }) => c.product_id));
           const availStockIds = new Set(Object.values(aggMap).filter(a => a.total > 0).map(a => a.product_id));
@@ -289,7 +299,6 @@ export default function KatalogFormPage() {
     fetchData();
   }, [id, isEdit]);
 
-  // Auto-fill display name & slug when product selected (add mode)
   const selectedMaster = masterProducts.find(m => m.id === selectedId);
   const selectedAgg = stockAgg.find(a => a.product_id === selectedId);
 
@@ -305,7 +314,6 @@ export default function KatalogFormPage() {
     }
   }, [selectedId, selectedMaster, isEdit, slugEdited]);
 
-  // Auto-generate slug from displayName (only if user hasn't manually edited slug)
   useEffect(() => {
     if (!slugEdited && displayName && !isEdit) {
       const warranty = selectedMaster?.warranty_type.replace(/_/g, "-") ?? "";
@@ -316,13 +324,34 @@ export default function KatalogFormPage() {
 
   // Bonus item handlers
   function addBonus() {
-    setBonusItems(prev => [...prev, { id: generateId(), name: "", description: "" }]);
+    setBonusItems(prev => [...prev, { id: generateId(), name: "", description: "", icon: null }]);
   }
-  function updateBonus(id: string, field: keyof BonusItem, val: string) {
+  function addExistingBonus(record: BonusProductRecord) {
+    // Don't add duplicate
+    if (bonusItems.some(b => b.name === record.name)) {
+      toast({ title: "Bonus sudah ditambahkan", variant: "destructive" });
+      return;
+    }
+    setBonusItems(prev => [...prev, {
+      id: generateId(),
+      name: record.name,
+      description: record.description ?? "",
+      icon: record.icon ?? null,
+    }]);
+    setBonusSearch("");
+  }
+  function updateBonus(id: string, field: keyof BonusItem, val: string | null) {
     setBonusItems(prev => prev.map(b => b.id === id ? { ...b, [field]: val } : b));
   }
   function removeBonus(id: string) {
     setBonusItems(prev => prev.filter(b => b.id !== id));
+  }
+
+  // Upload bonus icon
+  async function handleBonusIconUpload(bonusId: string, file: File) {
+    const path = `bonus/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+    const url = await uploadImage(file, path);
+    if (url) updateBonus(bonusId, "icon", url);
   }
 
   async function handleSave() {
@@ -337,7 +366,7 @@ export default function KatalogFormPage() {
     const galleryUrls = gallery.filter(Boolean) as string[];
     const bonusJson = bonusItems
       .filter(b => b.name.trim())
-      .map(b => ({ name: b.name.trim(), description: b.description.trim() }));
+      .map(b => ({ name: b.name.trim(), description: b.description.trim(), icon: b.icon ?? null }));
 
     const payload: Record<string, unknown> = {
       display_name: displayName.trim(),
@@ -358,7 +387,6 @@ export default function KatalogFormPage() {
       free_shipping: freeShipping,
       bonus_items: bonusJson,
       updated_by: user?.id,
-      // Spec fields
       spec_condition: specCondition.trim() || null,
       spec_brand: specBrand.trim() || null,
       spec_warranty_duration: specWarrantyDuration.trim() || null,
@@ -427,6 +455,14 @@ export default function KatalogFormPage() {
     );
   }
 
+  // Filtered bonus search results
+  const filteredBonusRecords = bonusSearch.trim()
+    ? bonusProductRecords.filter(b =>
+        b.name.toLowerCase().includes(bonusSearch.toLowerCase()) &&
+        !bonusItems.some(bi => bi.name === b.name)
+      )
+    : [];
+
   return (
     <DashboardLayout pageTitle={isEdit ? "Edit Katalog" : "Tambah Katalog"}>
       <div className="max-w-3xl mx-auto space-y-6">
@@ -455,13 +491,13 @@ export default function KatalogFormPage() {
             {masterProducts.length === 0 ? (
               <div className="rounded-lg bg-muted/50 border border-border p-3 text-sm text-muted-foreground flex items-center gap-2">
                 <Package className="w-4 h-4 shrink-0" />
-                Semua produk dengan stok tersedia sudah masuk katalog. Tambahkan stok baru terlebih dahulu.
+                Semua produk dengan stok tersedia sudah masuk katalog.
               </div>
             ) : (
               <div className="space-y-2">
                 <Select value={selectedId} onValueChange={setSelectedId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih produk dari Master Data yang memiliki stok tersedia…" />
+                    <SelectValue placeholder="Pilih produk dari Master Data…" />
                   </SelectTrigger>
                   <SelectContent>
                     {masterProducts.map(m => {
@@ -477,7 +513,7 @@ export default function KatalogFormPage() {
                 {selectedAgg && selectedId && (
                   <p className="text-xs text-muted-foreground px-1">
                     Harga mulai: <span className="font-semibold text-foreground">{formatRupiah(selectedAgg.min_price)}</span>
-                    {" · "}{selectedAgg.total} unit tersedia ({selectedAgg.no_minus} no-minus, {selectedAgg.minus} minus)
+                    {" · "}{selectedAgg.total} unit tersedia
                   </p>
                 )}
               </div>
@@ -485,255 +521,227 @@ export default function KatalogFormPage() {
           </Section>
         )}
 
-        {/* Section: Informasi Tampilan */}
-        <Section title="Informasi Tampilan">
-          <div className="space-y-4">
-            <Field label="Nama Tampilan" hint="Nama yang dilihat sales dan pelanggan." required>
-              <Input
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-                placeholder="Contoh: iPhone 15 Pro Max 256GB Natural Titanium Resmi BC"
-              />
-            </Field>
+        {/* Tabbed content */}
+        <Tabs defaultValue="info" className="w-full">
+          <TabsList className="w-full">
+            <TabsTrigger value="info" className="flex-1 gap-1.5 text-xs">
+              <FileText className="w-3.5 h-3.5" /> Info & Media
+            </TabsTrigger>
+            <TabsTrigger value="distribution" className="flex-1 gap-1.5 text-xs">
+              <ShoppingCart className="w-3.5 h-3.5" /> Distribusi
+            </TabsTrigger>
+            <TabsTrigger value="bonus" className="flex-1 gap-1.5 text-xs">
+              <Gift className="w-3.5 h-3.5" /> Bonus
+            </TabsTrigger>
+            <TabsTrigger value="specs" className="flex-1 gap-1.5 text-xs">
+              <Settings2 className="w-3.5 h-3.5" /> Spesifikasi
+            </TabsTrigger>
+          </TabsList>
 
-            <Field label="Slug URL" hint="URL halaman detail produk. Dibuat otomatis, bisa diubah manual.">
-              <div className="flex items-center">
-                <span className="text-xs text-muted-foreground bg-muted border border-border border-r-0 rounded-l-md px-3 h-10 flex items-center shrink-0">
-                  /produk/
-                </span>
-                <Input
-                  value={slug}
-                  onChange={e => { setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")); setSlugEdited(true); }}
-                  placeholder="iphone-15-pro-max-256gb-resmi-bc-abc123"
-                  className="rounded-l-none"
-                />
-              </div>
-            </Field>
-
-            <Field label="Deskripsi Singkat" hint="Tagline pendek yang muncul di kartu produk (maks. 120 karakter).">
-              <Input
-                value={shortDesc} onChange={e => setShortDesc(e.target.value)} maxLength={120}
-                placeholder="Contoh: Unit mulus fullset, garansi Apple aktif, siap kirim hari ini."
-              />
-            </Field>
-
-            <Field label="Deskripsi Lengkap" hint="Tampil di halaman detail produk. Markdown-like.">
-              <Textarea
-                value={fullDesc} onChange={e => setFullDesc(e.target.value)}
-                className="min-h-[120px] resize-none"
-                placeholder="Tuliskan detail produk, spesifikasi, catatan kondisi, dll…"
-              />
-            </Field>
-          </div>
-        </Section>
-
-        {/* Section: Media */}
-        <Section title="Foto & Media">
-          <div className="space-y-4">
-            <ImageUploadBox
-              label="Foto Utama"
-              hint="Ukuran ideal: 800×600 px. Tampil di kartu produk di katalog."
-              value={thumbnail}
-              onChange={setThumbnail}
-              aspect="aspect-[4/3]"
-            />
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                Galeri Foto <span className="normal-case font-normal">(maks. 4 foto tambahan)</span>
-              </p>
-              <div className="grid grid-cols-4 gap-2">
-                {gallery.map((url, i) => (
-                  <ImageUploadBox
-                    key={i} value={url}
-                    onChange={newUrl => {
-                      const g = [...gallery]; g[i] = newUrl; setGallery(g);
-                    }}
-                    aspect="aspect-square"
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Section: Label & Promosi */}
-        <Section title="Label & Promosi">
-          <div className="space-y-4">
-            <Field label="Label Promo" hint="Teks badge merah kecil di kartu produk (maks. 30 karakter).">
-              <Input value={promoLabel} onChange={e => setPromoLabel(e.target.value)} maxLength={30}
-                placeholder="Contoh: PROMO LEBARAN, BEST SELLER, DISKON 10%" />
-            </Field>
-            <Field label="Badge Tambahan" hint="Badge sekunder di kartu (maks. 30 karakter).">
-              <Input value={promoLabel2} onChange={e => setPromoLabel2(e.target.value)} maxLength={30}
-                placeholder="Contoh: QC VERIFIED, FULLSET, MULUS" />
-            </Field>
-            {/* Gratis Ongkir toggle */}
-            <div className="flex items-center justify-between p-3 rounded-xl border border-border">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Truck className="w-4 h-4 text-muted-foreground" />
-                <span>Gratis Ongkir</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFreeShipping(!freeShipping)}
-                className={cn(
-                  "w-11 h-6 rounded-full transition-colors relative shrink-0",
-                  freeShipping ? "bg-foreground" : "bg-muted-foreground/30"
-                )}
-              >
-                <span className={cn(
-                  "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                  freeShipping && "translate-x-5"
-                )} />
-              </button>
-            </div>
-          </div>
-        </Section>
-
-        {/* Section: Kanal Distribusi */}
-        <Section title="Kanal Distribusi">
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { key: "pos", label: "POS / Kasir", icon: Store, value: publishPos, set: setPublishPos },
-                { key: "web", label: "Website", icon: Globe, value: publishWeb, set: setPublishWeb },
-                { key: "market", label: "Marketplace", icon: ShoppingCart, value: publishMarket, set: setPublishMarket },
-              ].map(ch => (
-                <button key={ch.key} type="button" onClick={() => ch.set(!ch.value)}
-                  className={cn(
-                    "flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all text-sm font-medium",
-                    ch.value ? "border-foreground bg-foreground/5 text-foreground" : "border-border text-muted-foreground hover:border-foreground/30"
-                  )}>
-                  <ch.icon className="w-5 h-5" />
-                  {ch.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Marketplace links */}
-            {publishMarket && (
-              <div className="space-y-3 p-4 rounded-xl bg-muted/40 border border-border">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Link Marketplace</p>
-                <Field label="Tokopedia" hint="">
-                  <div className="flex items-center gap-2">
-                    {/* Tokopedia green brand color badge */}
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: "#03AC0E" }}>
-                      <span className="text-white text-[10px] font-bold">TKP</span>
-                    </div>
-                    <Input
-                      value={tokopediaUrl} onChange={e => setTokopediaUrl(e.target.value)}
-                      placeholder="https://tokopedia.com/ivalora/..."
-                    />
+          {/* ── Tab: Info & Media ────────────────────── */}
+          <TabsContent value="info" className="space-y-6 mt-4">
+            <Section title="Informasi Tampilan">
+              <div className="space-y-4">
+                <Field label="Nama Tampilan" hint="Nama yang dilihat sales dan pelanggan." required>
+                  <Input value={displayName} onChange={e => setDisplayName(e.target.value)}
+                    placeholder="Contoh: iPhone 15 Pro Max 256GB Natural Titanium Resmi BC" />
+                </Field>
+                <Field label="Slug URL" hint="URL halaman detail produk.">
+                  <div className="flex items-center">
+                    <span className="text-xs text-muted-foreground bg-muted border border-border border-r-0 rounded-l-md px-3 h-10 flex items-center shrink-0">/produk/</span>
+                    <Input value={slug}
+                      onChange={e => { setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")); setSlugEdited(true); }}
+                      placeholder="iphone-15-pro-max-256gb-resmi-bc-abc123" className="rounded-l-none" />
                   </div>
                 </Field>
-                <Field label="Shopee" hint="">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: "#EE4D2D" }}>
-                      <span className="text-white text-[10px] font-bold">SHP</span>
-                    </div>
-                    <Input
-                      value={shopeeUrl} onChange={e => setShopeeUrl(e.target.value)}
-                      placeholder="https://shopee.co.id/ivalora/..."
-                    />
-                  </div>
+                <Field label="Deskripsi Singkat" hint="Tagline pendek di kartu produk (maks. 120 karakter).">
+                  <Input value={shortDesc} onChange={e => setShortDesc(e.target.value)} maxLength={120}
+                    placeholder="Contoh: Unit mulus fullset, garansi Apple aktif." />
+                </Field>
+                <Field label="Deskripsi Lengkap" hint="Tampil di halaman detail produk.">
+                  <Textarea value={fullDesc} onChange={e => setFullDesc(e.target.value)}
+                    className="min-h-[120px] resize-none" placeholder="Tuliskan detail produk…" />
                 </Field>
               </div>
-            )}
-          </div>
-        </Section>
+            </Section>
 
-        {/* Section: Bonus & Benefit */}
-        <Section title="Bonus & Benefit">
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Tambahkan daftar bonus yang disertakan dalam pembelian untuk meningkatkan nilai produk.
-            </p>
-            {bonusItems.map((b) => (
-              <div key={b.id} className="flex gap-2 p-3 rounded-xl border border-border bg-muted/20">
-                <GripVertical className="w-4 h-4 text-muted-foreground/30 mt-2 shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <Input
-                    value={b.name}
-                    onChange={e => updateBonus(b.id, "name", e.target.value)}
-                    placeholder="Nama bonus (contoh: Softcase Premium)"
-                    className="h-8 text-sm"
-                  />
-                  <Input
-                    value={b.description}
-                    onChange={e => updateBonus(b.id, "description", e.target.value)}
-                    placeholder="Deskripsi singkat (contoh: Melindungi dari goresan)"
-                    className="h-8 text-sm"
-                  />
+            <Section title="Foto & Media">
+              <div className="space-y-4">
+                <ImageUploadBox label="Foto Utama" hint="Ukuran ideal: 800×600 px."
+                  value={thumbnail} onChange={setThumbnail} aspect="aspect-[4/3]" />
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                    Galeri Foto <span className="normal-case font-normal">(maks. 4)</span>
+                  </p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {gallery.map((url, i) => (
+                      <ImageUploadBox key={i} value={url}
+                        onChange={newUrl => { const g = [...gallery]; g[i] = newUrl; setGallery(g); }}
+                        aspect="aspect-square" />
+                    ))}
+                  </div>
                 </div>
-                <button type="button" onClick={() => removeBonus(b.id)}
-                  className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors shrink-0 mt-1">
-                  <X className="w-4 h-4" />
+              </div>
+            </Section>
+
+            <Section title="Label & Promosi">
+              <div className="space-y-4">
+                <Field label="Label Promo" hint="Badge merah kecil di kartu produk (maks. 30 karakter).">
+                  <Input value={promoLabel} onChange={e => setPromoLabel(e.target.value)} maxLength={30}
+                    placeholder="Contoh: PROMO LEBARAN, BEST SELLER" />
+                </Field>
+                <Field label="Badge Tambahan" hint="Badge sekunder (maks. 30 karakter).">
+                  <Input value={promoLabel2} onChange={e => setPromoLabel2(e.target.value)} maxLength={30}
+                    placeholder="Contoh: QC VERIFIED, FULLSET" />
+                </Field>
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Truck className="w-4 h-4 text-muted-foreground" />
+                    <span>Gratis Ongkir</span>
+                  </div>
+                  <button type="button" onClick={() => setFreeShipping(!freeShipping)}
+                    className={cn("w-11 h-6 rounded-full transition-colors relative shrink-0",
+                      freeShipping ? "bg-foreground" : "bg-muted-foreground/30")}>
+                    <span className={cn("absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                      freeShipping && "translate-x-5")} />
+                  </button>
+                </div>
+              </div>
+            </Section>
+          </TabsContent>
+
+          {/* ── Tab: Distribusi ───────────────────────── */}
+          <TabsContent value="distribution" className="space-y-6 mt-4">
+            <Section title="Kanal Distribusi">
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { key: "pos", label: "POS / Kasir", icon: Store, value: publishPos, set: setPublishPos },
+                    { key: "web", label: "Website", icon: Globe, value: publishWeb, set: setPublishWeb },
+                    { key: "market", label: "Marketplace", icon: ShoppingCart, value: publishMarket, set: setPublishMarket },
+                  ].map(ch => (
+                    <button key={ch.key} type="button" onClick={() => ch.set(!ch.value)}
+                      className={cn(
+                        "flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all text-sm font-medium",
+                        ch.value ? "border-foreground bg-foreground/5 text-foreground" : "border-border text-muted-foreground hover:border-foreground/30"
+                      )}>
+                      <ch.icon className="w-5 h-5" />
+                      {ch.label}
+                    </button>
+                  ))}
+                </div>
+                {publishMarket && (
+                  <div className="space-y-3 p-4 rounded-xl bg-muted/40 border border-border">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Link Marketplace</p>
+                    <Field label="Tokopedia" hint="">
+                      <div className="flex items-center gap-2">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: "#03AC0E" }}>
+                          <span className="text-white text-[10px] font-bold">TKP</span>
+                        </div>
+                        <Input value={tokopediaUrl} onChange={e => setTokopediaUrl(e.target.value)}
+                          placeholder="https://tokopedia.com/ivalora/..." />
+                      </div>
+                    </Field>
+                    <Field label="Shopee" hint="">
+                      <div className="flex items-center gap-2">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: "#EE4D2D" }}>
+                          <span className="text-white text-[10px] font-bold">SHP</span>
+                        </div>
+                        <Input value={shopeeUrl} onChange={e => setShopeeUrl(e.target.value)}
+                          placeholder="https://shopee.co.id/ivalora/..." />
+                      </div>
+                    </Field>
+                  </div>
+                )}
+              </div>
+            </Section>
+
+            {isSuperAdmin && (
+              <Section title="Pengaturan Tampilan">
+                <div className="grid grid-cols-2 gap-3">
+                  <ToggleButton active={highlight} onClick={() => setHighlight(!highlight)} icon={Star} label="Produk Unggulan" />
+                  <ToggleButton active={showCondition} onClick={() => setShowCondition(!showCondition)} icon={Eye} label="Tampilkan Kondisi" />
+                </div>
+              </Section>
+            )}
+          </TabsContent>
+
+          {/* ── Tab: Bonus ────────────────────────────── */}
+          <TabsContent value="bonus" className="space-y-6 mt-4">
+            <Section title="Bonus & Benefit">
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Cari bonus yang sudah tersedia, atau tambahkan manual jika belum ada.
+                </p>
+
+                {/* Search existing bonuses */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input value={bonusSearch} onChange={e => setBonusSearch(e.target.value)}
+                    placeholder="Cari bonus yang sudah ada (Softcase, Adaptor, dll)…"
+                    className="pl-9" />
+                </div>
+
+                {/* Search results */}
+                {filteredBonusRecords.length > 0 && (
+                  <div className="border border-border rounded-xl overflow-hidden divide-y divide-border max-h-40 overflow-y-auto">
+                    {filteredBonusRecords.map(r => (
+                      <button key={r.id} type="button" onClick={() => addExistingBonus(r)}
+                        className="w-full flex items-center gap-3 p-2.5 hover:bg-accent transition-colors text-left">
+                        {r.icon ? (
+                          <img src={r.icon} alt="" className="w-8 h-8 rounded-md object-cover shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-md bg-muted shrink-0 flex items-center justify-center">
+                            <Gift className="w-3.5 h-3.5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{r.name}</p>
+                          {r.description && <p className="text-[11px] text-muted-foreground truncate">{r.description}</p>}
+                        </div>
+                        <Plus className="w-4 h-4 text-muted-foreground shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Current bonus list */}
+                {bonusItems.map((b) => (
+                  <BonusItemRow key={b.id} bonus={b}
+                    onUpdate={updateBonus} onRemove={removeBonus}
+                    onIconUpload={handleBonusIconUpload} />
+                ))}
+                <button type="button" onClick={addBonus}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2 px-3 rounded-lg border border-dashed border-border w-full justify-center">
+                  <Plus className="w-4 h-4" /> Tambah Bonus Manual
                 </button>
               </div>
-            ))}
-            <button
-              type="button"
-              onClick={addBonus}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2 px-3 rounded-lg border border-dashed border-border w-full justify-center"
-            >
-              <Plus className="w-4 h-4" /> Tambah Bonus
-            </button>
-          </div>
-        </Section>
+            </Section>
+          </TabsContent>
 
-        {/* Section: Spesifikasi Produk */}
-        <Section title="Spesifikasi Produk">
-          <p className="text-xs text-muted-foreground mb-4">
-            Informasi ini tampil di halaman detail produk (seperti Tokopedia/Shopee). Isi sesuai kondisi unit.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Kondisi">
-              <Input value={specCondition} onChange={e => setSpecCondition(e.target.value)} placeholder="Contoh: Bekas, Baru" />
-            </Field>
-            <Field label="Merek">
-              <Input value={specBrand} onChange={e => setSpecBrand(e.target.value)} placeholder="Contoh: iPhone Apple" />
-            </Field>
-            <Field label="Masa Garansi">
-              <Input value={specWarrantyDuration} onChange={e => setSpecWarrantyDuration(e.target.value)} placeholder="Contoh: 12 Bulan" />
-            </Field>
-            <Field label="Tipe Pengaman Layar">
-              <Input value={specScreenProtector} onChange={e => setSpecScreenProtector(e.target.value)} placeholder="Contoh: Lainnya, Tempered Glass" />
-            </Field>
-            <Field label="Tipe Case">
-              <Input value={specCaseType} onChange={e => setSpecCaseType(e.target.value)} placeholder="Contoh: Lainnya, Softcase" />
-            </Field>
-            <Field label="Produk Custom">
-              <Input value={specCustomProduct} onChange={e => setSpecCustomProduct(e.target.value)} placeholder="Ya / Tidak" />
-            </Field>
-            <Field label="Build-in Battery">
-              <Input value={specBuiltInBattery} onChange={e => setSpecBuiltInBattery(e.target.value)} placeholder="Ya / Tidak" />
-            </Field>
-            <Field label="Kondisi Detail">
-              <Input value={specConditionDetail} onChange={e => setSpecConditionDetail(e.target.value)} placeholder="Contoh: Like New Garansi ON 10 Bulan" />
-            </Field>
-            <Field label="Tipe Kabel Seluler">
-              <Input value={specCableType} onChange={e => setSpecCableType(e.target.value)} placeholder="Contoh: Lightning, USB-C" />
-            </Field>
-            <Field label="Model Handphone">
-              <Input value={specPhoneModel} onChange={e => setSpecPhoneModel(e.target.value)} placeholder="Contoh: iPhone 15 Pro" />
-            </Field>
-            <Field label="No.Sertifikat (POSTEL)">
-              <Input value={specPostelCert} onChange={e => setSpecPostelCert(e.target.value)} placeholder="Contoh: -" />
-            </Field>
-            <Field label="Dikirim Dari">
-              <Input value={specShippedFrom} onChange={e => setSpecShippedFrom(e.target.value)} placeholder="Contoh: Kota Surabaya" />
-            </Field>
-          </div>
-        </Section>
-
-        {isSuperAdmin && (
-          <Section title="Pengaturan Tampilan">
-            <div className="grid grid-cols-2 gap-3">
-              <ToggleButton active={highlight} onClick={() => setHighlight(!highlight)} icon={Star} label="Produk Unggulan" />
-              <ToggleButton active={showCondition} onClick={() => setShowCondition(!showCondition)} icon={Eye} label="Tampilkan Kondisi" />
-            </div>
-          </Section>
-        )}
+          {/* ── Tab: Spesifikasi ──────────────────────── */}
+          <TabsContent value="specs" className="space-y-6 mt-4">
+            <Section title="Spesifikasi Produk">
+              <p className="text-xs text-muted-foreground mb-4">
+                Informasi ini tampil di halaman detail produk. Isi sesuai kondisi unit.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Kondisi"><Input value={specCondition} onChange={e => setSpecCondition(e.target.value)} placeholder="Bekas" /></Field>
+                <Field label="Merek"><Input value={specBrand} onChange={e => setSpecBrand(e.target.value)} placeholder="iPhone Apple" /></Field>
+                <Field label="Masa Garansi"><Input value={specWarrantyDuration} onChange={e => setSpecWarrantyDuration(e.target.value)} placeholder="12 Bulan" /></Field>
+                <Field label="Tipe Pengaman Layar"><Input value={specScreenProtector} onChange={e => setSpecScreenProtector(e.target.value)} placeholder="Lainnya" /></Field>
+                <Field label="Tipe Case"><Input value={specCaseType} onChange={e => setSpecCaseType(e.target.value)} placeholder="Lainnya" /></Field>
+                <Field label="Produk Custom"><Input value={specCustomProduct} onChange={e => setSpecCustomProduct(e.target.value)} placeholder="Tidak" /></Field>
+                <Field label="Build-in Battery"><Input value={specBuiltInBattery} onChange={e => setSpecBuiltInBattery(e.target.value)} placeholder="Ya" /></Field>
+                <Field label="Kondisi Detail"><Input value={specConditionDetail} onChange={e => setSpecConditionDetail(e.target.value)} placeholder="Like New" /></Field>
+                <Field label="Tipe Kabel"><Input value={specCableType} onChange={e => setSpecCableType(e.target.value)} placeholder="USB-C" /></Field>
+                <Field label="Model Handphone"><Input value={specPhoneModel} onChange={e => setSpecPhoneModel(e.target.value)} placeholder="iPhone 15 Pro" /></Field>
+                <Field label="No.Sertifikat POSTEL"><Input value={specPostelCert} onChange={e => setSpecPostelCert(e.target.value)} placeholder="-" /></Field>
+                <Field label="Dikirim Dari"><Input value={specShippedFrom} onChange={e => setSpecShippedFrom(e.target.value)} placeholder="Kota Surabaya" /></Field>
+              </div>
+            </Section>
+          </TabsContent>
+        </Tabs>
 
         {/* Actions */}
         <div className="flex items-center gap-3 pb-8">
@@ -752,6 +760,44 @@ export default function KatalogFormPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+// ── Bonus Item Row ────────────────────────────────────────────────────────────
+function BonusItemRow({ bonus, onUpdate, onRemove, onIconUpload }: {
+  bonus: BonusItem;
+  onUpdate: (id: string, field: keyof BonusItem, val: string | null) => void;
+  onRemove: (id: string) => void;
+  onIconUpload: (id: string, file: File) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="flex gap-2 p-3 rounded-xl border border-border bg-muted/20">
+      {/* Icon */}
+      <div className="shrink-0">
+        <div className="w-10 h-10 rounded-lg border border-dashed border-border bg-muted/30 flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden"
+          onClick={() => fileRef.current?.click()}>
+          {bonus.icon ? (
+            <img src={bonus.icon} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <Camera className="w-4 h-4 text-muted-foreground/40" />
+          )}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) onIconUpload(bonus.id, f); }} />
+      </div>
+      <div className="flex-1 space-y-2">
+        <Input value={bonus.name} onChange={e => onUpdate(bonus.id, "name", e.target.value)}
+          placeholder="Nama bonus (Softcase Premium)" className="h-8 text-sm" />
+        <Input value={bonus.description} onChange={e => onUpdate(bonus.id, "description", e.target.value)}
+          placeholder="Deskripsi singkat" className="h-8 text-sm" />
+      </div>
+      <button type="button" onClick={() => onRemove(bonus.id)}
+        className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors shrink-0 mt-1">
+        <X className="w-4 h-4" />
+      </button>
+    </div>
   );
 }
 
