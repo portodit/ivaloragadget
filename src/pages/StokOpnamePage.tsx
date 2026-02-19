@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, RefreshCw, ClipboardList, CheckCircle2,
-  Lock, ChevronRight, AlertTriangle, Search, Trash2,
+  Lock, ChevronRight, ChevronDown, AlertTriangle, Search, Trash2,
   ArrowLeft, ShieldCheck, X, Info, Layers, ScanLine,
   UserCheck, CalendarClock, Users, ShoppingCart, Store, Globe,
 } from "lucide-react";
@@ -785,6 +785,8 @@ function ScanView({
   const [alertMsg, setAlertMsg] = useState<{ text: string; type: "info" | "warn" | "ok" } | null>(null);
   const [bulkResults, setBulkResults] = useState<{ imei: string; result: "match" | "unregistered" | "duplicate" | "invalid" }[]>([]);
   const [salesSummary, setSalesSummary] = useState<SalesSummary>({ pos: 0, website: 0, ecommerce_tokopedia: 0, ecommerce_shopee: 0, total: 0, details: [] });
+  const [salesOpen, setSalesOpen] = useState(false);
+  const [missingOpen, setMissingOpen] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const [{ data: sess }, { data: snap }, { data: sc }] = await Promise.all([
@@ -1092,90 +1094,110 @@ function ScanView({
           </div>
         </div>
 
-        {/* Sales summary */}
+        {/* Sales summary — collapsible, minimized by default */}
         {salesSummary.total > 0 && (
-          <div className="bg-[hsl(var(--status-available-bg))] rounded-xl border border-[hsl(var(--status-available))]/20 p-4 space-y-2">
-            <p className="text-xs font-semibold text-[hsl(var(--status-available-fg))] flex items-center gap-1.5">
-              <ShoppingCart className="w-3.5 h-3.5" />
-              Penjualan Tercatat Sejak Sesi Dimulai
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {salesSummary.pos > 0 && (
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
-                  <Store className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-foreground">{salesSummary.pos}</p>
-                    <p className="text-[9px] text-muted-foreground">Offline (POS)</p>
-                  </div>
+          <div className="bg-[hsl(var(--status-available-bg))] rounded-xl border border-[hsl(var(--status-available))]/20 overflow-hidden">
+            <button
+              onClick={() => setSalesOpen(!salesOpen)}
+              className="w-full flex items-center justify-between p-4 text-left"
+            >
+              <p className="text-xs font-semibold text-[hsl(var(--status-available-fg))] flex items-center gap-1.5">
+                <ShoppingCart className="w-3.5 h-3.5" />
+                Penjualan Tercatat Sejak Sesi Dimulai ({salesSummary.total})
+              </p>
+              <ChevronDown className={cn("w-4 h-4 text-[hsl(var(--status-available-fg))] transition-transform", salesOpen && "rotate-180")} />
+            </button>
+            {salesOpen && (
+              <div className="px-4 pb-4 space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {salesSummary.pos > 0 && (
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                      <Store className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{salesSummary.pos}</p>
+                        <p className="text-[9px] text-muted-foreground">Offline (POS)</p>
+                      </div>
+                    </div>
+                  )}
+                  {salesSummary.website > 0 && (
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                      <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{salesSummary.website}</p>
+                        <p className="text-[9px] text-muted-foreground">Website</p>
+                      </div>
+                    </div>
+                  )}
+                  {salesSummary.ecommerce_tokopedia > 0 && (
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                      <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{salesSummary.ecommerce_tokopedia}</p>
+                        <p className="text-[9px] text-muted-foreground">Tokopedia</p>
+                      </div>
+                    </div>
+                  )}
+                  {salesSummary.ecommerce_shopee > 0 && (
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                      <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{salesSummary.ecommerce_shopee}</p>
+                        <p className="text-[9px] text-muted-foreground">Shopee</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {salesSummary.website > 0 && (
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
-                  <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-foreground">{salesSummary.website}</p>
-                    <p className="text-[9px] text-muted-foreground">Website</p>
+                {salesSummary.details.length > 0 && (
+                  <div className="space-y-1 max-h-28 overflow-y-auto">
+                    {salesSummary.details.map((d, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span className="font-mono text-foreground">{d.imei}</span>
+                        <span>·</span>
+                        <span>{d.product_label}</span>
+                        <span>·</span>
+                        <span className="font-medium">{CHANNEL_LABELS[d.channel] ?? d.channel}</span>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              )}
-              {salesSummary.ecommerce_tokopedia > 0 && (
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
-                  <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-foreground">{salesSummary.ecommerce_tokopedia}</p>
-                    <p className="text-[9px] text-muted-foreground">Tokopedia</p>
-                  </div>
-                </div>
-              )}
-              {salesSummary.ecommerce_shopee > 0 && (
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
-                  <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-foreground">{salesSummary.ecommerce_shopee}</p>
-                    <p className="text-[9px] text-muted-foreground">Shopee</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            {salesSummary.details.length > 0 && (
-              <div className="space-y-1 max-h-28 overflow-y-auto">
-                {salesSummary.details.map((d, i) => (
-                  <div key={i} className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span className="font-mono text-foreground">{d.imei}</span>
-                    <span>·</span>
-                    <span>{d.product_label}</span>
-                    <span>·</span>
-                    <span className="font-medium">{CHANNEL_LABELS[d.channel] ?? d.channel}</span>
-                  </div>
-                ))}
+                )}
               </div>
             )}
           </div>
         )}
 
-        {/* Missing warning with auto-detect */}
+        {/* Missing warning — collapsible, minimized by default */}
         {missing > 0 && (
-          <div className="rounded-xl bg-[hsl(var(--status-minus-bg))] border border-[hsl(var(--status-minus))]/20 p-4 space-y-2">
-            <p className="text-xs font-medium text-[hsl(var(--status-minus-fg))] flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-              {missing} unit belum ditemukan di etalase
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              Unit berikut tercatat "Tersedia" di sistem tapi belum dipindai. Kemungkinan besar terjual di marketplace (Tokopedia/Shopee) dan belum diupdate oleh admin.
-              Silakan cek satu per satu apakah IMEI ini sudah laku terjual di e-commerce.
-            </p>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {missingImeis.slice(0, 20).map((item) => (
-                <div key={item.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
-                  <AlertTriangle className="w-3 h-3 text-[hsl(var(--status-minus-fg))] shrink-0" />
-                  <span className="text-xs font-mono text-foreground flex-1">{item.imei}</span>
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[150px]">{item.product_label}</span>
+          <div className="rounded-xl bg-[hsl(var(--status-minus-bg))] border border-[hsl(var(--status-minus))]/20 overflow-hidden">
+            <button
+              onClick={() => setMissingOpen(!missingOpen)}
+              className="w-full flex items-center justify-between p-4 text-left"
+            >
+              <p className="text-xs font-medium text-[hsl(var(--status-minus-fg))] flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {missing} unit belum ditemukan di etalase
+              </p>
+              <ChevronDown className={cn("w-4 h-4 text-[hsl(var(--status-minus-fg))] transition-transform", missingOpen && "rotate-180")} />
+            </button>
+            {missingOpen && (
+              <div className="px-4 pb-4 space-y-2">
+                <p className="text-[10px] text-muted-foreground">
+                  Unit berikut tercatat "Tersedia" di sistem tapi belum dipindai. Kemungkinan besar terjual di marketplace (Tokopedia/Shopee) dan belum diupdate oleh admin.
+                  Silakan cek satu per satu apakah IMEI ini sudah laku terjual di e-commerce.
+                </p>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {missingImeis.slice(0, 20).map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-border">
+                      <AlertTriangle className="w-3 h-3 text-[hsl(var(--status-minus-fg))] shrink-0" />
+                      <span className="text-xs font-mono text-foreground flex-1">{item.imei}</span>
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[150px]">{item.product_label}</span>
+                    </div>
+                  ))}
+                  {missingImeis.length > 20 && (
+                    <p className="text-[10px] text-muted-foreground text-center py-1">...dan {missingImeis.length - 20} unit lainnya</p>
+                  )}
                 </div>
-              ))}
-              {missingImeis.length > 20 && (
-                <p className="text-[10px] text-muted-foreground text-center py-1">...dan {missingImeis.length - 20} unit lainnya</p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
