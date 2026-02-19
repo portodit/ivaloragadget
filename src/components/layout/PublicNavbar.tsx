@@ -88,15 +88,17 @@ export function PublicNavbar() {
           <div className="max-w-6xl mx-auto px-5 h-16 flex items-center">
             {/* Logo */}
             <Link to="/" className="flex items-center shrink-0 mr-8">
+              {/* Mobile: always show horizontal logo */}
               <img
                 src={logoHorizontal}
                 alt="Ivalora"
-                className={cn("h-7 w-auto", scrolled && "md:hidden")}
+                className="h-7 w-auto md:hidden"
               />
+              {/* Desktop: horizontal when static, icon when scrolled/floating */}
               <img
                 src={scrolled ? logoIcon : logoHorizontal}
                 alt="Ivalora"
-                className={cn("h-7 w-auto hidden", scrolled ? "md:block md:h-8" : "md:block")}
+                className={cn("h-7 w-auto hidden md:block", scrolled && "md:h-8")}
               />
             </Link>
 
