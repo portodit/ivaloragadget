@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Package, Clock, TrendingDown, ShieldCheck, AlertTriangle, Trash2, Pencil, Flag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { StockUnit, StockUnitLog, STOCK_STATUS_LABELS, VALID_TRANSITIONS, SOLD_CHANNEL_LABELS, MINUS_SEVERITY_LABELS, formatCurrency, formatDate, StockStatus, SoldChannel } from "@/lib/stock-units";
+import { StockUnit, StockUnitLog, STOCK_STATUS_LABELS, VALID_TRANSITIONS, SOLD_CHANNEL_LABELS, SOLD_CHANNEL_SHORT, MINUS_SEVERITY_LABELS, formatCurrency, formatDate, StockStatus, SoldChannel } from "@/lib/stock-units";
 import { StockStatusBadge, ConditionBadge } from "./StockBadges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,7 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div>
             <h2 className="text-base font-semibold text-foreground">Detail Unit</h2>
-            <p className="text-xs text-muted-foreground font-mono">{unit.imei}</p>
+            <p className="text-sm font-medium text-foreground font-mono mt-0.5">IMEI: {unit.imei}</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
             <X className="w-4 h-4 text-muted-foreground" />
@@ -212,7 +212,7 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">Channel Penjualan</p>
-                  <p className="text-sm text-foreground">{SOLD_CHANNEL_LABELS[unit.sold_channel]}</p>
+                  <p className="text-sm text-foreground">{SOLD_CHANNEL_SHORT[unit.sold_channel]}</p>
                 </div>
                 {unit.sold_reference_id && (
                   <div>
