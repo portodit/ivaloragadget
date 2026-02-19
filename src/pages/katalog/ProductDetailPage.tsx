@@ -175,7 +175,7 @@ function Tab({ label, active, onClick }: { label: string; active: boolean; onCli
     <button
       onClick={onClick}
       className={cn(
-        "px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+        "flex-1 px-3 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap text-center",
         active
           ? "border-foreground text-foreground font-semibold"
           : "border-transparent text-muted-foreground hover:text-foreground"
@@ -753,7 +753,7 @@ export default function ProductDetailPage() {
                       const selectedUnit = selectedUnitId ? units.find(u => u.id === selectedUnitId) : units[0];
                       const imeiLast4 = selectedUnit ? selectedUnit.imei.slice(-4) : "****";
                       const conditionText = selectedUnit?.condition_status === "minus" ? "minus" : "no minus";
-                      const msg = `${greeting} Admin Ivalora Gadget 👋\n\nSaya ingin bertanya tentang unit:\n📱 *${catalog.display_name}*\n🎨 Warna: ${master.color}\n💾 Kapasitas: ${storageLabel(master.storage_gb)}\n📋 Kondisi: ${conditionText}\n🔢 IMEI (4 digit terakhir): ${imeiLast4}\n\nApakah unit ini masih tersedia? Terima kasih! 🙏`;
+                      const msg = `${greeting} Admin Ivalora Gadget\n\nSaya ingin bertanya tentang unit:\n*${catalog.display_name}*\nWarna: ${master.color}\nKapasitas: ${storageLabel(master.storage_gb)}\nKondisi: ${conditionText}\nIMEI (4 digit terakhir): ${imeiLast4}\n\nApakah unit ini masih tersedia? Terima kasih!`;
                       window.open(`https://wa.me/6285890024760?text=${encodeURIComponent(msg)}`, "_blank");
                     }}
                     className="flex items-center gap-1 hover:text-foreground transition-colors"
@@ -813,13 +813,13 @@ export default function ProductDetailPage() {
           {/* ── TABS — show always since product is specific ── */}
           {isFullySpecific && (
             <div className="border-t border-border">
-              <div className="flex overflow-x-auto border-b border-border -mb-px scrollbar-hide">
+              <div className="flex overflow-x-auto border-b border-border -mb-px scrollbar-hide w-full">
                 {tabs.map(t => (
                   <Tab key={t.key} label={t.label} active={activeTab === t.key} onClick={() => setActiveTab(t.key as typeof activeTab)} />
                 ))}
               </div>
 
-              <div className="py-6">
+              <div className="py-6 w-full">
                 {/* TAB: Detail Produk */}
                 {activeTab === "detail" && (
                   <div className="space-y-6">
@@ -828,7 +828,7 @@ export default function ProductDetailPage() {
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{catalog.full_description}</p>
                       </div>
                     )}
-                    <table className="w-full max-w-2xl">
+                    <table className="w-full">
                       <tbody>
                         {specsRows.map(r => <SpecRow key={r.label} label={r.label} value={r.value} />)}
                       </tbody>
@@ -838,7 +838,7 @@ export default function ProductDetailPage() {
 
                 {/* TAB: Kondisi Unit — detailed unit cards with discount */}
                 {activeTab === "kondisi" && (
-                  <div className="space-y-4 max-w-2xl">
+                  <div className="space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
                       <div className="p-3 rounded-xl border border-border bg-muted/20 text-center">
                         <p className="text-2xl font-bold text-foreground">{units.length}</p>
@@ -988,7 +988,7 @@ export default function ProductDetailPage() {
 
                 {/* TAB: Penilaian */}
                 {activeTab === "rating" && (
-                  <div className="max-w-2xl">
+                  <div>
                     <div className="flex flex-col md:flex-row gap-6 items-start">
                       <div className="flex flex-col items-center justify-center bg-muted/30 border border-border rounded-2xl p-6 min-w-[160px] gap-2">
                         <span className="text-5xl font-black text-foreground">{(catalog.rating_score ?? 0).toFixed(1)}</span>
@@ -1020,7 +1020,7 @@ export default function ProductDetailPage() {
 
                 {/* TAB: Garansi */}
                 {activeTab === "garansi" && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 rounded-xl border border-border">
                       <p className="text-sm font-semibold text-foreground mb-2">✅ Termasuk dalam Garansi</p>
                       <ul className="space-y-1 text-sm text-muted-foreground">
@@ -1043,7 +1043,7 @@ export default function ProductDetailPage() {
 
                 {/* TAB: Pengiriman */}
                 {activeTab === "pengiriman" && (
-                  <div className="space-y-3 max-w-2xl">
+                  <div className="space-y-3">
                     <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
                       <Truck className="w-5 h-5 text-muted-foreground shrink-0" />
                       <div>

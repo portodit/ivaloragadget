@@ -106,7 +106,7 @@ export default function CartPage() {
   return (
     <div className="min-h-screen bg-background">
       <PublicNavbar />
-      <div className="pt-16">
+      <div className="pt-4">
         <div className="max-w-4xl mx-auto px-4 py-6">
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
