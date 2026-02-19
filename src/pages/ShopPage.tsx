@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 const db = supabase as any;
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import { Input } from "@/components/ui/input";
-import { Search, Star, Truck, ImageOff, ChevronLeft, ChevronRight, Tag, Filter, Zap } from "lucide-react";
+import { Search, Star, Truck, ImageOff, ChevronLeft, ChevronRight, Tag, Filter, Zap, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/contexts/LocaleContext";
 
@@ -65,6 +65,24 @@ function useFormatPrice() {
 
 const PAGE_SIZE = 12;
 
+interface FlashSaleSettings {
+  is_active: boolean;
+  start_time: string;
+  duration_hours: number;
+}
+
+function useCountdown(endTime: Date | null) {
+  const getRemaining = () => {
+    if (!endTime) return { h: 0, m: 0, s: 0, expired: true };
+    const diff = endTime.getTime() - Date.now();
+    if (diff <= 0) return { h: 0, m: 0, s: 0, expired: true };
+    return { h: Math.floor(diff / 3600000), m: Math.floor((diff % 3600000) / 60000), s: Math.floor((diff % 60000) / 1000), expired: false };
+  };
+  const [time, setTime] = useState(getRemaining());
+  useEffect(() => { const t = setInterval(() => setTime(getRemaining()), 1000); return () => clearInterval(t); }, [endTime]);
+  return time;
+}
+
 export default function ShopPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -79,6 +97,10 @@ export default function ShopPage() {
   const [filterPrice, setFilterPrice] = useState("all"); // all, under5, 5to10, above10
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [flashSale, setFlashSale] = useState<FlashSaleSettings | null>(null);
+  const [flashEndTime, setFlashEndTime] = useState<Date | null>(null);
+  const { h, m, s, expired: flashExpired } = useCountdown(flashEndTime);
+  const flashActive = flashSale?.is_active && !flashExpired;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -104,6 +126,17 @@ export default function ShopPage() {
         priceMap[unit.product_id].min_price = cur === null ? p : Math.min(cur, p);
       }
     }
+    // Fetch flash sale settings
+    const { data: fsData } = await db.from("flash_sale_settings").select("is_active, start_time, duration_hours").limit(1).single();
+    if (fsData) {
+      setFlashSale(fsData as FlashSaleSettings);
+      if (fsData.is_active) {
+        const start = new Date(fsData.start_time);
+        const end = new Date(start.getTime() + fsData.duration_hours * 3600000);
+        if (end.getTime() > Date.now()) setFlashEndTime(end);
+      }
+    }
+
     setPrices(priceMap);
     setItems(catRes.data ?? []);
     setLoading(false);
@@ -217,6 +250,35 @@ export default function ShopPage() {
               <Filter className="w-3.5 h-3.5" /> Filter
             </button>
           </div>
+
+          {/* Flash sale countdown banner */}
+          {filterCategory === "flash_sale" && flashActive && !flashExpired && (
+            <div className="mb-4 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap"
+              style={{ background: "linear-gradient(135deg, hsl(0 0% 6%) 0%, hsl(15 60% 8%) 50%, hsl(0 0% 5%) 100%)" }}>
+              <div className="flex items-center gap-2.5">
+                <Zap className="w-5 h-5 text-amber-400" />
+                <div>
+                  <p className="text-sm font-bold text-white">Flash Sale Aktif</p>
+                  <p className="text-xs text-white/60">Harga spesial terbatas waktu</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <span className="text-xs text-white/60 uppercase tracking-wider">Sisa waktu:</span>
+                <div className="flex items-center gap-1">
+                  {[
+                    { v: h, l: "j" }, { v: m, l: "m" }, { v: s, l: "d" },
+                  ].map((t, i) => (
+                    <span key={i} className="inline-flex items-center gap-0.5">
+                      <span className="bg-white/10 text-amber-400 font-bold text-sm px-2 py-1 rounded-md tabular-nums">{String(t.v).padStart(2, "0")}</span>
+                      <span className="text-[10px] text-white/50">{t.l}</span>
+                      {i < 2 && <span className="text-amber-400 font-bold mx-0.5">:</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Expanded filters */}
           {showFilters && (

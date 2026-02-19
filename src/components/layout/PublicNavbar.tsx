@@ -83,7 +83,7 @@ export function PublicNavbar() {
           className={cn(
             "transition-all duration-300 ease-out",
             scrolled
-              ? "mx-4 md:mx-8 rounded-2xl bg-white/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-border/60"
+              ? "mx-auto max-w-3xl rounded-2xl bg-white/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-border/60"
               : "bg-background/95 backdrop-blur-sm border-b border-border"
           )}
         >

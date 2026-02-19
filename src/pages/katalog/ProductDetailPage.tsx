@@ -260,13 +260,23 @@ export default function ProductDetailPage() {
     if (slug) fetchData();
   }, [slug]);
 
-  // Countdown timer for discount end
+  // Countdown timer for discount end or flash sale end
   useEffect(() => {
     if (!catalog) return;
-    const endAt = catalog.discount_end_at;
-    if (!endAt || !catalog.discount_active) { setCountdownStr(""); return; }
+    // Determine end time: flash sale end or discount end
+    let endAt: string | null = null;
+    if (catalog.is_flash_sale && flashSaleSettings?.is_active) {
+      const start = new Date(flashSaleSettings.start_time);
+      const end = new Date(start.getTime() + flashSaleSettings.duration_hours * 3600000);
+      if (end.getTime() > Date.now()) endAt = end.toISOString();
+    }
+    if (!endAt && catalog.discount_end_at && catalog.discount_active) {
+      endAt = catalog.discount_end_at;
+    }
+    if (!endAt) { setCountdownStr(""); return; }
+    const endAtFinal = endAt;
     function tick() {
-      const diff = new Date(endAt!).getTime() - Date.now();
+      const diff = new Date(endAtFinal).getTime() - Date.now();
       if (diff <= 0) { setCountdownStr("Berakhir"); return; }
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -276,7 +286,7 @@ export default function ProductDetailPage() {
     tick();
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-  }, [catalog]);
+  }, [catalog, flashSaleSettings]);
 
   if (loading) {
     return (
@@ -826,7 +836,7 @@ export default function ProductDetailPage() {
                   </div>
                 )}
 
-                {/* TAB: Kondisi Unit — detailed unit cards */}
+                {/* TAB: Kondisi Unit — detailed unit cards with discount */}
                 {activeTab === "kondisi" && (
                   <div className="space-y-4 max-w-2xl">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
@@ -844,28 +854,74 @@ export default function ProductDetailPage() {
                       </div>
                     </div>
 
+                    {/* Flash sale / discount info banner */}
+                    {(() => {
+                      const now = Date.now();
+                      const hasDiscount = catalog.discount_active && catalog.discount_value && catalog.discount_value > 0
+                        && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
+                        && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
+                      const hasFlash = catalog.is_flash_sale && flashSaleSettings?.is_active;
+                      if (!hasDiscount && !hasFlash) return null;
+                      return (
+                        <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-sm">
+                          <Tag className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span className="text-amber-800 font-medium">
+                            {hasFlash ? "Flash Sale aktif — harga di bawah sudah termasuk potongan." : "Diskon aktif — harga di bawah sudah termasuk potongan."}
+                          </span>
+                          {countdownStr && countdownStr !== "Berakhir" && (
+                            <span className="ml-auto text-xs text-amber-600 font-semibold whitespace-nowrap flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {countdownStr}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* No minus units — detailed cards */}
                     {noMinusUnits.length > 0 && (
                       <div>
                         <p className="text-sm font-semibold text-foreground mb-2">Unit No Minus ({noMinusUnits.length} unit)</p>
                         <div className="space-y-2">
-                          {noMinusUnits.map((unit) => (
-                            <div key={unit.id} className="p-4 rounded-xl border border-green-200 bg-green-50">
-                              <div className="flex items-center justify-between mb-1.5">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                                  <span className="text-sm font-semibold text-green-800">
-                                    {master.series} {master.color} {storageLabel(master.storage_gb)} — No Minus
-                                  </span>
+                          {noMinusUnits.map((unit) => {
+                            const now = Date.now();
+                            const hasDiscount = catalog.discount_active && catalog.discount_value && catalog.discount_value > 0
+                              && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
+                              && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
+                            const originalPrice = unit.selling_price ?? 0;
+                            let discountedPrice = originalPrice;
+                            if (hasDiscount && originalPrice > 0) {
+                              discountedPrice = catalog.discount_type === "percentage"
+                                ? Math.round(originalPrice * (1 - catalog.discount_value! / 100))
+                                : Math.max(0, originalPrice - catalog.discount_value!);
+                            }
+                            const showStrike = hasDiscount && discountedPrice < originalPrice;
+                            return (
+                              <div key={unit.id} className="p-4 rounded-xl border border-green-200 bg-green-50">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                                    <span className="text-sm font-semibold text-green-800">
+                                      {master.series} {master.color} {storageLabel(master.storage_gb)} — No Minus
+                                    </span>
+                                  </div>
+                                  <div className="text-right">
+                                    {showStrike ? (
+                                      <>
+                                        <span className="text-xs text-muted-foreground line-through mr-2">{formatRupiah(originalPrice)}</span>
+                                        <span className="text-sm font-bold text-destructive">{formatRupiah(discountedPrice)}</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
+                                <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
+                                <p className="text-xs text-green-700">
+                                  ✅ Barang dalam kondisi prima — telah melewati quality control 30+ checkpoint. Siap digunakan tanpa kendala.
+                                </p>
                               </div>
-                              <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
-                              <p className="text-xs text-green-700">
-                                ✅ Barang dalam kondisi prima — telah melewati quality control 30+ checkpoint. Siap digunakan tanpa kendala.
-                              </p>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -875,25 +931,48 @@ export default function ProductDetailPage() {
                       <div>
                         <p className="text-sm font-semibold text-foreground mb-2">Unit Ada Minus ({minusUnits.length} unit)</p>
                         <div className="space-y-2">
-                          {minusUnits.map((unit) => (
-                            <div key={unit.id} className="p-4 rounded-xl border border-orange-200 bg-orange-50">
-                              <div className="flex items-center justify-between mb-1.5">
-                                <div className="flex items-center gap-2">
-                                  <AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />
-                                  <span className="text-sm font-semibold text-orange-800">
-                                    {master.series} {master.color} {storageLabel(master.storage_gb)} — Minus {unit.minus_severity === "minor" ? "Minor" : unit.minus_severity === "mayor" ? "Mayor" : ""}
-                                  </span>
+                          {minusUnits.map((unit) => {
+                            const now = Date.now();
+                            const hasDiscount = catalog.discount_active && catalog.discount_value && catalog.discount_value > 0
+                              && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
+                              && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
+                            const originalPrice = unit.selling_price ?? 0;
+                            let discountedPrice = originalPrice;
+                            if (hasDiscount && originalPrice > 0) {
+                              discountedPrice = catalog.discount_type === "percentage"
+                                ? Math.round(originalPrice * (1 - catalog.discount_value! / 100))
+                                : Math.max(0, originalPrice - catalog.discount_value!);
+                            }
+                            const showStrike = hasDiscount && discountedPrice < originalPrice;
+                            return (
+                              <div key={unit.id} className="p-4 rounded-xl border border-orange-200 bg-orange-50">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />
+                                    <span className="text-sm font-semibold text-orange-800">
+                                      {master.series} {master.color} {storageLabel(master.storage_gb)} — Minus {unit.minus_severity === "minor" ? "Minor" : unit.minus_severity === "mayor" ? "Mayor" : ""}
+                                    </span>
+                                  </div>
+                                  <div className="text-right">
+                                    {showStrike ? (
+                                      <>
+                                        <span className="text-xs text-muted-foreground line-through mr-2">{formatRupiah(originalPrice)}</span>
+                                        <span className="text-sm font-bold text-destructive">{formatRupiah(discountedPrice)}</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
+                                <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
+                                {unit.minus_description ? (
+                                  <p className="text-xs text-orange-700">⚠️ {unit.minus_description}</p>
+                                ) : (
+                                  <p className="text-xs text-orange-700">⚠️ Terdapat minus pada unit ini. Hubungi admin untuk detail lebih lanjut.</p>
+                                )}
                               </div>
-                              <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
-                              {unit.minus_description ? (
-                                <p className="text-xs text-orange-700">⚠️ {unit.minus_description}</p>
-                              ) : (
-                                <p className="text-xs text-orange-700">⚠️ Terdapat minus pada unit ini. Hubungi admin untuk detail lebih lanjut.</p>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
