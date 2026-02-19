@@ -50,6 +50,86 @@ export type Database = {
         }
         Relationships: []
       }
+      catalog_products: {
+        Row: {
+          catalog_status: Database["public"]["Enums"]["catalog_status"]
+          created_at: string
+          created_by: string | null
+          display_name: string
+          full_description: string | null
+          gallery_urls: string[] | null
+          highlight_product: boolean
+          id: string
+          override_display_price: number | null
+          price_strategy: Database["public"]["Enums"]["price_strategy"]
+          product_id: string
+          promo_label: string | null
+          publish_to_marketplace: boolean
+          publish_to_pos: boolean
+          publish_to_web: boolean
+          short_description: string | null
+          show_condition_breakdown: boolean
+          slug: string | null
+          thumbnail_url: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          catalog_status?: Database["public"]["Enums"]["catalog_status"]
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          full_description?: string | null
+          gallery_urls?: string[] | null
+          highlight_product?: boolean
+          id?: string
+          override_display_price?: number | null
+          price_strategy?: Database["public"]["Enums"]["price_strategy"]
+          product_id: string
+          promo_label?: string | null
+          publish_to_marketplace?: boolean
+          publish_to_pos?: boolean
+          publish_to_web?: boolean
+          short_description?: string | null
+          show_condition_breakdown?: boolean
+          slug?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          catalog_status?: Database["public"]["Enums"]["catalog_status"]
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          full_description?: string | null
+          gallery_urls?: string[] | null
+          highlight_product?: boolean
+          id?: string
+          override_display_price?: number | null
+          price_strategy?: Database["public"]["Enums"]["price_strategy"]
+          product_id?: string
+          promo_label?: string | null
+          publish_to_marketplace?: boolean
+          publish_to_pos?: boolean
+          publish_to_web?: boolean
+          short_description?: string | null
+          show_condition_breakdown?: boolean
+          slug?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "master_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       master_products: {
         Row: {
           base_price: number | null
@@ -631,7 +711,9 @@ export type Database = {
     Enums: {
       account_status: "pending" | "active" | "suspended" | "rejected"
       app_role: "super_admin" | "admin"
+      catalog_status: "draft" | "published" | "unpublished"
       condition_status: "no_minus" | "minus"
+      price_strategy: "min_price" | "avg_price" | "fixed"
       product_category: "iphone" | "ipad" | "accessory"
       sold_channel: "pos" | "ecommerce" | "manual"
       stock_status:
@@ -772,7 +854,9 @@ export const Constants = {
     Enums: {
       account_status: ["pending", "active", "suspended", "rejected"],
       app_role: ["super_admin", "admin"],
+      catalog_status: ["draft", "published", "unpublished"],
       condition_status: ["no_minus", "minus"],
+      price_strategy: ["min_price", "avg_price", "fixed"],
       product_category: ["iphone", "ipad", "accessory"],
       sold_channel: ["pos", "ecommerce", "manual"],
       stock_status: [
