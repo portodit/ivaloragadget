@@ -27,7 +27,7 @@ export function TopNavbar({ pageTitle, onMobileMenuToggle }: TopNavbarProps) {
   const handleSignOut = async () => {
     setDropdownOpen(false);
     await signOut();
-    navigate("/login");
+    navigate("/admin/login");
   };
 
   return (
@@ -101,14 +101,14 @@ export function TopNavbar({ pageTitle, onMobileMenuToggle }: TopNavbarProps) {
 
                 {/* Menu items */}
                 <button
-                  onClick={() => { setDropdownOpen(false); navigate("/profil"); }}
+                  onClick={() => { setDropdownOpen(false); navigate("/admin/profil"); }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors duration-150"
                 >
                   <User className="w-4 h-4 text-muted-foreground" />
                   Profil Saya
                 </button>
                 <button
-                  onClick={() => { setDropdownOpen(false); navigate("/pengaturan"); }}
+                  onClick={() => { setDropdownOpen(false); navigate("/admin/pengaturan"); }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors duration-150"
                 >
                   <Settings className="w-4 h-4 text-muted-foreground" />

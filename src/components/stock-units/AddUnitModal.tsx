@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, AlertCircle } from "lucide-react";
+import { X, AlertCircle, Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,22 +12,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { MasterProduct } from "@/lib/master-products";
 import { formatCurrency } from "@/lib/stock-units";
+import { useNavigate } from "react-router-dom";
 
 const schema = z.object({
   product_id: z.string().min(1, "Pilih produk"),
   imei: z.string().min(14, "IMEI minimal 14 karakter").max(17, "IMEI maksimal 17 karakter"),
   condition_status: z.enum(["no_minus", "minus"]),
+  minus_severity: z.enum(["minor", "mayor"]).optional(),
   minus_description: z.string().optional(),
   selling_price: z.string().optional(),
   cost_price: z.string().optional(),
   stock_status: z.enum(["available", "coming_soon"]),
   received_at: z.string().min(1, "Masukkan tanggal masuk"),
-  supplier: z.string().optional(),
+  estimated_arrival_at: z.string().optional(),
+  supplier_id: z.string().optional(),
   batch_code: z.string().optional(),
   notes: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
+
+interface Supplier {
+  id: string;
+  name: string;
+}
 
 interface AddUnitModalProps {
   open: boolean;
@@ -37,9 +45,18 @@ interface AddUnitModalProps {
 
 export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [products, setProducts] = useState<MasterProduct[]>([]);
   const [imeiChecking, setImeiChecking] = useState(false);
   const [imeiError, setImeiError] = useState<string | null>(null);
+
+  // Supplier search state
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
+  const supplierRef = useRef<HTMLDivElement>(null);
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -51,6 +68,7 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
   });
 
   const conditionStatus = watch("condition_status");
+  const stockStatus = watch("stock_status");
   const imeiValue = watch("imei");
 
   useEffect(() => {
@@ -62,6 +80,12 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
       .is("deleted_at", null)
       .order("series")
       .then(({ data }) => setProducts((data as MasterProduct[]) ?? []));
+    // Fetch suppliers
+    supabase
+      .from("suppliers")
+      .select("*")
+      .order("name")
+      .then(({ data }) => setSuppliers((data as Supplier[]) ?? []));
   }, [open]);
 
   // IMEI uniqueness check (debounced)
@@ -76,18 +100,66 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
     return () => clearTimeout(t);
   }, [imeiValue]);
 
+  // Close supplier dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) {
+        setSupplierDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filteredSuppliers = suppliers.filter((s) =>
+    s.name.toLowerCase().includes(supplierSearch.toLowerCase())
+  );
+
+  const handleSelectSupplier = (supplier: Supplier) => {
+    setSelectedSupplier(supplier);
+    setValue("supplier_id", supplier.id);
+    setSupplierSearch(supplier.name);
+    setSupplierDropdownOpen(false);
+  };
+
+  const handleCreateSupplier = async () => {
+    if (!supplierSearch.trim()) return;
+    setCreatingSupplier(true);
+    const { data, error } = await supabase
+      .from("suppliers")
+      .insert({ name: supplierSearch.trim() } as never)
+      .select()
+      .single();
+    setCreatingSupplier(false);
+    if (error) {
+      if (error.message.includes("duplicate")) {
+        toast({ title: "Supplier sudah ada", variant: "destructive" });
+      } else {
+        toast({ title: "Gagal membuat supplier", description: error.message, variant: "destructive" });
+      }
+      return;
+    }
+    const newSupplier = data as Supplier;
+    setSuppliers((prev) => [...prev, newSupplier].sort((a, b) => a.name.localeCompare(b.name)));
+    handleSelectSupplier(newSupplier);
+    toast({ title: `Supplier "${newSupplier.name}" berhasil ditambahkan` });
+  };
+
   const onSubmit = async (data: FormData) => {
     if (imeiError) return;
     const { error } = await supabase.from("stock_units").insert({
       product_id: data.product_id,
       imei: data.imei,
       condition_status: data.condition_status,
+      minus_severity: data.condition_status === "minus" ? (data.minus_severity || null) : null,
       minus_description: data.minus_description || null,
       selling_price: data.selling_price ? parseFloat(data.selling_price.replace(/\D/g, "")) : null,
       cost_price: data.cost_price ? parseFloat(data.cost_price.replace(/\D/g, "")) : null,
       stock_status: data.stock_status,
       received_at: data.received_at,
-      supplier: data.supplier || null,
+      estimated_arrival_at: data.stock_status === "coming_soon" && data.estimated_arrival_at ? data.estimated_arrival_at : null,
+      supplier_id: data.supplier_id || null,
+      supplier: selectedSupplier?.name || null,
       batch_code: data.batch_code || null,
       notes: data.notes || null,
     } as never);
@@ -98,6 +170,8 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
     }
     toast({ title: "Unit berhasil ditambahkan" });
     reset();
+    setSelectedSupplier(null);
+    setSupplierSearch("");
     onSuccess();
     onClose();
   };
@@ -137,6 +211,13 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
               </SelectContent>
             </Select>
             {errors.product_id && <p className="text-xs text-destructive">{errors.product_id.message}</p>}
+            <button
+              type="button"
+              onClick={() => { onClose(); navigate("/admin/master-produk"); }}
+              className="text-xs text-primary hover:underline underline-offset-2 flex items-center gap-1 mt-1"
+            >
+              <Plus className="w-3 h-3" /> Tambah SKU Produk Baru
+            </button>
           </div>
 
           {/* IMEI */}
@@ -184,13 +265,41 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
             </div>
           </div>
 
+          {/* Minus Severity */}
+          {conditionStatus === "minus" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tingkat Minus</Label>
+              <div className="flex gap-2">
+                {(["minor", "mayor"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setValue("minus_severity", s)}
+                    className={`flex-1 h-9 rounded-lg border text-xs font-medium transition-colors ${
+                      watch("minus_severity") === s
+                        ? s === "minor"
+                          ? "border-[hsl(var(--status-reserved))] bg-[hsl(var(--status-reserved-bg))] text-[hsl(var(--status-reserved-fg))]"
+                          : "border-[hsl(var(--status-lost))] bg-[hsl(var(--status-lost-bg))] text-[hsl(var(--status-lost-fg))]"
+                        : "border-border text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {s === "minor" ? "Minor" : "Mayor"}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Minor: lecet pemakaian, baret ringan. Mayor: ganti baterai, LCD retak, mesin pernah dibuka.
+              </p>
+            </div>
+          )}
+
           {/* Deskripsi Minus */}
           {conditionStatus === "minus" && (
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Deskripsi Minus</Label>
               <Textarea
                 {...register("minus_description")}
-                placeholder="Jelaskan kondisi minus pada unit ini..."
+                placeholder="Contoh: Lecet pemakaian pada body samping, baret halus di layar, ganti baterai aftermarket, LCD ada shadow tipis, dll."
                 className="resize-none h-20 text-sm"
               />
             </div>
@@ -204,7 +313,7 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
             <Input {...register("selling_price")} placeholder="Masukkan harga jual (contoh: 5000000)" className="h-10" />
           </div>
 
-          {/* Harga Modal (super admin only field — always shown, RLS protects it) */}
+          {/* Harga Modal */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Harga Modal <span className="text-muted-foreground/50 normal-case font-normal">(opsional)</span>
@@ -226,18 +335,72 @@ export function AddUnitModal({ open, onClose, onSuccess }: AddUnitModalProps) {
             </Select>
           </div>
 
-          {/* Tanggal Masuk */}
+          {/* Tanggal Masuk / Estimasi Kedatangan */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tanggal Masuk</Label>
-            <Input {...register("received_at")} type="date" className="h-10" />
-            {errors.received_at && <p className="text-xs text-destructive">{errors.received_at.message}</p>}
+            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              {stockStatus === "coming_soon" ? "Estimasi Tanggal Kedatangan" : "Tanggal Masuk"}
+            </Label>
+            {stockStatus === "coming_soon" ? (
+              <>
+                <Input {...register("estimated_arrival_at")} type="date" className="h-10" />
+                <p className="text-[10px] text-muted-foreground">Notifikasi H-1 dan Hari H akan muncul di dashboard.</p>
+              </>
+            ) : (
+              <>
+                <Input {...register("received_at")} type="date" className="h-10" />
+                {errors.received_at && <p className="text-xs text-destructive">{errors.received_at.message}</p>}
+              </>
+            )}
           </div>
 
-          {/* Supplier & Batch */}
+          {/* Supplier (searchable) & Batch */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" ref={supplierRef}>
               <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Supplier</Label>
-              <Input {...register("supplier")} placeholder="Nama supplier..." className="h-10" />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  value={supplierSearch}
+                  onChange={(e) => {
+                    setSupplierSearch(e.target.value);
+                    setSupplierDropdownOpen(true);
+                    if (!e.target.value) {
+                      setSelectedSupplier(null);
+                      setValue("supplier_id", "");
+                    }
+                  }}
+                  onFocus={() => setSupplierDropdownOpen(true)}
+                  placeholder="Cari supplier..."
+                  className="h-10 pl-9"
+                />
+                {supplierDropdownOpen && supplierSearch && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-20 max-h-40 overflow-y-auto">
+                    {filteredSuppliers.length > 0 ? (
+                      filteredSuppliers.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleSelectSupplier(s)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                        >
+                          {s.name}
+                        </button>
+                      ))
+                    ) : null}
+                    {!filteredSuppliers.some((s) => s.name.toLowerCase() === supplierSearch.toLowerCase()) && (
+                      <button
+                        type="button"
+                        onClick={handleCreateSupplier}
+                        disabled={creatingSupplier}
+                        className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-accent transition-colors flex items-center gap-1.5 border-t border-border"
+                      >
+                        <Plus className="w-3 h-3" />
+                        {creatingSupplier ? "Menambahkan..." : `Tambah "${supplierSearch.trim()}"`}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Batch</Label>

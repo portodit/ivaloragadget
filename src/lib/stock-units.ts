@@ -2,7 +2,8 @@
 
 export type StockStatus = "available" | "reserved" | "coming_soon" | "service" | "sold" | "return" | "lost";
 export type ConditionStatus = "no_minus" | "minus";
-export type SoldChannel = "pos" | "ecommerce" | "manual";
+export type MinusSeverity = "minor" | "mayor";
+export type SoldChannel = "pos" | "ecommerce" | "manual" | "website";
 
 export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
   available: "Tersedia",
@@ -19,10 +20,16 @@ export const CONDITION_LABELS: Record<ConditionStatus, string> = {
   minus: "Ada Minus",
 };
 
+export const MINUS_SEVERITY_LABELS: Record<MinusSeverity, string> = {
+  minor: "Minor",
+  mayor: "Mayor",
+};
+
 export const SOLD_CHANNEL_LABELS: Record<SoldChannel, string> = {
-  pos: "POS",
+  pos: "POS (Offline Store)",
   ecommerce: "E-Commerce",
   manual: "Manual",
+  website: "Website",
 };
 
 // Status badge color mapping using CSS variables
@@ -91,6 +98,7 @@ export interface StockUnit {
   product_id: string;
   imei: string;
   condition_status: ConditionStatus;
+  minus_severity: MinusSeverity | null;
   minus_description: string | null;
   selling_price: number | null;
   cost_price: number | null;
@@ -101,7 +109,9 @@ export interface StockUnit {
   sold_at: string | null;
   status_changed_at: string;
   received_at: string;
+  estimated_arrival_at: string | null;
   supplier: string | null;
+  supplier_id: string | null;
   batch_code: string | null;
   notes: string | null;
   created_at: string;

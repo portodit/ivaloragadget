@@ -29,15 +29,15 @@ export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
   // (role check happens after status check)
 
   if (status === "pending") {
-    return <Navigate to="/waiting-approval" replace />;
+    return <Navigate to="/admin/waiting-approval" replace />;
   }
 
   if (status === "suspended" || status === "rejected") {
-    return <Navigate to="/login" state={{ blocked: true, status }} replace />;
+    return <Navigate to="/admin/login" state={{ blocked: true, status }} replace />;
   }
 
   if (requireRole === "super_admin" && role !== "super_admin") {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   return <>{children}</>;

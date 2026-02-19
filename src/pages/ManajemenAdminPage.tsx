@@ -86,7 +86,7 @@ export default function ManajemenAdminPage() {
 
   // Redirect /manajemen-admin → /manajemen-admin/daftar
   useEffect(() => {
-    if (!tab) navigate("/manajemen-admin/daftar", { replace: true });
+    if (!tab) navigate("/admin/manajemen-admin/daftar", { replace: true });
   }, [tab, navigate]);
 
   const activeTab = tab === "approval" ? "approval" : "daftar";
@@ -108,7 +108,7 @@ export default function ManajemenAdminPage() {
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => navigate(`/manajemen-admin/${id}`)}
+              onClick={() => navigate(`/admin/manajemen-admin/${id}`)}
               className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150",
                 activeTab === id

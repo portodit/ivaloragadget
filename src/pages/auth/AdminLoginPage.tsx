@@ -86,7 +86,7 @@ export default function AdminLoginPage() {
     });
 
     if (status === "pending") {
-      navigate("/waiting-approval", { replace: true });
+      navigate("/admin/waiting-approval", { replace: true });
     } else if (status === "suspended") {
       await supabase.auth.signOut();
       setServerError("Akun Anda telah disuspend. Hubungi administrator.");
@@ -94,7 +94,7 @@ export default function AdminLoginPage() {
       await supabase.auth.signOut();
       setServerError("Akun Anda ditolak. Hubungi administrator.");
     } else {
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/";
+      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/admin/dashboard";
       navigate(from, { replace: true });
     }
   };

@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, ArrowRight, Check, Mail, ShoppingBag, RefreshCw, Clock } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseCustomer } from "@/integrations/supabase/customer-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

@@ -22,7 +22,7 @@ export default function WaitingApprovalPage() {
       if (data?.status === "active") {
         // Reload auth context by refreshing session
         await supabase.auth.refreshSession();
-        navigate("/", { replace: true });
+        navigate("/admin/dashboard", { replace: true });
       }
     };
     check();
