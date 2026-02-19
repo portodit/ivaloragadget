@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,6 +53,8 @@ interface CatalogProduct {
   promo_badge: string | null;
   free_shipping: boolean;
   is_flash_sale: boolean;
+  flash_sale_discount_type: string | null;
+  flash_sale_discount_value: number | null;
   discount_active: boolean;
   discount_type: string | null;
   discount_value: number | null;
@@ -128,6 +130,14 @@ const WARRANTY_SHORT: Record<string, string> = {
   digimap: "Digimap",
 };
 
+const WARRANTY_FRIENDLY: Record<string, string> = {
+  resmi_bc: "Tipe Resmi Bea Cukai",
+  ibox: "Tipe Resmi iBox Indonesia",
+  inter: "Tipe Internasional",
+  whitelist: "Tipe Whitelist Terdaftar",
+  digimap: "Tipe Resmi Digimap",
+};
+
 const USD_RATE = 15500;
 
 function useFormatPrice() {
@@ -191,6 +201,48 @@ function censorImei(imei: string): string {
   return imei.slice(0, 3) + "****" + imei.slice(-3);
 }
 
+// ── Discount helpers ──────────────────────────────────────────────────────────
+function calcDiscountedPrice(
+  originalPrice: number,
+  catalog: CatalogProduct,
+  flashSaleSettings: { is_active: boolean; start_time: string; duration_hours: number } | null
+): { finalPrice: number; discountLabel: string; hasDiscount: boolean } {
+  const now = Date.now();
+  
+  // Flash sale takes priority
+  if (catalog.is_flash_sale && flashSaleSettings?.is_active) {
+    const start = new Date(flashSaleSettings.start_time);
+    const end = new Date(start.getTime() + flashSaleSettings.duration_hours * 3600000);
+    if (start.getTime() <= now && end.getTime() > now) {
+      const fsType = catalog.flash_sale_discount_type || catalog.discount_type || "percentage";
+      const fsValue = catalog.flash_sale_discount_value ?? catalog.discount_value ?? 0;
+      if (fsValue > 0) {
+        const finalPrice = fsType === "percentage"
+          ? Math.round(originalPrice * (1 - fsValue / 100))
+          : Math.max(0, originalPrice - fsValue);
+        const discountLabel = fsType === "percentage" ? `-${fsValue}%` : `-Rp${fsValue.toLocaleString("id-ID")}`;
+        return { finalPrice, discountLabel, hasDiscount: finalPrice < originalPrice };
+      }
+    }
+  }
+
+  // Regular discount
+  const hasDiscount = catalog.discount_active && catalog.discount_value != null && catalog.discount_value > 0
+    && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
+    && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
+  if (hasDiscount) {
+    const finalPrice = catalog.discount_type === "percentage"
+      ? Math.round(originalPrice * (1 - catalog.discount_value! / 100))
+      : Math.max(0, originalPrice - catalog.discount_value!);
+    const discountLabel = catalog.discount_type === "percentage"
+      ? `-${catalog.discount_value}%`
+      : `-Rp${catalog.discount_value!.toLocaleString("id-ID")}`;
+    return { finalPrice, discountLabel, hasDiscount: finalPrice < originalPrice };
+  }
+
+  return { finalPrice: originalPrice, discountLabel: "", hasDiscount: false };
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -233,37 +285,37 @@ export default function ProductDetailPage() {
         .order("selling_price", { ascending: true });
       setUnits(stockData ?? []);
 
-      if (data.master_products) {
-        const { data: allCatalogs } = await db.from("catalog_products")
-          .select("id, product_id, slug, display_name, master_products(storage_gb, color, warranty_type, series)")
-          .eq("catalog_status", "published");
+      // Fetch siblings and flash sale settings in parallel
+      const sibPromise = data.master_products
+        ? db.from("catalog_products")
+            .select("id, product_id, slug, display_name, master_products(storage_gb, color, warranty_type, series)")
+            .eq("catalog_status", "published")
+        : Promise.resolve({ data: null });
 
-        if (allCatalogs) {
-          const sibs = allCatalogs.filter((c: SiblingCatalog) => {
-            const m = c.master_products;
-            return m.series === data.master_products.series;
-          });
-          setAllSiblings(sibs);
-        }
+      const fsPromise = data.is_flash_sale
+        ? db.from("flash_sale_settings").select("is_active, start_time, duration_hours").limit(1).single()
+        : Promise.resolve({ data: null });
+
+      const [sibResult, fsResult] = await Promise.all([sibPromise, fsPromise]);
+
+      if (sibResult.data) {
+        const sibs = sibResult.data.filter((c: SiblingCatalog) => {
+          const m = c.master_products;
+          return m.series === data.master_products.series;
+        });
+        setAllSiblings(sibs);
       }
 
-      if (data.is_flash_sale) {
-        const { data: fsData } = await db.from("flash_sale_settings")
-          .select("is_active, start_time, duration_hours")
-          .limit(1)
-          .single();
-        if (fsData) setFlashSaleSettings(fsData);
-      }
+      if (fsResult.data) setFlashSaleSettings(fsResult.data);
 
       setLoading(false);
     }
     if (slug) fetchData();
   }, [slug]);
 
-  // Countdown timer for discount end or flash sale end
+  // Countdown timer
   useEffect(() => {
     if (!catalog) return;
-    // Determine end time: flash sale end or discount end
     let endAt: string | null = null;
     if (catalog.is_flash_sale && flashSaleSettings?.is_active) {
       const start = new Date(flashSaleSettings.start_time);
@@ -317,7 +369,7 @@ export default function ProductDetailPage() {
           <Package className="w-16 h-16 text-muted-foreground/30" />
           <h1 className="text-2xl font-bold text-foreground">Produk tidak ditemukan</h1>
           <p className="text-muted-foreground max-w-sm">Produk ini mungkin sudah tidak tersedia atau URL tidak valid.</p>
-          <button onClick={() => navigate(-1)} className="text-sm font-medium text-foreground underline underline-offset-4">← Kembali</button>
+          <button onClick={() => navigate(-1)} className="text-sm font-medium text-foreground underline underline-offset-4">&larr; Kembali</button>
         </div>
       </div>
     );
@@ -331,6 +383,9 @@ export default function ProductDetailPage() {
   const maxPrice = units.length > 0 ? Math.max(...units.filter(u => u.selling_price).map(u => u.selling_price!)) : null;
   const outOfStock = units.length === 0;
 
+  // Compute discounted hero price
+  const heroDiscount = minPrice ? calcDiscountedPrice(minPrice, catalog, flashSaleSettings) : null;
+
   // ── Warranty type selectors
   const warrantyGroups = Array.from(
     new Map(allSiblings.map(s => [s.master_products.warranty_type, s])).entries()
@@ -341,7 +396,7 @@ export default function ProductDetailPage() {
   }
   warrantyGroups.sort((a, b) => a.warrantyType === master.warranty_type ? -1 : b.warrantyType === master.warranty_type ? 1 : 0);
 
-  // ── Color selectors
+  // ── Color selectors — always show
   const colorSiblings = allSiblings.filter(s => s.master_products.warranty_type === master.warranty_type);
   const uniqueColors = Array.from(new Set([master.color, ...colorSiblings.map(s => s.master_products.color)]));
 
@@ -349,8 +404,7 @@ export default function ProductDetailPage() {
   const storageSiblings = colorSiblings.filter(s => s.master_products.color === master.color);
   const uniqueStorages = Array.from(new Set([master.storage_gb, ...storageSiblings.map(s => s.master_products.storage_gb)])).sort((a, b) => a - b);
 
-  // Tabs should only show when product is fully specific (has specific color + storage selected)
-  const isFullySpecific = true; // The page always shows a specific product variant
+  const isFullySpecific = true;
 
   function getSlugForWarranty(warrantyType: string) {
     if (warrantyType === master.warranty_type) return null;
@@ -372,12 +426,10 @@ export default function ProductDetailPage() {
 
   function handleAddToCart() {
     if (outOfStock) return;
-    // Flash sale not started check
     if (catalog?.is_flash_sale && flashSaleSettings?.is_active && new Date(flashSaleSettings.start_time).getTime() > Date.now()) {
       setShowFlashSalePopup(true);
       return;
     }
-    // Pick the selected unit or cheapest
     const targetUnit = selectedUnitId ? units.find(u => u.id === selectedUnitId) : units[0];
     if (!targetUnit) return;
     const item: CartItem = {
@@ -401,6 +453,17 @@ export default function ProductDetailPage() {
     }
   }
 
+  function handleShare() {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: catalog.display_name, url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url).then(() => {
+        toast({ title: "Link disalin", description: "Link produk berhasil disalin ke clipboard" });
+      }).catch(() => {});
+    }
+  }
+
   // ── Specs table data
   const specsRows: { label: string; value: string | null | undefined }[] = [
     { label: "Stok", value: outOfStock ? "Habis" : String(units.length) },
@@ -421,11 +484,42 @@ export default function ProductDetailPage() {
 
   const tabs = [
     { key: "detail", label: "Detail Produk" },
-    { key: "kondisi", label: `Kondisi Unit${minusUnits.length > 0 ? ` (${minusUnits.length} minus)` : ""}` },
+    { key: "kondisi", label: `Kondisi Unit (${units.length})` },
     { key: "rating", label: `Penilaian (${catalog.rating_count ?? 0})` },
     { key: "garansi", label: "Informasi Garansi" },
     { key: "pengiriman", label: "Pengiriman" },
   ] as const;
+
+  // Badge components
+  const badges = [];
+  if (catalog.is_flash_sale) {
+    badges.push(
+      <span key="flash" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground shadow-sm whitespace-nowrap">
+        <Zap className="w-3.5 h-3.5 shrink-0" /> Flash Sale
+      </span>
+    );
+  }
+  if (catalog.discount_active && catalog.discount_value && !catalog.is_flash_sale) {
+    badges.push(
+      <span key="disc" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground shadow-sm whitespace-nowrap">
+        <Tag className="w-3.5 h-3.5 shrink-0" /> Diskon {catalog.discount_type === "percentage" ? `${catalog.discount_value}%` : `Rp${catalog.discount_value.toLocaleString("id-ID")}`}
+      </span>
+    );
+  }
+  if (catalog.free_shipping) {
+    badges.push(
+      <span key="ship" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-green-500 text-white shadow-sm whitespace-nowrap">
+        <Truck className="w-3.5 h-3.5 shrink-0" /> Gratis Ongkir
+      </span>
+    );
+  }
+  if (catalog.highlight_product) {
+    badges.push(
+      <span key="high" className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm whitespace-nowrap">
+        <Star className="w-3.5 h-3.5 fill-current shrink-0" /> Unggulan
+      </span>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -456,28 +550,6 @@ export default function ProductDetailPage() {
                     <span className="text-sm">Belum ada foto</span>
                   </div>
                 )}
-                <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
-                  {catalog.is_flash_sale && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground shadow-sm whitespace-nowrap">
-                      <Zap className="w-3.5 h-3.5 shrink-0" /> Flash Sale
-                    </span>
-                  )}
-                  {catalog.free_shipping && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-green-500 text-white shadow-sm whitespace-nowrap">
-                      <Truck className="w-3.5 h-3.5 shrink-0" /> Gratis Ongkir
-                    </span>
-                  )}
-                  {catalog.highlight_product && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm whitespace-nowrap">
-                      <Star className="w-3.5 h-3.5 fill-current shrink-0" /> Unggulan
-                    </span>
-                  )}
-                  {catalog.discount_active && catalog.discount_value && !catalog.is_flash_sale && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground shadow-sm whitespace-nowrap">
-                      <Tag className="w-3.5 h-3.5 shrink-0" /> Diskon {catalog.discount_type === "percentage" ? `${catalog.discount_value}%` : `Rp${catalog.discount_value.toLocaleString("id-ID")}`}
-                    </span>
-                  )}
-                </div>
                 {outOfStock && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <div className="text-center">
@@ -502,6 +574,11 @@ export default function ProductDetailPage() {
 
             {/* MIDDLE — Info */}
             <div className="space-y-4">
+              {/* Badges — horizontal row above title */}
+              {badges.length > 0 && (
+                <div className="flex flex-wrap gap-2">{badges}</div>
+              )}
+
               {/* Product name */}
               <h1 className="text-xl font-bold text-foreground leading-tight">{catalog.display_name}</h1>
 
@@ -510,47 +587,39 @@ export default function ProductDetailPage() {
                 <StarRating score={catalog.rating_score ?? 0} count={catalog.rating_count ?? 0} />
               </div>
 
-              {/* Price */}
+              {/* Price — always show original + discount info */}
               {(() => {
-                const now = Date.now();
-                const hasDiscount = catalog.discount_active && catalog.discount_value && catalog.discount_value > 0
-                  && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
-                  && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
-                const discountedMin = hasDiscount && minPrice
-                  ? catalog.discount_type === "percentage"
-                    ? Math.round(minPrice * (1 - catalog.discount_value! / 100))
-                    : Math.max(0, minPrice - catalog.discount_value!)
-                  : null;
+                if (outOfStock) {
+                  return <div className="text-2xl font-bold text-muted-foreground">Stok Habis</div>;
+                }
+                if (heroDiscount?.hasDiscount) {
+                  return (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-base text-muted-foreground line-through">{formatRupiah(minPrice)}</p>
+                        <span className="text-xs font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-md">{heroDiscount.discountLabel}</span>
+                      </div>
+                      <div className="text-3xl font-bold text-destructive">{formatRupiah(heroDiscount.finalPrice)}</div>
+                      {countdownStr && countdownStr !== "Berakhir" && (
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Berakhir dalam {countdownStr}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
                 return (
                   <div className="space-y-1">
-                    {outOfStock ? (
-                      <div className="text-2xl font-bold text-muted-foreground">Stok Habis</div>
-                    ) : (
-                      <>
-                        {hasDiscount && discountedMin !== null ? (
-                          <>
-                            <p className="text-base text-muted-foreground line-through">{formatRupiah(minPrice)}</p>
-                            <div className="text-3xl font-bold text-destructive">{formatRupiah(discountedMin)}</div>
-                            {countdownStr && (
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>Berakhir dalam {countdownStr}</span>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <div className="text-3xl font-bold text-foreground">{formatRupiah(minPrice)}</div>
-                        )}
-                        {maxPrice && maxPrice !== minPrice && (
-                          <p className="text-sm text-muted-foreground">s/d {formatRupiah(maxPrice)} tergantung kondisi unit</p>
-                        )}
-                      </>
+                    <div className="text-3xl font-bold text-foreground">{formatRupiah(minPrice)}</div>
+                    {maxPrice && maxPrice !== minPrice && (
+                      <p className="text-sm text-muted-foreground">s/d {formatRupiah(maxPrice)} tergantung kondisi unit</p>
                     )}
                   </div>
                 );
               })()}
 
-              {/* ① Pilih Tipe Garansi — DROPDOWN below price */}
+              {/* ① Pilih Tipe Garansi — DROPDOWN */}
               {warrantyGroups.length > 1 ? (
                 <div className="space-y-1.5">
                   <p className="text-sm font-medium text-foreground">Tipe Garansi</p>
@@ -567,7 +636,7 @@ export default function ProductDetailPage() {
                     <SelectContent>
                       {warrantyGroups.map(({ warrantyType }) => (
                         <SelectItem key={warrantyType} value={warrantyType}>
-                          {WARRANTY_LABELS[warrantyType] ?? warrantyType}
+                          {WARRANTY_FRIENDLY[warrantyType] ?? WARRANTY_LABELS[warrantyType] ?? warrantyType}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -586,31 +655,29 @@ export default function ProductDetailPage() {
                 </div>
               )}
 
-              {/* ② Pilih Warna */}
-              {uniqueColors.length > 1 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-foreground">
-                    Pilih warna: <span className="text-muted-foreground font-normal">{master.color}</span>
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {uniqueColors.map(color => {
-                      const isCurrent = color === master.color;
-                      const targetSlug = getSlugForColor(color);
-                      return (
-                        <button key={color}
-                          onClick={() => targetSlug && navigate(`/produk/${targetSlug}`)}
-                          disabled={!targetSlug && !isCurrent}
-                          className={cn("px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
-                            isCurrent ? "border-foreground bg-foreground text-background"
-                              : targetSlug ? "border-border text-foreground hover:border-foreground/60 bg-background"
-                              : "border-border text-muted-foreground/40 bg-muted/20 cursor-not-allowed line-through")}>
-                          {color}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {/* ② Pilih Warna — always show */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">
+                  Pilih warna: <span className="text-muted-foreground font-normal">{master.color}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueColors.map(color => {
+                    const isCurrent = color === master.color;
+                    const targetSlug = getSlugForColor(color);
+                    return (
+                      <button key={color}
+                        onClick={() => targetSlug && navigate(`/produk/${targetSlug}`)}
+                        disabled={!targetSlug && !isCurrent}
+                        className={cn("px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
+                          isCurrent ? "border-foreground bg-foreground text-background"
+                            : targetSlug ? "border-border text-foreground hover:border-foreground/60 bg-background"
+                            : "border-border text-muted-foreground/40 bg-muted/20 cursor-not-allowed line-through")}>
+                        {color}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
 
               {/* ③ Pilih Kapasitas */}
               {uniqueStorages.length > 1 && (
@@ -715,7 +782,25 @@ export default function ProductDetailPage() {
                   }
                   return null;
                 })()}
-                <div className="text-xl font-bold text-foreground">{formatRupiah(selectedUnitId ? units.find(u => u.id === selectedUnitId)?.selling_price : minPrice)}</div>
+                {/* Purchase price with discount */}
+                {(() => {
+                  const selUnit = selectedUnitId ? units.find(u => u.id === selectedUnitId) : units[0];
+                  const selPrice = selUnit?.selling_price ?? minPrice;
+                  if (!selPrice) return <div className="text-xl font-bold text-foreground">—</div>;
+                  const disc = calcDiscountedPrice(selPrice, catalog, flashSaleSettings);
+                  if (disc.hasDiscount) {
+                    return (
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground line-through">{formatRupiah(selPrice)}</span>
+                          <span className="text-xs font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">{disc.discountLabel}</span>
+                        </div>
+                        <div className="text-xl font-bold text-destructive">{formatRupiah(disc.finalPrice)}</div>
+                      </div>
+                    );
+                  }
+                  return <div className="text-xl font-bold text-foreground">{formatRupiah(selPrice)}</div>;
+                })()}
                 <div className="space-y-2">
                   <button
                     onClick={handleAddToCart}
@@ -753,14 +838,18 @@ export default function ProductDetailPage() {
                       const selectedUnit = selectedUnitId ? units.find(u => u.id === selectedUnitId) : units[0];
                       const imeiLast4 = selectedUnit ? selectedUnit.imei.slice(-4) : "****";
                       const conditionText = selectedUnit?.condition_status === "minus" ? "minus" : "no minus";
-                      const msg = `${greeting} Admin Ivalora Gadget\n\nSaya ingin bertanya tentang unit:\n*${catalog.display_name}*\nWarna: ${master.color}\nKapasitas: ${storageLabel(master.storage_gb)}\nKondisi: ${conditionText}\nIMEI (4 digit terakhir): ${imeiLast4}\n\nApakah unit ini masih tersedia? Terima kasih!`;
-                      window.open(`https://wa.me/6285890024760?text=${encodeURIComponent(msg)}`, "_blank");
+                      const msg = `${greeting} Admin Ivalora Gadget\n\nSaya ingin bertanya tentang unit:\n\n*${catalog.display_name}*\nWarna: ${master.color}\nKapasitas: ${storageLabel(master.storage_gb)}\nKondisi: ${conditionText}\nIMEI (4 digit terakhir): ${imeiLast4}\n\nApakah unit ini masih tersedia? Terima kasih!`;
+                      const encoded = encodeURIComponent(msg);
+                      window.open(`https://wa.me/6285123456789?text=${encoded}`, "_blank");
                     }}
-                    className="flex items-center gap-1 hover:text-foreground transition-colors"
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors"
                   >
                     <MessageCircle className="w-4 h-4" /> Chat Admin
                   </button>
-                  <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                  <button
+                    onClick={handleShare}
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+                  >
                     <Share2 className="w-4 h-4" /> Bagikan
                   </button>
                 </div>
@@ -768,32 +857,10 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* ── Bonus Section ── */}
-          {catalog.bonus_items.length > 0 && (
-            <div className="py-6 border-t border-border">
-              <h2 className="text-base font-bold text-foreground mb-3">🎁 Yang Anda Dapatkan dalam Paket Pembelian</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-                {catalog.bonus_items.map((b, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-muted/20">
-                    <div className="w-8 h-8 rounded-lg bg-foreground/5 flex items-center justify-center shrink-0">
-                      <Package className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground">Hadiah · Free Gift</p>
-                      <p className="text-sm font-semibold text-foreground mt-0.5">Variasi: {b.name}</p>
-                      {b.description && <p className="text-xs text-muted-foreground mt-0.5">{b.description}</p>}
-                      <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 mt-1">Included · 1</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Value Proposition ── */}
+          {/* Why Ivalora section */}
           <div className="py-6 border-t border-border">
-            <h2 className="text-base font-bold text-foreground mb-4">Kenapa Memilih Ivalora?</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <h2 className="text-base font-bold text-foreground mb-3">Kenapa Memilih Ivalora?</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {[
                 { icon: Shield, label: "IMEI Aman & Terdaftar" },
                 { icon: CheckCircle2, label: "QC 30+ Checkpoint" },
@@ -810,7 +877,7 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* ── TABS — show always since product is specific ── */}
+          {/* ── TABS ── */}
           {isFullySpecific && (
             <div className="border-t border-border">
               <div className="flex overflow-x-auto border-b border-border -mb-px scrollbar-hide w-full">
@@ -836,7 +903,7 @@ export default function ProductDetailPage() {
                   </div>
                 )}
 
-                {/* TAB: Kondisi Unit — detailed unit cards with discount */}
+                {/* TAB: Kondisi Unit */}
                 {activeTab === "kondisi" && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-2">
@@ -856,17 +923,14 @@ export default function ProductDetailPage() {
 
                     {/* Flash sale / discount info banner */}
                     {(() => {
-                      const now = Date.now();
-                      const hasDiscount = catalog.discount_active && catalog.discount_value && catalog.discount_value > 0
-                        && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
-                        && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
                       const hasFlash = catalog.is_flash_sale && flashSaleSettings?.is_active;
-                      if (!hasDiscount && !hasFlash) return null;
+                      const hasDisc = heroDiscount?.hasDiscount;
+                      if (!hasDisc && !hasFlash) return null;
                       return (
                         <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-200 bg-amber-50 text-sm">
                           <Tag className="w-4 h-4 text-amber-600 shrink-0" />
                           <span className="text-amber-800 font-medium">
-                            {hasFlash ? "Flash Sale aktif — harga di bawah sudah termasuk potongan." : "Diskon aktif — harga di bawah sudah termasuk potongan."}
+                            {hasFlash ? "Flash Sale aktif" : "Diskon aktif"} — harga di bawah sudah termasuk potongan {heroDiscount?.discountLabel ? `(${heroDiscount.discountLabel})` : ""}.
                           </span>
                           {countdownStr && countdownStr !== "Berakhir" && (
                             <span className="ml-auto text-xs text-amber-600 font-semibold whitespace-nowrap flex items-center gap-1">
@@ -877,48 +941,35 @@ export default function ProductDetailPage() {
                       );
                     })()}
 
-                    {/* No minus units — detailed cards */}
+                    {/* No minus units */}
                     {noMinusUnits.length > 0 && (
                       <div>
                         <p className="text-sm font-semibold text-foreground mb-2">Unit No Minus ({noMinusUnits.length} unit)</p>
                         <div className="space-y-2">
                           {noMinusUnits.map((unit) => {
-                            const now = Date.now();
-                            const hasDiscount = catalog.discount_active && catalog.discount_value && catalog.discount_value > 0
-                              && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
-                              && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
                             const originalPrice = unit.selling_price ?? 0;
-                            let discountedPrice = originalPrice;
-                            if (hasDiscount && originalPrice > 0) {
-                              discountedPrice = catalog.discount_type === "percentage"
-                                ? Math.round(originalPrice * (1 - catalog.discount_value! / 100))
-                                : Math.max(0, originalPrice - catalog.discount_value!);
-                            }
-                            const showStrike = hasDiscount && discountedPrice < originalPrice;
+                            const disc = calcDiscountedPrice(originalPrice, catalog, flashSaleSettings);
                             return (
                               <div key={unit.id} className="p-4 rounded-xl border border-green-200 bg-green-50">
                                 <div className="flex items-center justify-between mb-1.5">
                                   <div className="flex items-center gap-2">
                                     <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                                    <span className="text-sm font-semibold text-green-800">
-                                      {master.series} {master.color} {storageLabel(master.storage_gb)} — No Minus
-                                    </span>
+                                    <span className="text-sm font-semibold text-green-800">No Minus</span>
                                   </div>
                                   <div className="text-right">
-                                    {showStrike ? (
-                                      <>
-                                        <span className="text-xs text-muted-foreground line-through mr-2">{formatRupiah(originalPrice)}</span>
-                                        <span className="text-sm font-bold text-destructive">{formatRupiah(discountedPrice)}</span>
-                                      </>
+                                    {disc.hasDiscount ? (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground line-through">{formatRupiah(originalPrice)}</span>
+                                        <span className="text-xs font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">{disc.discountLabel}</span>
+                                        <span className="text-sm font-bold text-destructive">{formatRupiah(disc.finalPrice)}</span>
+                                      </div>
                                     ) : (
                                       <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
                                     )}
                                   </div>
                                 </div>
                                 <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
-                                <p className="text-xs text-green-700">
-                                  ✅ Barang dalam kondisi prima — telah melewati quality control 30+ checkpoint. Siap digunakan tanpa kendala.
-                                </p>
+                                <p className="text-xs text-green-700">Barang dalam kondisi prima — telah melewati quality control 30+ checkpoint.</p>
                               </div>
                             );
                           })}
@@ -926,39 +977,30 @@ export default function ProductDetailPage() {
                       </div>
                     )}
 
-                    {/* Minus units — detailed cards */}
+                    {/* Minus units */}
                     {minusUnits.length > 0 && (
                       <div>
                         <p className="text-sm font-semibold text-foreground mb-2">Unit Ada Minus ({minusUnits.length} unit)</p>
                         <div className="space-y-2">
                           {minusUnits.map((unit) => {
-                            const now = Date.now();
-                            const hasDiscount = catalog.discount_active && catalog.discount_value && catalog.discount_value > 0
-                              && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
-                              && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
                             const originalPrice = unit.selling_price ?? 0;
-                            let discountedPrice = originalPrice;
-                            if (hasDiscount && originalPrice > 0) {
-                              discountedPrice = catalog.discount_type === "percentage"
-                                ? Math.round(originalPrice * (1 - catalog.discount_value! / 100))
-                                : Math.max(0, originalPrice - catalog.discount_value!);
-                            }
-                            const showStrike = hasDiscount && discountedPrice < originalPrice;
+                            const disc = calcDiscountedPrice(originalPrice, catalog, flashSaleSettings);
                             return (
                               <div key={unit.id} className="p-4 rounded-xl border border-orange-200 bg-orange-50">
                                 <div className="flex items-center justify-between mb-1.5">
                                   <div className="flex items-center gap-2">
                                     <AlertCircle className="w-4 h-4 text-orange-600 shrink-0" />
                                     <span className="text-sm font-semibold text-orange-800">
-                                      {master.series} {master.color} {storageLabel(master.storage_gb)} — Minus {unit.minus_severity === "minor" ? "Minor" : unit.minus_severity === "mayor" ? "Mayor" : ""}
+                                      Minus {unit.minus_severity === "minor" ? "Minor" : unit.minus_severity === "mayor" ? "Mayor" : ""}
                                     </span>
                                   </div>
                                   <div className="text-right">
-                                    {showStrike ? (
-                                      <>
-                                        <span className="text-xs text-muted-foreground line-through mr-2">{formatRupiah(originalPrice)}</span>
-                                        <span className="text-sm font-bold text-destructive">{formatRupiah(discountedPrice)}</span>
-                                      </>
+                                    {disc.hasDiscount ? (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground line-through">{formatRupiah(originalPrice)}</span>
+                                        <span className="text-xs font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">{disc.discountLabel}</span>
+                                        <span className="text-sm font-bold text-destructive">{formatRupiah(disc.finalPrice)}</span>
+                                      </div>
                                     ) : (
                                       <span className="text-sm font-bold text-foreground">{formatRupiah(unit.selling_price)}</span>
                                     )}
@@ -966,9 +1008,9 @@ export default function ProductDetailPage() {
                                 </div>
                                 <p className="text-xs text-muted-foreground font-mono mb-1.5">IMEI: {censorImei(unit.imei)}</p>
                                 {unit.minus_description ? (
-                                  <p className="text-xs text-orange-700">⚠️ {unit.minus_description}</p>
+                                  <p className="text-xs text-orange-700">Keterangan: {unit.minus_description}</p>
                                 ) : (
-                                  <p className="text-xs text-orange-700">⚠️ Terdapat minus pada unit ini. Hubungi admin untuk detail lebih lanjut.</p>
+                                  <p className="text-xs text-orange-700">Terdapat minus pada unit ini. Hubungi admin untuk detail lebih lanjut.</p>
                                 )}
                               </div>
                             );
@@ -1022,20 +1064,20 @@ export default function ProductDetailPage() {
                 {activeTab === "garansi" && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 rounded-xl border border-border">
-                      <p className="text-sm font-semibold text-foreground mb-2">✅ Termasuk dalam Garansi</p>
+                      <p className="text-sm font-semibold text-foreground mb-2">Termasuk dalam Garansi</p>
                       <ul className="space-y-1 text-sm text-muted-foreground">
-                        <li>• Garansi toko 30 hari mesin</li>
-                        <li>• IMEI lifetime aktif terdaftar</li>
-                        <li>• {WARRANTY_LABELS[master.warranty_type] ?? master.warranty_type}</li>
-                        {catalog.spec_warranty_duration && <li>• Masa garansi: {catalog.spec_warranty_duration}</li>}
+                        <li>Garansi toko 30 hari mesin</li>
+                        <li>IMEI lifetime aktif terdaftar</li>
+                        <li>{WARRANTY_LABELS[master.warranty_type] ?? master.warranty_type}</li>
+                        {catalog.spec_warranty_duration && <li>Masa garansi: {catalog.spec_warranty_duration}</li>}
                       </ul>
                     </div>
                     <div className="p-4 rounded-xl border border-border">
-                      <p className="text-sm font-semibold text-foreground mb-2">❌ Tidak Termasuk</p>
+                      <p className="text-sm font-semibold text-foreground mb-2">Tidak Termasuk</p>
                       <ul className="space-y-1 text-sm text-muted-foreground">
-                        <li>• Kerusakan akibat jatuh/benturan</li>
-                        <li>• Kerusakan akibat air/cairan</li>
-                        <li>• Human error</li>
+                        <li>Kerusakan akibat jatuh/benturan</li>
+                        <li>Kerusakan akibat air/cairan</li>
+                        <li>Human error</li>
                       </ul>
                     </div>
                   </div>
