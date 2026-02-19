@@ -379,7 +379,7 @@ export default function LandingPage() {
             });
           }
         }
-        setFeaturedVariants(variants.slice(0, 8));
+        setFeaturedVariants(variants.slice(0, 4));
         setDataLoaded(true);
       }
     })();
@@ -673,9 +673,9 @@ export default function LandingPage() {
               {t("Semua Produk", "All Products")} <ChevronRight className="w-3.5 h-3.5" />
             </Button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-2">
             {!dataLoaded
-              ? Array.from({ length: 8 }).map((_, i) => (
+              ? Array.from({ length: 4 }).map((_, i) => (
                   <SkeletonCard key={i} />
                 ))
               : featuredVariants.length > 0
@@ -978,18 +978,20 @@ function FeaturedVariantCard({
   return (
     <div
       onClick={() => navigate(href)}
-      className="border border-border rounded-2xl overflow-hidden bg-card hover:shadow-lg transition-all duration-200 cursor-pointer group h-full flex flex-col"
+      className="bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-all group flex flex-col cursor-pointer"
     >
-      <div className="relative bg-secondary/30 h-44 flex items-center justify-center overflow-hidden">
+      {/* Image — same aspect-square as ShopPage cards */}
+      <div className="relative aspect-square bg-muted/40 flex items-center justify-center overflow-hidden">
         {variant.catalogThumbnail ? (
           <img
             src={variant.catalogThumbnail}
             alt={label}
-            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-contain p-2"
           />
         ) : (
-          <div className="w-16 h-16 rounded-2xl bg-foreground/10 flex items-center justify-center">
-            <ShoppingBag className="w-8 h-8 text-foreground/20" />
+          <div className="flex flex-col items-center gap-1 text-muted-foreground/30">
+            <ShoppingBag className="w-8 h-8" />
+            <span className="text-[10px]">Belum ada foto</span>
           </div>
         )}
       </div>
