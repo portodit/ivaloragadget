@@ -122,7 +122,9 @@ export type Database = {
       catalog_products: {
         Row: {
           bonus_items: Json | null
+          catalog_series: string | null
           catalog_status: Database["public"]["Enums"]["catalog_status"]
+          catalog_warranty_type: string | null
           created_at: string
           created_by: string | null
           discount_active: boolean | null
@@ -141,7 +143,7 @@ export type Database = {
           is_flash_sale: boolean
           override_display_price: number | null
           price_strategy: Database["public"]["Enums"]["price_strategy"]
-          product_id: string
+          product_id: string | null
           promo_badge: string | null
           promo_label: string | null
           publish_to_marketplace: boolean
@@ -172,7 +174,9 @@ export type Database = {
         }
         Insert: {
           bonus_items?: Json | null
+          catalog_series?: string | null
           catalog_status?: Database["public"]["Enums"]["catalog_status"]
+          catalog_warranty_type?: string | null
           created_at?: string
           created_by?: string | null
           discount_active?: boolean | null
@@ -191,7 +195,7 @@ export type Database = {
           is_flash_sale?: boolean
           override_display_price?: number | null
           price_strategy?: Database["public"]["Enums"]["price_strategy"]
-          product_id: string
+          product_id?: string | null
           promo_badge?: string | null
           promo_label?: string | null
           publish_to_marketplace?: boolean
@@ -222,7 +226,9 @@ export type Database = {
         }
         Update: {
           bonus_items?: Json | null
+          catalog_series?: string | null
           catalog_status?: Database["public"]["Enums"]["catalog_status"]
+          catalog_warranty_type?: string | null
           created_at?: string
           created_by?: string | null
           discount_active?: boolean | null
@@ -241,7 +247,7 @@ export type Database = {
           is_flash_sale?: boolean
           override_display_price?: number | null
           price_strategy?: Database["public"]["Enums"]["price_strategy"]
-          product_id?: string
+          product_id?: string | null
           promo_badge?: string | null
           promo_label?: string | null
           publish_to_marketplace?: boolean
