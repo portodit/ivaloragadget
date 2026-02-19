@@ -12,26 +12,32 @@ import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import { useLocale } from "@/contexts/LocaleContext";
 import logoFull from "@/assets/logo-full.svg";
 
-const schema = z.object({
+function useT() {
+  const { lang } = useLocale();
+  return (id: string, en: string) => lang === "en" ? en : id;
+}
+
+const schemaId = z.object({
   full_name: z.string().min(2, "Nama minimal 2 karakter").max(100),
   email: z.string().email("Email tidak valid").max(255),
-  password: z
-    .string()
-    .min(8, "Password minimal 8 karakter")
-    .regex(/[A-Z]/, "Harus mengandung huruf kapital")
-    .regex(/[0-9]/, "Harus mengandung angka"),
+  password: z.string().min(8, "Password minimal 8 karakter").regex(/[A-Z]/, "Harus mengandung huruf kapital").regex(/[0-9]/, "Harus mengandung angka"),
   confirm_password: z.string(),
-}).refine((d) => d.password === d.confirm_password, {
-  message: "Password tidak cocok",
-  path: ["confirm_password"],
-});
+}).refine((d) => d.password === d.confirm_password, { message: "Password tidak cocok", path: ["confirm_password"] });
 
-type FormData = z.infer<typeof schema>;
+const schemaEn = z.object({
+  full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  email: z.string().email("Invalid email address").max(255),
+  password: z.string().min(8, "Password must be at least 8 characters").regex(/[A-Z]/, "Must contain an uppercase letter").regex(/[0-9]/, "Must contain a number"),
+  confirm_password: z.string(),
+}).refine((d) => d.password === d.confirm_password, { message: "Passwords do not match", path: ["confirm_password"] });
+
+type FormData = z.infer<typeof schemaId>;
 
 const RESEND_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 export default function CustomerRegisterPage() {
   const { lang } = useLocale();
+  const t = useT();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -43,7 +49,7 @@ export default function CustomerRegisterPage() {
   const [lastResendAt, setLastResendAt] = useState<Date | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(lang === "en" ? schemaEn : schemaId),
   });
 
   const onSubmit = async (data: FormData) => {
@@ -60,7 +66,7 @@ export default function CustomerRegisterPage() {
 
     if (error) {
       if (error.message.includes("already registered")) {
-        setServerError("Email ini sudah terdaftar.");
+        setServerError(t("Email ini sudah terdaftar.", "This email is already registered."));
       } else {
         setServerError(error.message);
       }
@@ -81,8 +87,8 @@ export default function CustomerRegisterPage() {
     if (diffMs <= 0) return null;
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    if (hours > 0) return `${hours} jam ${minutes} menit`;
-    return `${minutes} menit`;
+    if (hours > 0) return lang === "en" ? `${hours} hours ${minutes} minutes` : `${hours} jam ${minutes} menit`;
+    return lang === "en" ? `${minutes} minutes` : `${minutes} menit`;
   };
 
   const handleResend = async () => {
@@ -104,8 +110,10 @@ export default function CustomerRegisterPage() {
         const remainingMs = RESEND_COOLDOWN_MS - elapsed;
         const hours = Math.floor(remainingMs / (1000 * 60 * 60));
         const minutes = Math.ceil((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-        const timeStr = hours > 0 ? `${hours} jam ${minutes} menit` : `${minutes} menit`;
-        setResendError(`Pengiriman ulang dibatasi. Coba lagi dalam ${timeStr}.`);
+        const timeStr = hours > 0 
+          ? (lang === "en" ? `${hours} hours ${minutes} minutes` : `${hours} jam ${minutes} menit`)
+          : (lang === "en" ? `${minutes} minutes` : `${minutes} menit`);
+        setResendError(t(`Pengiriman ulang dibatasi. Coba lagi dalam ${timeStr}.`, `Resend limit reached. Try again in ${timeStr}.`));
         setLastResendAt(dbLastResend);
         setResending(false);
         return;
@@ -217,27 +225,27 @@ export default function CustomerRegisterPage() {
             <div className="w-14 h-14 rounded-2xl bg-foreground/5 border border-border flex items-center justify-center mx-auto">
               <ShoppingBag className="w-7 h-7 text-foreground" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Buat akun baru</h1>
-            <p className="text-sm text-muted-foreground">Daftar gratis dan mulai berbelanja di Ivalora</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{t("Buat akun baru", "Create an account")}</h1>
+            <p className="text-sm text-muted-foreground">{t("Daftar gratis dan mulai berbelanja di Ivalora", "Sign up for free and start shopping at Ivalora")}</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Nama Lengkap</Label>
-              <Input placeholder="Masukkan nama lengkap" {...register("full_name")} className="h-11" />
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("Nama Lengkap", "Full Name")}</Label>
+              <Input placeholder={t("Masukkan nama lengkap", "Enter your full name")} {...register("full_name")} className="h-11" />
               {errors.full_name && <p className="text-xs text-destructive">{errors.full_name.message}</p>}
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Email</Label>
-              <Input type="email" placeholder="Masukkan email" {...register("email")} className="h-11" />
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("Email", "Email")}</Label>
+              <Input type="email" placeholder={t("Masukkan email", "Enter your email")} {...register("email")} className="h-11" />
               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Password</Label>
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("Password", "Password")}</Label>
               <div className="relative">
-                <Input type={showPassword ? "text" : "password"} placeholder="Min. 8 karakter, ada huruf kapital & angka" {...register("password")} className="h-11 pr-10" />
+                <Input type={showPassword ? "text" : "password"} placeholder={t("Min. 8 karakter, ada huruf kapital & angka", "Min. 8 chars, uppercase & number required")} {...register("password")} className="h-11 pr-10" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -246,9 +254,9 @@ export default function CustomerRegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Konfirmasi Password</Label>
+              <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("Konfirmasi Password", "Confirm Password")}</Label>
               <div className="relative">
-                <Input type={showConfirm ? "text" : "password"} placeholder="Ulangi password" {...register("confirm_password")} className="h-11 pr-10" />
+                <Input type={showConfirm ? "text" : "password"} placeholder={t("Ulangi password", "Repeat your password")} {...register("confirm_password")} className="h-11 pr-10" />
                 <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -263,14 +271,14 @@ export default function CustomerRegisterPage() {
             <Button type="submit" className="w-full h-11 gap-2 font-semibold mt-1" disabled={isSubmitting}>
               {isSubmitting ? (
                 <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              ) : (<>Daftar <ArrowRight className="w-4 h-4" /></>)}
+              ) : (<>{t("Daftar", "Sign Up")} <ArrowRight className="w-4 h-4" /></>)}
             </Button>
           </form>
 
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
-              Sudah punya akun?{" "}
-              <Link to="/login" className="font-semibold text-foreground hover:underline underline-offset-4">Masuk</Link>
+              {t("Sudah punya akun?", "Already have an account?")}{" "}
+              <Link to="/login" className="font-semibold text-foreground hover:underline underline-offset-4">{t("Masuk", "Sign In")}</Link>
             </p>
           </div>
         </div>

@@ -170,7 +170,7 @@ function CountdownBlock({ val, label }: { val: number; label: string }) {
       >
         {String(val).padStart(2, "0")}
       </div>
-      <span className="text-[9px] mt-1 uppercase tracking-widest" style={{ color: "hsl(0 0% 40%)" }}>
+      <span className="text-[9px] mt-1 uppercase tracking-widest text-white/60">
         {label}
       </span>
     </div>
@@ -376,7 +376,7 @@ export default function LandingPage() {
                   {t("iPhone Resmi Surabaya.", "Official iPhone Surabaya.")}
                 </span>
               </h1>
-              <p className="text-base md:text-lg leading-relaxed max-w-md" style={{ color: "hsl(0 0% 58%)" }}>
+              <p className="text-base md:text-lg leading-relaxed max-w-md text-white/80">
                 {t(
                   "Unit bergaransi, IMEI terdaftar, kondisi transparan. Ribuan pelanggan sudah mempercayakan pembelian iPhone mereka ke Ivalora.",
                   "Warranted units, registered IMEI, transparent condition. Thousands of customers have trusted Ivalora for their iPhone purchases."
@@ -418,7 +418,7 @@ export default function LandingPage() {
                       <AnimatedCounter target={stat.target} suffix={stat.suffix} />
                     )}
                   </p>
-                  <p className="text-xs sm:text-sm mt-1.5 font-medium" style={{ color: "hsl(0 0% 55%)" }}>{stat.label}</p>
+                  <p className="text-xs sm:text-sm mt-1.5 font-medium text-white">{stat.label}</p>
                 </div>
               ))}
             </div>
@@ -525,12 +525,12 @@ export default function LandingPage() {
                 <h2 className="text-2xl md:text-3xl font-bold text-white mt-2">
                   {t("Penawaran Terbatas, ", "Limited Offer, ")}<span style={{ color: "hsl(38 92% 55%)" }}>{t("Stok Cepat Habis.", "Selling Fast.")}</span>
                 </h2>
-                <p className="text-sm" style={{ color: "hsl(0 0% 45%)" }}>
+                <p className="text-sm text-white/70">
                   {t(`Harga spesial berlaku selama ${flashSale?.duration_hours ?? 6} jam`, `Special prices valid for ${flashSale?.duration_hours ?? 6} hours`)}
                 </p>
               </div>
               <div className="flex flex-col items-start sm:items-end gap-2">
-                <p className="text-xs uppercase tracking-widest" style={{ color: "hsl(0 0% 40%)" }}>{t("Berakhir dalam", "Ends in")}</p>
+                <p className="text-xs uppercase tracking-widest text-white/70">{t("Berakhir dalam", "Ends in")}:</p>
                 <div className="flex items-center gap-2">
                   <CountdownBlock val={h} label={t("Jam", "Hr")} />
                   <span className="text-2xl font-bold pb-4" style={{ color: "hsl(38 92% 50%)" }}>:</span>
@@ -542,12 +542,16 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
             {(flashSaleProducts.length ? flashSaleProducts : highlight.length ? highlight : products.slice(0, 4)).map((p) => (
-              <ProductCard key={p.id} product={p} isFlashSale stockPrices={stockPrices} formatPrice={formatPrice} />
+              <div key={p.id} className="min-w-[220px] max-w-[260px] shrink-0">
+                <ProductCard product={p} isFlashSale stockPrices={stockPrices} formatPrice={formatPrice} />
+              </div>
             ))}
             {flashSaleProducts.length === 0 && highlight.length === 0 && products.length === 0 &&
-              Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="min-w-[220px] max-w-[260px] shrink-0"><SkeletonCard /></div>
+              ))
             }
           </div>
 
