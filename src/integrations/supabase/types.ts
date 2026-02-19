@@ -88,10 +88,12 @@ export type Database = {
       }
       catalog_products: {
         Row: {
+          bonus_items: Json | null
           catalog_status: Database["public"]["Enums"]["catalog_status"]
           created_at: string
           created_by: string | null
           display_name: string
+          free_shipping: boolean
           full_description: string | null
           gallery_urls: string[] | null
           highlight_product: boolean
@@ -99,22 +101,27 @@ export type Database = {
           override_display_price: number | null
           price_strategy: Database["public"]["Enums"]["price_strategy"]
           product_id: string
+          promo_badge: string | null
           promo_label: string | null
           publish_to_marketplace: boolean
           publish_to_pos: boolean
           publish_to_web: boolean
+          shopee_url: string | null
           short_description: string | null
           show_condition_breakdown: boolean
           slug: string | null
           thumbnail_url: string | null
+          tokopedia_url: string | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          bonus_items?: Json | null
           catalog_status?: Database["public"]["Enums"]["catalog_status"]
           created_at?: string
           created_by?: string | null
           display_name: string
+          free_shipping?: boolean
           full_description?: string | null
           gallery_urls?: string[] | null
           highlight_product?: boolean
@@ -122,22 +129,27 @@ export type Database = {
           override_display_price?: number | null
           price_strategy?: Database["public"]["Enums"]["price_strategy"]
           product_id: string
+          promo_badge?: string | null
           promo_label?: string | null
           publish_to_marketplace?: boolean
           publish_to_pos?: boolean
           publish_to_web?: boolean
+          shopee_url?: string | null
           short_description?: string | null
           show_condition_breakdown?: boolean
           slug?: string | null
           thumbnail_url?: string | null
+          tokopedia_url?: string | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          bonus_items?: Json | null
           catalog_status?: Database["public"]["Enums"]["catalog_status"]
           created_at?: string
           created_by?: string | null
           display_name?: string
+          free_shipping?: boolean
           full_description?: string | null
           gallery_urls?: string[] | null
           highlight_product?: boolean
@@ -145,14 +157,17 @@ export type Database = {
           override_display_price?: number | null
           price_strategy?: Database["public"]["Enums"]["price_strategy"]
           product_id?: string
+          promo_badge?: string | null
           promo_label?: string | null
           publish_to_marketplace?: boolean
           publish_to_pos?: boolean
           publish_to_web?: boolean
+          shopee_url?: string | null
           short_description?: string | null
           show_condition_breakdown?: boolean
           slug?: string | null
           thumbnail_url?: string | null
+          tokopedia_url?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -804,6 +819,10 @@ export type Database = {
     }
     Functions: {
       custom_email_hook: { Args: { event: Json }; Returns: undefined }
+      generate_catalog_slug: {
+        Args: { display_name: string; product_id: string }
+        Returns: string
+      }
       get_my_status: {
         Args: never
         Returns: Database["public"]["Enums"]["account_status"]

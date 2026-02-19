@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -208,6 +209,7 @@ function ImageUploadBox({ label, hint, value, onChange, aspect = "aspect-[4/3]" 
 export default function KatalogPage() {
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const isSuperAdmin = role === "super_admin";
 
   const [catalogs, setCatalogs] = useState<CatalogProduct[]>([]);
@@ -221,9 +223,6 @@ export default function KatalogPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
 
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editItem, setEditItem] = useState<CatalogProduct | null>(null);
-  const [detailItem, setDetailItem] = useState<CatalogProduct | null>(null);
   const [showDiscountManager, setShowDiscountManager] = useState(false);
 
   // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -358,7 +357,7 @@ export default function KatalogPage() {
               </Button>
             )}
             {isSuperAdmin && (
-              <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
+              <Button onClick={() => navigate("/katalog/tambah")} className="flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Tambah ke Katalog
               </Button>
             )}
@@ -444,7 +443,7 @@ export default function KatalogPage() {
               </p>
             </div>
             {catalogs.length === 0 && isSuperAdmin && (
-              <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
+              <Button onClick={() => navigate("/katalog/tambah")} className="flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Tambahkan Produk ke Katalog
               </Button>
             )}
@@ -537,12 +536,14 @@ export default function KatalogPage() {
 
                   {/* Actions */}
                   <div className="border-t border-border px-4 py-2.5 flex items-center gap-2">
-                    <button onClick={() => setDetailItem(cat)}
-                      className="flex-1 flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
-                      <Eye className="w-3.5 h-3.5" /> Detail
-                    </button>
+                    {cat.slug && cat.catalog_status === "published" && (
+                      <button onClick={() => window.open(`/produk/${cat.slug}`, "_blank")}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
+                        <Eye className="w-3.5 h-3.5" /> Lihat
+                      </button>
+                    )}
                     {(isSuperAdmin || role === "admin") && (
-                      <button onClick={() => setEditItem(cat)}
+                      <button onClick={() => navigate(`/katalog/edit/${cat.id}`)}
                         className="flex-1 flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
                         <Edit3 className="w-3.5 h-3.5" /> Edit
                       </button>
@@ -617,11 +618,13 @@ export default function KatalogPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => setDetailItem(cat)} className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
-                              <Eye className="w-4 h-4" />
-                            </button>
+                            {cat.slug && cat.catalog_status === "published" && (
+                              <button onClick={() => window.open(`/produk/${cat.slug}`, "_blank")} className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            )}
                             {(isSuperAdmin || role === "admin") && (
-                              <button onClick={() => setEditItem(cat)} className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
+                              <button onClick={() => navigate(`/katalog/edit/${cat.id}`)} className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
                                 <Edit3 className="w-4 h-4" />
                               </button>
                             )}
@@ -645,39 +648,6 @@ export default function KatalogPage() {
           {filtered.length} dari {catalogs.length} entri katalog
         </p>
       </div>
-
-      {/* ── Modals ── */}
-      {showAddModal && (
-        <AddCatalogModal
-          masterProducts={availableToAdd}
-          stockAgg={stockAgg}
-          onClose={() => setShowAddModal(false)}
-          onSaved={() => { setShowAddModal(false); fetchAll(); }}
-          user={user}
-          role={role}
-        />
-      )}
-
-      {editItem && (
-        <EditCatalogModal
-          item={editItem}
-          agg={getAgg(editItem.product_id)}
-          isSuperAdmin={isSuperAdmin}
-          onClose={() => setEditItem(null)}
-          onSaved={() => { setEditItem(null); fetchAll(); }}
-          onDelete={isSuperAdmin ? () => { deleteCatalog(editItem); setEditItem(null); } : undefined}
-          user={user}
-          role={role}
-        />
-      )}
-
-      {detailItem && (
-        <DetailCatalogModal
-          item={detailItem}
-          agg={getAgg(detailItem.product_id)}
-          onClose={() => setDetailItem(null)}
-        />
-      )}
 
       {showDiscountManager && (
         <DiscountManagerModal
