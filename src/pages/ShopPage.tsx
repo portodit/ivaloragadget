@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -61,12 +61,13 @@ const PAGE_SIZE = 12;
 
 export default function ShopPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const formatPrice = useFormatPrice();
   const { lang } = useLocale();
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [prices, setPrices] = useState<Record<string, StockPrice>>({});
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterWarranty, setFilterWarranty] = useState("all");
   const [filterPrice, setFilterPrice] = useState("all"); // all, under5, 5to10, above10

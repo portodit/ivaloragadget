@@ -18,6 +18,7 @@ import {
   UserCheck,
   Shield,
   Activity,
+  Zap,
 } from "lucide-react";
 import logoHorizontal from "@/assets/logo-horizontal.png";
 import logoIcon from "@/assets/logo-icon.svg";
@@ -48,6 +49,7 @@ const superAdminNavItems: NavItem[] = [
       { title: "Stok IMEI", url: "/stok-imei", icon: Barcode },
       { title: "Stok Opname", url: "/stok-opname", icon: ClipboardList },
       { title: "Katalog", url: "/admin/katalog", icon: BookOpen },
+      { title: "Flash Sale", url: "/admin/flash-sale", icon: Zap },
     ],
   },
   {

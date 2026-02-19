@@ -49,7 +49,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create the super admin user
+    // Try to create the super admin user, or find existing
+    let userId: string;
     const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -57,11 +58,17 @@ Deno.serve(async (req) => {
       user_metadata: { full_name: "Super Admin" },
     });
 
-    if (createError || !userData.user) {
-      throw createError || new Error("Failed to create user");
+    if (createError) {
+      // User might already exist - try to find them
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+      const existing = users?.find((u: { email?: string }) => u.email === email);
+      if (!existing) throw createError;
+      userId = existing.id;
+      // Update password
+      await supabaseAdmin.auth.admin.updateUserById(userId, { password, email_confirm: true });
+    } else {
+      userId = userData.user!.id;
     }
-
-    const userId = userData.user.id;
 
     // Update profile status to active
     await supabaseAdmin
