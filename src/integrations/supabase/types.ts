@@ -125,6 +125,11 @@ export type Database = {
           catalog_status: Database["public"]["Enums"]["catalog_status"]
           created_at: string
           created_by: string | null
+          discount_active: boolean | null
+          discount_end_at: string | null
+          discount_start_at: string | null
+          discount_type: string | null
+          discount_value: number | null
           display_name: string
           flash_sale_discount_type: string | null
           flash_sale_discount_value: number | null
@@ -170,6 +175,11 @@ export type Database = {
           catalog_status?: Database["public"]["Enums"]["catalog_status"]
           created_at?: string
           created_by?: string | null
+          discount_active?: boolean | null
+          discount_end_at?: string | null
+          discount_start_at?: string | null
+          discount_type?: string | null
+          discount_value?: number | null
           display_name: string
           flash_sale_discount_type?: string | null
           flash_sale_discount_value?: number | null
@@ -215,6 +225,11 @@ export type Database = {
           catalog_status?: Database["public"]["Enums"]["catalog_status"]
           created_at?: string
           created_by?: string | null
+          discount_active?: boolean | null
+          discount_end_at?: string | null
+          discount_start_at?: string | null
+          discount_type?: string | null
+          discount_value?: number | null
           display_name?: string
           flash_sale_discount_type?: string | null
           flash_sale_discount_value?: number | null

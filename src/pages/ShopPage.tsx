@@ -21,6 +21,11 @@ interface CatalogItem {
   promo_label: string | null;
   promo_badge: string | null;
   is_flash_sale: boolean;
+  discount_active: boolean;
+  discount_type: string | null;
+  discount_value: number | null;
+  discount_start_at: string | null;
+  discount_end_at: string | null;
   master_products: {
     series: string;
     storage_gb: number;
@@ -79,7 +84,7 @@ export default function ShopPage() {
     setLoading(true);
     const [catRes, stockRes] = await Promise.all([
       db.from("catalog_products")
-        .select("id, product_id, slug, display_name, short_description, thumbnail_url, highlight_product, free_shipping, promo_label, promo_badge, is_flash_sale, master_products(series, storage_gb, color, category, warranty_type)")
+        .select("id, product_id, slug, display_name, short_description, thumbnail_url, highlight_product, free_shipping, promo_label, promo_badge, is_flash_sale, discount_active, discount_type, discount_value, discount_start_at, discount_end_at, master_products(series, storage_gb, color, category, warranty_type)")
         .eq("catalog_status", "published"),
       db.from("stock_units")
         .select("product_id, selling_price")
@@ -289,6 +294,23 @@ export default function ShopPage() {
                 const outOfStock = !p || p.total === 0;
                 const master = item.master_products;
 
+                // Compute discount
+                const now = Date.now();
+                const hasDiscount = item.discount_active && item.discount_value && item.discount_value > 0
+                  && (!item.discount_start_at || new Date(item.discount_start_at).getTime() <= now)
+                  && (!item.discount_end_at || new Date(item.discount_end_at).getTime() > now);
+                const hasFlashSale = item.is_flash_sale;
+                const originalPrice = p?.min_price ?? 0;
+                let discountedPrice = originalPrice;
+                if (hasDiscount && originalPrice > 0) {
+                  if (item.discount_type === "percentage") {
+                    discountedPrice = Math.round(originalPrice * (1 - (item.discount_value! / 100)));
+                  } else {
+                    discountedPrice = Math.max(0, originalPrice - item.discount_value!);
+                  }
+                }
+                const showStrikethrough = (hasDiscount || hasFlashSale) && !outOfStock && discountedPrice < originalPrice;
+
                 return (
                   <Link
                     key={item.id}
@@ -322,6 +344,11 @@ export default function ShopPage() {
                             <Truck className="w-3 h-3 shrink-0" /> Gratis Ongkir
                           </span>
                         )}
+                        {(hasDiscount || hasFlashSale) && (
+                          <span className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground whitespace-nowrap">
+                            <Zap className="w-3 h-3 shrink-0" /> {hasFlashSale ? "Flash Sale" : "Diskon"}
+                          </span>
+                        )}
                       </div>
 
                       {outOfStock && (
@@ -345,7 +372,14 @@ export default function ShopPage() {
                         ) : (
                           <>
                             <p className="text-xs text-muted-foreground">{lang === "en" ? "From" : "Mulai"}</p>
-                            <p className="text-sm font-bold text-foreground">{formatPrice(p?.min_price)}</p>
+                            {showStrikethrough ? (
+                              <>
+                                <p className="text-[11px] text-muted-foreground line-through">{formatPrice(originalPrice)}</p>
+                                <p className="text-sm font-bold text-destructive">{formatPrice(discountedPrice)}</p>
+                              </>
+                            ) : (
+                              <p className="text-sm font-bold text-foreground">{formatPrice(p?.min_price)}</p>
+                            )}
                           </>
                         )}
                       </div>

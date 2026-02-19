@@ -53,6 +53,11 @@ interface CatalogProduct {
   promo_badge: string | null;
   free_shipping: boolean;
   is_flash_sale: boolean;
+  discount_active: boolean;
+  discount_type: string | null;
+  discount_value: number | null;
+  discount_start_at: string | null;
+  discount_end_at: string | null;
   bonus_items: BonusItem[];
   master_products: MasterProduct;
   spec_condition: string | null;
@@ -203,6 +208,7 @@ export default function ProductDetailPage() {
   const [flashSaleSettings, setFlashSaleSettings] = useState<{ is_active: boolean; start_time: string; duration_hours: number } | null>(null);
   const [showFlashSalePopup, setShowFlashSalePopup] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [countdownStr, setCountdownStr] = useState("");
 
   useEffect(() => {
     async function fetchData() {
@@ -253,6 +259,24 @@ export default function ProductDetailPage() {
     }
     if (slug) fetchData();
   }, [slug]);
+
+  // Countdown timer for discount end
+  useEffect(() => {
+    if (!catalog) return;
+    const endAt = catalog.discount_end_at;
+    if (!endAt || !catalog.discount_active) { setCountdownStr(""); return; }
+    function tick() {
+      const diff = new Date(endAt!).getTime() - Date.now();
+      if (diff <= 0) { setCountdownStr("Berakhir"); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdownStr(`${h}j ${m}m ${s}d`);
+    }
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [catalog]);
 
   if (loading) {
     return (
@@ -467,18 +491,44 @@ export default function ProductDetailPage() {
               </div>
 
               {/* Price */}
-              <div className="space-y-0.5">
-                {outOfStock ? (
-                  <div className="text-2xl font-bold text-muted-foreground">Stok Habis</div>
-                ) : (
-                  <>
-                    <div className="text-3xl font-bold text-foreground">{formatRupiah(minPrice)}</div>
-                    {maxPrice && maxPrice !== minPrice && (
-                      <p className="text-sm text-muted-foreground">s/d {formatRupiah(maxPrice)} tergantung kondisi unit</p>
+              {(() => {
+                const now = Date.now();
+                const hasDiscount = catalog.discount_active && catalog.discount_value && catalog.discount_value > 0
+                  && (!catalog.discount_start_at || new Date(catalog.discount_start_at).getTime() <= now)
+                  && (!catalog.discount_end_at || new Date(catalog.discount_end_at).getTime() > now);
+                const discountedMin = hasDiscount && minPrice
+                  ? catalog.discount_type === "percentage"
+                    ? Math.round(minPrice * (1 - catalog.discount_value! / 100))
+                    : Math.max(0, minPrice - catalog.discount_value!)
+                  : null;
+                return (
+                  <div className="space-y-1">
+                    {outOfStock ? (
+                      <div className="text-2xl font-bold text-muted-foreground">Stok Habis</div>
+                    ) : (
+                      <>
+                        {hasDiscount && discountedMin !== null ? (
+                          <>
+                            <p className="text-base text-muted-foreground line-through">{formatRupiah(minPrice)}</p>
+                            <div className="text-3xl font-bold text-destructive">{formatRupiah(discountedMin)}</div>
+                            {countdownStr && (
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Berakhir dalam {countdownStr}</span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-3xl font-bold text-foreground">{formatRupiah(minPrice)}</div>
+                        )}
+                        {maxPrice && maxPrice !== minPrice && (
+                          <p className="text-sm text-muted-foreground">s/d {formatRupiah(maxPrice)} tergantung kondisi unit</p>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-              </div>
+                  </div>
+                );
+              })()}
 
               {/* ① Pilih Tipe Garansi — DROPDOWN below price */}
               {warrantyGroups.length > 1 ? (
