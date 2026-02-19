@@ -131,6 +131,7 @@ export type Database = {
           gallery_urls: string[] | null
           highlight_product: boolean
           id: string
+          is_flash_sale: boolean
           override_display_price: number | null
           price_strategy: Database["public"]["Enums"]["price_strategy"]
           product_id: string
@@ -173,6 +174,7 @@ export type Database = {
           gallery_urls?: string[] | null
           highlight_product?: boolean
           id?: string
+          is_flash_sale?: boolean
           override_display_price?: number | null
           price_strategy?: Database["public"]["Enums"]["price_strategy"]
           product_id: string
@@ -215,6 +217,7 @@ export type Database = {
           gallery_urls?: string[] | null
           highlight_product?: boolean
           id?: string
+          is_flash_sale?: boolean
           override_display_price?: number | null
           price_strategy?: Database["public"]["Enums"]["price_strategy"]
           product_id?: string
@@ -325,6 +328,36 @@ export type Database = {
           used_count?: number
           valid_from?: string
           valid_until?: string | null
+        }
+        Relationships: []
+      }
+      flash_sale_settings: {
+        Row: {
+          created_at: string
+          duration_hours: number
+          id: string
+          is_active: boolean
+          start_time: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_hours?: number
+          id?: string
+          is_active?: boolean
+          start_time?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_hours?: number
+          id?: string
+          is_active?: boolean
+          start_time?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
