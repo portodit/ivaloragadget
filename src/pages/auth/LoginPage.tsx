@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRecaptcha } from "@/hooks/use-recaptcha";
+import { logActivity } from "@/lib/activity-log";
 import logoFull from "@/assets/logo-full.svg";
 import storeFront from "@/assets/ruko.jpg";
 
