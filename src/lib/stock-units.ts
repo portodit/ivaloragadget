@@ -3,7 +3,7 @@
 export type StockStatus = "available" | "reserved" | "coming_soon" | "service" | "sold" | "return" | "lost";
 export type ConditionStatus = "no_minus" | "minus";
 export type MinusSeverity = "minor" | "mayor";
-export type SoldChannel = "pos" | "ecommerce" | "manual" | "website";
+export type SoldChannel = "pos" | "ecommerce_tokopedia" | "ecommerce_shopee" | "website";
 
 export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
   available: "Tersedia",
@@ -27,8 +27,8 @@ export const MINUS_SEVERITY_LABELS: Record<MinusSeverity, string> = {
 
 export const SOLD_CHANNEL_LABELS: Record<SoldChannel, string> = {
   pos: "POS (Offline Store)",
-  ecommerce: "E-Commerce",
-  manual: "Manual",
+  ecommerce_tokopedia: "E-Commerce Tokopedia",
+  ecommerce_shopee: "E-Commerce Shopee",
   website: "Website",
 };
 

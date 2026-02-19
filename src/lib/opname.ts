@@ -6,8 +6,8 @@ export type SnapshotScanResult = "match" | "missing";
 export type ScannedScanResult = "match" | "unregistered";
 export type SnapshotActionTaken =
   | "sold_pos"
-  | "sold_ecommerce"
-  | "sold_manual"
+  | "sold_ecommerce_tokopedia"
+  | "sold_ecommerce_shopee"
   | "service"
   | "lost"
   | "pending_investigation"
@@ -76,8 +76,8 @@ export const SNAPSHOT_ACTION_LABELS: Record<
   string
 > = {
   sold_pos: "Tandai Terjual (POS)",
-  sold_ecommerce: "Tandai Terjual (E-Commerce)",
-  sold_manual: "Tandai Terjual (Manual)",
+  sold_ecommerce_tokopedia: "Tandai Terjual (Tokopedia)",
+  sold_ecommerce_shopee: "Tandai Terjual (Shopee)",
   service: "Tandai Service",
   lost: "Tandai Hilang",
   pending_investigation: "Tunda Investigasi",
