@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search, LayoutGrid, List, X, RefreshCw, Download, AlertCircle } from "lucide-react";
+import { Plus, Search, LayoutGrid, List, X, RefreshCw, Download, AlertCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StockStatusBadge, ConditionBadge } from "@/components/stock-units/StockBadges";
 import { AddUnitModal } from "@/components/stock-units/AddUnitModal";
 import { UnitDetailDrawer } from "@/components/stock-units/UnitDetailDrawer";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
 import {
   StockUnit,
   StockStatus,
@@ -30,6 +32,7 @@ interface SummaryCount {
 
 export default function StockIMEIPage() {
   const { role } = useAuth();
+  const { toast } = useToast();
   const isSuperAdmin = role === "super_admin";
 
   const [units, setUnits] = useState<StockUnit[]>([]);
@@ -48,6 +51,11 @@ export default function StockIMEIPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<StockUnit | null>(null);
   const [exportEmptyOpen, setExportEmptyOpen] = useState(false);
+
+  // Bulk delete
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   const fetchUnits = useCallback(async () => {
     setLoading(true);
@@ -95,13 +103,38 @@ export default function StockIMEIPage() {
   useEffect(() => { fetchUnits(); }, [fetchUnits]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
-  const handleRefresh = () => { fetchUnits(); fetchSummary(); };
+  const handleRefresh = () => { fetchUnits(); fetchSummary(); setSelectedIds(new Set()); setConfirmBulkDelete(false); };
   const resetFilters = () => { setSearch(""); setFilterStatus("default"); setFilterSeries("all"); setFilterCondition("all"); };
 
   const hasActiveFilters = search || filterStatus !== "default" || filterSeries !== "all" || filterCondition !== "all";
 
   // Unique series for filter
   const seriesList = Array.from(new Set(units.map((u) => u.master_products?.series).filter(Boolean)));
+
+  // Bulk delete
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === units.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(units.map(u => u.id)));
+  };
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    const { error } = await supabase.from("stock_units").delete().in("id", Array.from(selectedIds));
+    setBulkDeleting(false);
+    if (error) {
+      toast({ title: "Gagal menghapus", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: `${selectedIds.size} unit berhasil dihapus` });
+    handleRefresh();
+  };
 
   return (
     <DashboardLayout pageTitle="Stok IMEI">
@@ -323,10 +356,36 @@ export default function StockIMEIPage() {
         ) : viewMode === "table" ? (
           /* ── Table View ── */
           <div className="bg-card rounded-xl border border-border overflow-hidden">
+            {/* Bulk delete bar */}
+            {isSuperAdmin && selectedIds.size > 0 && (
+              <div className="px-4 py-2.5 border-b border-border bg-destructive/5 flex items-center justify-between">
+                <p className="text-xs font-medium text-destructive">{selectedIds.size} unit dipilih</p>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setSelectedIds(new Set()); setConfirmBulkDelete(false); }}>Batal</Button>
+                  {!confirmBulkDelete ? (
+                    <Button variant="destructive" size="sm" className="h-7 text-xs gap-1.5" onClick={() => setConfirmBulkDelete(true)}>
+                      <Trash2 className="w-3 h-3" /> Hapus
+                    </Button>
+                  ) : (
+                    <Button variant="destructive" size="sm" className="h-7 text-xs gap-1.5" disabled={bulkDeleting} onClick={handleBulkDelete}>
+                      {bulkDeleting ? <div className="w-3 h-3 border border-destructive-foreground/30 border-t-destructive-foreground rounded-full animate-spin" /> : "Konfirmasi Hapus"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/40">
+                    {isSuperAdmin && (
+                      <th className="w-10 px-3 py-3">
+                        <Checkbox
+                          checked={units.length > 0 && selectedIds.size === units.length}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </th>
+                    )}
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Produk</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Kondisi</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Harga Jual</th>
@@ -341,9 +400,17 @@ export default function StockIMEIPage() {
                   {units.map((unit) => (
                     <tr
                       key={unit.id}
-                      className="hover:bg-accent/40 cursor-pointer transition-colors"
+                      className={`hover:bg-accent/40 cursor-pointer transition-colors ${selectedIds.has(unit.id) ? "bg-accent/20" : ""}`}
                       onClick={() => setSelectedUnit(unit)}
                     >
+                      {isSuperAdmin && (
+                        <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(unit.id)}
+                            onCheckedChange={() => toggleSelect(unit.id)}
+                          />
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <p className="font-medium text-foreground text-sm">
                           {unit.master_products?.series} {unit.master_products?.storage_gb}GB

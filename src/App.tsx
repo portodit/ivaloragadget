@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
 import { LocaleProvider } from "@/contexts/LocaleContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -47,6 +48,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <LocaleProvider>
+          <CustomerAuthProvider>
           <AuthProvider>
 
           <Routes>
@@ -87,6 +89,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </AuthProvider>
+          </CustomerAuthProvider>
         </LocaleProvider>
       </BrowserRouter>
     </TooltipProvider>

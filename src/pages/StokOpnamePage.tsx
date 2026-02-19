@@ -1302,7 +1302,7 @@ function ResultsView({
     await supabase.from("opname_snapshot_items").update({
       action_taken: action,
       action_notes: notes || null,
-      sold_reference_id: (action === "sold_pos" || action === "sold_ecommerce" || action === "sold_manual") ? ref : null,
+      sold_reference_id: (action === "sold_pos" || action === "sold_ecommerce_tokopedia" || action === "sold_ecommerce_shopee") ? ref : null,
     } as never).eq("id", itemId);
     fetchAll();
   };
@@ -1422,7 +1422,7 @@ function ResultsView({
                 ? <p className="text-xs text-muted-foreground text-center py-4">Tidak ada unit missing. Semua unit ditemukan.</p>
                 : missingItems.map((item) => {
                   const local = actions[item.id] ?? { action: item.action_taken ?? "", notes: item.action_notes ?? "", ref: item.sold_reference_id ?? "" };
-                  const isSold = local.action === "sold_pos" || local.action === "sold_ecommerce" || local.action === "sold_manual";
+                  const isSold = local.action === "sold_pos" || local.action === "sold_ecommerce_tokopedia" || local.action === "sold_ecommerce_shopee";
                   return (
                     <div key={item.id} className="p-3 rounded-lg border border-border bg-card space-y-2">
                       <div className="flex items-center gap-2">

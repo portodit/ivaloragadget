@@ -49,7 +49,7 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
     : VALID_TRANSITIONS[unit.stock_status];
 
   const needsSoldChannel = newStatus === "sold";
-  const needsSoldRef = soldChannel === "ecommerce";
+  const needsSoldRef = soldChannel === "ecommerce_tokopedia" || soldChannel === "ecommerce_shopee";
 
   const handleStatusUpdate = async () => {
     if (!newStatus || newStatus === unit.stock_status) return;
@@ -245,8 +245,8 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
                         <SelectValue placeholder="Pilih channel..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ecommerce">E-Commerce (Tokopedia/Shopee)</SelectItem>
-                        <SelectItem value="manual">Manual</SelectItem>
+                        <SelectItem value="ecommerce_tokopedia">E-Commerce Tokopedia</SelectItem>
+                        <SelectItem value="ecommerce_shopee">E-Commerce Shopee</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-[10px] text-muted-foreground">POS & Website otomatis saat ada transaksi.</p>
