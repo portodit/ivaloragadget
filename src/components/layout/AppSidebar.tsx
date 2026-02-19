@@ -15,6 +15,7 @@ import {
   ChevronRight,
   X,
   Users,
+  UserCheck,
   Activity,
   Zap,
 } from "lucide-react";
@@ -31,7 +32,14 @@ type NavItem =
 // ── Nav items per role ─────────────────────────────────────────────────────────
 const superAdminNavItems: NavItem[] = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Manajemen Admin", url: "/admin/manajemen-admin/daftar", icon: Users },
+  {
+    title: "Manajemen Akun",
+    icon: Users,
+    children: [
+      { title: "Manajemen Customer", url: "/admin/manajemen-customer", icon: UserCheck },
+      { title: "Manajemen Admin", url: "/admin/manajemen-admin/daftar", icon: Users },
+    ],
+  },
   {
     title: "Produk & Inventory",
     icon: Package,
@@ -85,6 +93,7 @@ interface AppSidebarProps {
 export function AppSidebar({ mobileSidebarOpen = false, onMobileClose }: AppSidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [openGroups, setOpenGroups] = useState<string[]>([
+    "Manajemen Akun",
     "Produk & Inventory",
     "Penjualan",
   ]);
