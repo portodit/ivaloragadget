@@ -32,6 +32,7 @@ import MasterProductsPage from "./pages/MasterProductsPage";
 import StockIMEIPage from "./pages/StockIMEIPage";
 import StokOpnamePage from "./pages/StokOpnamePage";
 import ManajemenAdminPage from "./pages/ManajemenAdminPage";
+import ManajemenCustomerPage from "./pages/ManajemenCustomerPage";
 import LaporanPage from "./pages/LaporanPage";
 import ProfilPage from "./pages/ProfilPage";
 import PengaturanPage from "./pages/PengaturanPage";
@@ -78,6 +79,7 @@ const App = () => (
             <Route path="/admin/master-produk" element={<ProtectedRoute><MasterProductsPage /></ProtectedRoute>} />
             <Route path="/admin/stok-imei" element={<ProtectedRoute><StockIMEIPage /></ProtectedRoute>} />
             <Route path="/admin/stok-opname" element={<ProtectedRoute><StokOpnamePage /></ProtectedRoute>} />
+            <Route path="/admin/manajemen-customer" element={<ProtectedRoute requireRole="super_admin"><ManajemenCustomerPage /></ProtectedRoute>} />
             <Route path="/admin/manajemen-admin" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
             <Route path="/admin/manajemen-admin/:tab" element={<ProtectedRoute requireRole="super_admin"><ManajemenAdminPage /></ProtectedRoute>} />
             <Route path="/admin/laporan" element={<ProtectedRoute><LaporanPage /></ProtectedRoute>} />
