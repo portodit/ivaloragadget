@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 import LandingPage from "./pages/LandingPage";
 import ShopPage from "./pages/ShopPage";
 import ProductDetailPage from "./pages/katalog/ProductDetailPage";
+import CartPage from "./pages/CartPage";
 
 // Customer auth pages
 import CustomerLoginPage from "./pages/auth/CustomerLoginPage";
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/" element={<LandingPage />} />
             <Route path="/katalog" element={<ShopPage />} />
             <Route path="/produk/:slug" element={<ProductDetailPage />} />
+            <Route path="/keranjang" element={<CartPage />} />
 
             {/* ── Customer auth routes ───────────────────────────── */}
             <Route path="/login" element={<CustomerLoginPage />} />
