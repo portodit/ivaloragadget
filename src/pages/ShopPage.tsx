@@ -7,6 +7,7 @@ import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import { Input } from "@/components/ui/input";
 import { Search, Star, Truck, ImageOff, ChevronLeft, ChevronRight, Tag, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/contexts/LocaleContext";
 
 interface CatalogItem {
   id: string;
@@ -42,15 +43,26 @@ const WARRANTY_SHORT: Record<string, string> = {
   digimap: "Digimap",
 };
 
-function formatRupiah(n: number | null | undefined) {
-  if (!n) return "—";
-  return "Rp" + n.toLocaleString("id-ID");
+const USD_RATE = 15500;
+
+function useFormatPrice() {
+  const { currency } = useLocale();
+  return (n: number | null | undefined) => {
+    if (!n) return "—";
+    if (currency === "USD") {
+      const usd = n / USD_RATE;
+      return "$" + usd.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+    return "Rp" + n.toLocaleString("id-ID");
+  };
 }
 
 const PAGE_SIZE = 12;
 
 export default function ShopPage() {
   const navigate = useNavigate();
+  const formatPrice = useFormatPrice();
+  const { lang } = useLocale();
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [prices, setPrices] = useState<Record<string, StockPrice>>({});
   const [loading, setLoading] = useState(true);
@@ -326,8 +338,8 @@ export default function ShopPage() {
                           <span className="text-xs text-muted-foreground font-medium">Stok Habis</span>
                         ) : (
                           <>
-                            <p className="text-xs text-muted-foreground">Mulai</p>
-                            <p className="text-sm font-bold text-foreground">{formatRupiah(p?.min_price)}</p>
+                            <p className="text-xs text-muted-foreground">{lang === "en" ? "From" : "Mulai"}</p>
+                            <p className="text-sm font-bold text-foreground">{formatPrice(p?.min_price)}</p>
                           </>
                         )}
                       </div>

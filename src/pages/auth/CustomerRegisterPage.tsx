@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
+import { useLocale } from "@/contexts/LocaleContext";
 import logoFull from "@/assets/logo-full.svg";
 
 const schema = z.object({
@@ -30,6 +31,7 @@ type FormData = z.infer<typeof schema>;
 const RESEND_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 export default function CustomerRegisterPage() {
+  const { lang } = useLocale();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -144,18 +146,25 @@ export default function CustomerRegisterPage() {
               <Check className="w-7 h-7 text-background" strokeWidth={2.5} />
             </div>
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold">Verifikasi Email</h2>
+              <h2 className="text-2xl font-bold">
+                {lang === "en" ? "Email Verification" : "Verifikasi Email"}
+              </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Link verifikasi telah dikirim ke{" "}
-                <span className="font-semibold text-foreground">{registeredEmail}</span>.
-                Klik link tersebut untuk mengaktifkan akun dan mulai berbelanja.
+                {lang === "en"
+                  ? <>A verification link has been sent to{" "}<span className="font-semibold text-foreground">{registeredEmail}</span>. Click the link to activate your account and start shopping.</>
+                  : <>Link verifikasi telah dikirim ke{" "}<span className="font-semibold text-foreground">{registeredEmail}</span>. Klik link tersebut untuk mengaktifkan akun dan mulai berbelanja.</>
+                }
               </p>
             </div>
             <div className="rounded-xl border border-border bg-muted/30 px-5 py-4 flex items-center gap-3 text-left">
               <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
               <div>
-                <p className="text-xs font-semibold text-foreground">Cek folder Spam</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Jika tidak masuk inbox, cek folder spam/junk email Anda.</p>
+                <p className="text-xs font-semibold text-foreground">
+                  {lang === "en" ? "Check your Spam folder" : "Cek folder Spam"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {lang === "en" ? "If it's not in your inbox, check the spam/junk folder." : "Jika tidak masuk inbox, cek folder spam/junk email Anda."}
+                </p>
               </div>
             </div>
 
@@ -163,7 +172,7 @@ export default function CustomerRegisterPage() {
               {resendSuccess && (
                 <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-foreground text-left flex items-center gap-2">
                   <Check className="w-4 h-4 shrink-0" />
-                  Email verifikasi berhasil dikirim ulang!
+                  {lang === "en" ? "Verification email resent successfully!" : "Email verifikasi berhasil dikirim ulang!"}
                 </div>
               )}
               {resendError && (
@@ -174,7 +183,7 @@ export default function CustomerRegisterPage() {
               {!canResend && waitTime && (
                 <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="w-3.5 h-3.5" />
-                  Kirim ulang tersedia dalam {waitTime}
+                  {lang === "en" ? `Resend available in ${waitTime}` : `Kirim ulang tersedia dalam ${waitTime}`}
                 </div>
               )}
               <Button
@@ -189,13 +198,9 @@ export default function CustomerRegisterPage() {
                 ) : (
                   <RefreshCw className="w-3.5 h-3.5" />
                 )}
-                Kirim Ulang Email Verifikasi
+                {lang === "en" ? "Resend Verification Email" : "Kirim Ulang Email Verifikasi"}
               </Button>
             </div>
-
-            <Link to="/login" className="block text-sm font-semibold text-foreground hover:underline underline-offset-4">
-              Kembali ke halaman login
-            </Link>
           </div>
         </div>
       </div>

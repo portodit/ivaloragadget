@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, ChevronDown } from "lucide-react";
+import { Menu, X, ChevronDown, ShoppingCart, User, MapPin, ClipboardList, Settings, LogOut } from "lucide-react";
 import logoHorizontal from "@/assets/logo-horizontal.svg";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/contexts/LocaleContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navLinks = [
   { label: "Beranda", labelEn: "Home", href: "/" },
@@ -15,11 +16,28 @@ const navLinks = [
 
 export function PublicNavbar() {
   const { lang, currency, setLang, setCurrency } = useLocale();
+  const { user, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [currOpen, setCurrOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
+
+  const fullName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "";
+  const initials = fullName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const close = () => setProfileOpen(false);
+    if (profileOpen) document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [profileOpen]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -127,10 +145,67 @@ export function PublicNavbar() {
                 )}
               </div>
 
+              {/* Cart icon */}
+              <button
+                onClick={() => navigate("/katalog")}
+                className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                title={lang === "en" ? "Cart" : "Keranjang"}
+              >
+                <ShoppingCart className="w-4.5 h-4.5" />
+              </button>
+
               <div className="hidden md:flex items-center gap-2 ml-1">
-                <Button size="sm" onClick={() => navigate("/login")}>
-                  {lang === "en" ? "Sign In" : "Masuk"}
-                </Button>
+                {user ? (
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setProfileOpen(!profileOpen)}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-accent transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center text-background text-xs font-bold">
+                        {initials || <User className="w-4 h-4" />}
+                      </div>
+                      <ChevronDown className={cn("w-3 h-3 text-muted-foreground transition-transform", profileOpen && "rotate-180")} />
+                    </button>
+                    {profileOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 bg-white border border-border rounded-xl shadow-lg overflow-hidden py-1 min-w-[200px] z-50">
+                        <div className="px-4 py-3 border-b border-border">
+                          <p className="text-sm font-semibold text-foreground truncate">{fullName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                        </div>
+                        <button onClick={() => { setProfileOpen(false); navigate("/profil"); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          {lang === "en" ? "My Profile" : "Profil Saya"}
+                        </button>
+                        <button onClick={() => { setProfileOpen(false); navigate("/pengaturan"); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors">
+                          <Settings className="w-4 h-4 text-muted-foreground" />
+                          {lang === "en" ? "Settings" : "Pengaturan"}
+                        </button>
+                        <button onClick={() => { setProfileOpen(false); navigate("/alamat"); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors">
+                          <MapPin className="w-4 h-4 text-muted-foreground" />
+                          {lang === "en" ? "Address" : "Alamat"}
+                        </button>
+                        <button onClick={() => { setProfileOpen(false); navigate("/riwayat"); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-accent transition-colors">
+                          <ClipboardList className="w-4 h-4 text-muted-foreground" />
+                          {lang === "en" ? "Transaction History" : "Riwayat Transaksi"}
+                        </button>
+                        <div className="border-t border-border my-1" />
+                        <button onClick={async () => { setProfileOpen(false); await signOut(); navigate("/"); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-destructive hover:bg-destructive/5 transition-colors">
+                          <LogOut className="w-4 h-4" />
+                          {lang === "en" ? "Sign Out" : "Keluar"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Button size="sm" onClick={() => navigate("/login")}>
+                    {lang === "en" ? "Sign In" : "Masuk"}
+                  </Button>
+                )}
               </div>
 
               {/* Mobile hamburger */}
@@ -167,9 +242,26 @@ export function PublicNavbar() {
                 </button>
               </div>
               <div className="pt-2 border-t border-border mt-2 flex flex-col gap-2">
-                <Button className="w-full" onClick={() => { setMobileOpen(false); navigate("/login"); }}>
-                  {lang === "en" ? "Sign In" : "Masuk"}
-                </Button>
+                {user ? (
+                  <>
+                    <button onClick={() => { setMobileOpen(false); navigate("/profil"); }}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent transition-colors font-medium">
+                      <User className="w-4 h-4 text-muted-foreground" /> {lang === "en" ? "My Profile" : "Profil Saya"}
+                    </button>
+                    <button onClick={() => { setMobileOpen(false); navigate("/riwayat"); }}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-accent transition-colors font-medium">
+                      <ClipboardList className="w-4 h-4 text-muted-foreground" /> {lang === "en" ? "History" : "Riwayat"}
+                    </button>
+                    <button onClick={async () => { setMobileOpen(false); await signOut(); navigate("/"); }}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-destructive/5 transition-colors font-medium">
+                      <LogOut className="w-4 h-4" /> {lang === "en" ? "Sign Out" : "Keluar"}
+                    </button>
+                  </>
+                ) : (
+                  <Button className="w-full" onClick={() => { setMobileOpen(false); navigate("/login"); }}>
+                    {lang === "en" ? "Sign In" : "Masuk"}
+                  </Button>
+                )}
               </div>
             </div>
           )}
