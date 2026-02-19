@@ -22,10 +22,15 @@ import {
 import { cn } from "@/lib/utils";
 
 // ── Image upload helper ───────────────────────────────────────────────────────
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
 async function uploadImage(file: File, path: string): Promise<string | null> {
+  const safePath = path.split("/").map(sanitizeFileName).join("/");
   const { data, error } = await supabase.storage
     .from("catalog-images")
-    .upload(path, file, { upsert: true });
+    .upload(safePath, file, { upsert: true });
   if (error) {
     console.error("Upload error:", error.message);
     return null;
@@ -214,7 +219,7 @@ export default function KatalogFormPage() {
   const [promoLabel, setPromoLabel] = useState("");
   const [promoLabel2, setPromoLabel2] = useState("");
   const [thumbnail, setThumbnail] = useState<string | null>(null);
-  const [gallery, setGallery] = useState<(string | null)[]>([null, null, null, null]);
+  const [gallery, setGallery] = useState<(string | null)[]>([null, null, null, null, null, null, null, null]);
   const [publishPos, setPublishPos] = useState(false);
   const [publishWeb, setPublishWeb] = useState(false);
   const [publishMarket, setPublishMarket] = useState(false);
@@ -246,6 +251,10 @@ export default function KatalogFormPage() {
   const [specPostelCert, setSpecPostelCert] = useState("-");
   const [specShippedFrom, setSpecShippedFrom] = useState("Kota Surabaya");
 
+  // Grouped series for selection (add mode only)
+  const [seriesGroups, setSeriesGroups] = useState<{ key: string; series: string; warranty_type: string; productIds: string[]; totalStock: number }[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState("");
+
   // Fetch initial data
   useEffect(() => {
     async function fetchData() {
@@ -260,6 +269,7 @@ export default function KatalogFormPage() {
         const masters: MasterProduct[] = masterRes.data ?? [];
         const rawStock = stockRes.data ?? [];
         setBonusProductRecords(bonusRes.data ?? []);
+        setMasterProducts(masters);
 
         const aggMap: Record<string, StockAggregate> = {};
         for (const unit of rawStock) {
@@ -288,8 +298,8 @@ export default function KatalogFormPage() {
             setPromoLabel2(catData.promo_badge ?? "");
             setThumbnail(catData.thumbnail_url);
             const g = [...(catData.gallery_urls ?? [])];
-            while (g.length < 4) g.push(null);
-            setGallery(g.slice(0, 4) as (string | null)[]);
+            while (g.length < 8) g.push(null);
+            setGallery(g.slice(0, 8) as (string | null)[]);
             setPublishPos(catData.publish_to_pos);
             setPublishWeb(catData.publish_to_web);
             setPublishMarket(catData.publish_to_marketplace);
@@ -316,22 +326,42 @@ export default function KatalogFormPage() {
             setSpecPhoneModel(catData.spec_phone_model ?? "");
             setSpecPostelCert(catData.spec_postel_cert ?? "-");
             setSpecShippedFrom(catData.spec_shipped_from ?? "Kota Surabaya");
-            // Load discount
             setDiscountActive(catData.discount_active ?? false);
             setDiscountTypeVal(catData.discount_type ?? "percentage");
             setDiscountValueStr(catData.discount_value != null ? String(catData.discount_value) : "");
             setDiscountStartAt(catData.discount_start_at ? catData.discount_start_at.slice(0, 16) : "");
             setDiscountEndAt(catData.discount_end_at ? catData.discount_end_at.slice(0, 16) : "");
-            const withAll = masters.some(m => m.id === catData.product_id)
-              ? masters
-              : [catData.master_products, ...masters].filter(Boolean);
-            setMasterProducts(withAll);
           }
         } else {
-          const { data: existingCats } = await db.from("catalog_products").select("product_id");
-          const inCatalogIds = new Set((existingCats ?? []).map((c: { product_id: string }) => c.product_id));
-          const availStockIds = new Set(Object.values(aggMap).filter(a => a.total > 0).map(a => a.product_id));
-          setMasterProducts(masters.filter(m => !inCatalogIds.has(m.id) && availStockIds.has(m.id)));
+          // Build series+warranty groups and filter out those already in catalog
+          const { data: existingCats } = await db.from("catalog_products").select("catalog_series, catalog_warranty_type");
+          const existingKeys = new Set(
+            (existingCats ?? [])
+              .filter((c: { catalog_series: string | null }) => c.catalog_series)
+              .map((c: { catalog_series: string; catalog_warranty_type: string }) => `${c.catalog_series}||${c.catalog_warranty_type}`)
+          );
+
+          // Group masters by series+warranty_type
+          const groupMap: Record<string, { series: string; warranty_type: string; productIds: string[] }> = {};
+          for (const m of masters) {
+            const key = `${m.series}||${m.warranty_type}`;
+            if (!groupMap[key]) groupMap[key] = { series: m.series, warranty_type: m.warranty_type, productIds: [] };
+            groupMap[key].productIds.push(m.id);
+          }
+
+          // Filter: not in catalog + has stock
+          const groups = Object.entries(groupMap)
+            .filter(([key, g]) => {
+              if (existingKeys.has(key)) return false;
+              return g.productIds.some(pid => aggMap[pid] && aggMap[pid].total > 0);
+            })
+            .map(([key, g]) => {
+              const totalStock = g.productIds.reduce((sum, pid) => sum + (aggMap[pid]?.total ?? 0), 0);
+              return { key, series: g.series, warranty_type: g.warranty_type, productIds: g.productIds, totalStock };
+            })
+            .sort((a, b) => a.series.localeCompare(b.series));
+
+          setSeriesGroups(groups);
         }
       } finally {
         setLoading(false);
@@ -342,26 +372,30 @@ export default function KatalogFormPage() {
 
   const selectedMaster = masterProducts.find(m => m.id === selectedId);
   const selectedAgg = stockAgg.find(a => a.product_id === selectedId);
+  const selectedGroupData = seriesGroups.find(g => g.key === selectedGroup);
 
+  // Auto-fill display name when group is selected (add mode)
   useEffect(() => {
-    if (!isEdit && selectedMaster) {
-      const name = `${selectedMaster.series} ${selectedMaster.storage_gb}GB ${selectedMaster.color}`;
+    if (!isEdit && selectedGroupData) {
+      const name = `${selectedGroupData.series} ${WARRANTY_LABELS[selectedGroupData.warranty_type] ?? selectedGroupData.warranty_type}`;
       setDisplayName(name);
+      // Pick first product id from group as representative
+      setSelectedId(selectedGroupData.productIds[0] ?? "");
       if (!slugEdited) {
-        const warranty = selectedMaster.warranty_type.replace(/_/g, "-");
-        const suffix = selectedId.slice(0, 6);
-        setSlug(generateSlug(`${name} ${warranty}`, suffix));
+        const warranty = selectedGroupData.warranty_type.replace(/_/g, "-");
+        const suffix = (selectedGroupData.productIds[0] ?? "").slice(0, 6);
+        setSlug(generateSlug(`${selectedGroupData.series} ${warranty}`, suffix));
       }
     }
-  }, [selectedId, selectedMaster, isEdit, slugEdited]);
+  }, [selectedGroup, selectedGroupData, isEdit, slugEdited]);
 
   useEffect(() => {
-    if (!slugEdited && displayName && !isEdit) {
-      const warranty = selectedMaster?.warranty_type.replace(/_/g, "-") ?? "";
-      const suffix = selectedId.slice(0, 6);
+    if (!slugEdited && displayName && !isEdit && selectedGroupData) {
+      const warranty = selectedGroupData.warranty_type.replace(/_/g, "-");
+      const suffix = (selectedGroupData.productIds[0] ?? "").slice(0, 6);
       setSlug(generateSlug(`${displayName} ${warranty}`, suffix));
     }
-  }, [displayName, slugEdited, isEdit, selectedMaster, selectedId]);
+  }, [displayName, slugEdited, isEdit, selectedGroupData]);
 
   // Bonus item handlers
   function addBonus() {
@@ -396,8 +430,8 @@ export default function KatalogFormPage() {
   }
 
   async function handleSave() {
-    if (!selectedId && !isEdit) {
-      toast({ title: "Pilih produk terlebih dahulu", variant: "destructive" }); return;
+    if (!selectedGroup && !isEdit) {
+      toast({ title: "Pilih seri produk terlebih dahulu", variant: "destructive" }); return;
     }
     if (!displayName.trim()) {
       toast({ title: "Nama tampilan wajib diisi", variant: "destructive" }); return;
@@ -449,7 +483,9 @@ export default function KatalogFormPage() {
     };
 
     if (!isEdit) {
-      payload.product_id = selectedId;
+      payload.product_id = selectedId || null;
+      payload.catalog_series = selectedGroupData?.series ?? null;
+      payload.catalog_warranty_type = selectedGroupData?.warranty_type ?? null;
       payload.catalog_status = "draft";
       payload.price_strategy = "min_price";
       payload.created_by = user?.id;
@@ -512,7 +548,7 @@ export default function KatalogFormPage() {
 
   return (
     <DashboardLayout pageTitle={isEdit ? "Edit Katalog" : "Tambah Katalog"}>
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
 
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -532,35 +568,31 @@ export default function KatalogFormPage() {
           </div>
         </div>
 
-        {/* Section: Pilih Produk (add only) */}
+        {/* Section: Pilih Seri Produk (add only) */}
         {!isEdit && (
-          <Section title="Produk (SKU)">
-            {masterProducts.length === 0 ? (
+          <Section title="Seri Produk">
+            {seriesGroups.length === 0 ? (
               <div className="rounded-lg bg-muted/50 border border-border p-3 text-sm text-muted-foreground flex items-center gap-2">
                 <Package className="w-4 h-4 shrink-0" />
-                Semua produk dengan stok tersedia sudah masuk katalog.
+                Semua seri produk dengan stok tersedia sudah masuk katalog.
               </div>
             ) : (
               <div className="space-y-2">
-                <Select value={selectedId} onValueChange={setSelectedId}>
+                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Pilih produk dari Master Data…" />
+                    <SelectValue placeholder="Pilih seri produk yang belum ada di katalog…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {masterProducts.map(m => {
-                      const agg = stockAgg.find(a => a.product_id === m.id);
-                      return (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.series} {m.storage_gb}GB {m.color} — {WARRANTY_LABELS[m.warranty_type] ?? m.warranty_type} · {agg?.total ?? 0} unit
-                        </SelectItem>
-                      );
-                    })}
+                    {seriesGroups.map(g => (
+                      <SelectItem key={g.key} value={g.key}>
+                        {g.series} — {WARRANTY_LABELS[g.warranty_type] ?? g.warranty_type} · {g.totalStock} unit
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                {selectedAgg && selectedId && (
+                {selectedGroupData && (
                   <p className="text-xs text-muted-foreground px-1">
-                    Harga mulai: <span className="font-semibold text-foreground">{formatRupiah(selectedAgg.min_price)}</span>
-                    {" · "}{selectedAgg.total} unit tersedia
+                    {selectedGroupData.productIds.length} varian (warna/kapasitas) · Total {selectedGroupData.totalStock} unit tersedia
                   </p>
                 )}
               </div>
@@ -610,7 +642,7 @@ export default function KatalogFormPage() {
                   value={thumbnail} onChange={setThumbnail} aspect="aspect-[4/3]" />
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                    Galeri Foto <span className="normal-case font-normal">(maks. 4)</span>
+                    Galeri Foto <span className="normal-case font-normal">(maks. 8)</span>
                   </p>
                   <div className="grid grid-cols-4 gap-2">
                     {gallery.map((url, i) => (
@@ -833,7 +865,7 @@ export default function KatalogFormPage() {
           <Button variant="outline" onClick={() => navigate("/admin/katalog")} className="ml-auto">
             Batal
           </Button>
-          <Button onClick={handleSave} disabled={saving || (!isEdit && !selectedId)}>
+          <Button onClick={handleSave} disabled={saving || (!isEdit && !selectedGroup)}>
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
             {isEdit ? "Simpan Perubahan" : "Tambah ke Katalog"}
           </Button>
