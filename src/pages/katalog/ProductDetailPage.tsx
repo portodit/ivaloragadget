@@ -726,7 +726,18 @@ export default function ProductDetailPage() {
                   </button>
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                  <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                  <button
+                    onClick={() => {
+                      const hour = new Date().getHours();
+                      const greeting = hour < 11 ? "Selamat pagi" : hour < 15 ? "Selamat siang" : hour < 18 ? "Selamat sore" : "Selamat malam";
+                      const selectedUnit = selectedUnitId ? units.find(u => u.id === selectedUnitId) : units[0];
+                      const imeiLast4 = selectedUnit ? selectedUnit.imei.slice(-4) : "****";
+                      const conditionText = selectedUnit?.condition_status === "minus" ? "minus" : "no minus";
+                      const msg = `${greeting} Admin Ivalora Gadget 👋\n\nSaya ingin bertanya tentang unit:\n📱 *${catalog.display_name}*\n🎨 Warna: ${master.color}\n💾 Kapasitas: ${storageLabel(master.storage_gb)}\n📋 Kondisi: ${conditionText}\n🔢 IMEI (4 digit terakhir): ${imeiLast4}\n\nApakah unit ini masih tersedia? Terima kasih! 🙏`;
+                      window.open(`https://wa.me/6285890024760?text=${encodeURIComponent(msg)}`, "_blank");
+                    }}
+                    className="flex items-center gap-1 hover:text-foreground transition-colors"
+                  >
                     <MessageCircle className="w-4 h-4" /> Chat Admin
                   </button>
                   <button className="flex items-center gap-1 hover:text-foreground transition-colors">

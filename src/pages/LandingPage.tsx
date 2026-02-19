@@ -14,6 +14,7 @@ import iphone13 from "@/assets/iphone-13.png";
 import iphone13Pro from "@/assets/iphone-13-pro.png";
 import iphone11 from "@/assets/iphone-11.png";
 import logoShopee from "@/assets/logo-shopee.png";
+import logoTokopedia from "@/assets/logo-tokopedia.png";
 import uvpQuality from "@/assets/uvp-quality.png";
 import uvpGaransi from "@/assets/uvp-garansi.png";
 import uvpHarga from "@/assets/uvp-harga.png";
@@ -69,10 +70,10 @@ interface FlashSaleSettings {
 
 // ─── iPhone category cards ────────────────────────────────────────────────────
 const IPHONE_CATEGORIES = [
-  { name: "iPhone 11", img: iphone11, year: "2019", tag: "Hemat & Handal" },
-  { name: "iPhone 11 Pro", img: iphone11Pro, year: "2019", tag: "Kamera Triple" },
-  { name: "iPhone 13", img: iphone13, year: "2021", tag: "Baterai Tahan Lama" },
-  { name: "iPhone 13 Pro", img: iphone13Pro, year: "2021", tag: "Layar ProMotion" },
+  { name: "iPhone 11", img: iphone11, tag: "Hemat & Handal" },
+  { name: "iPhone 11 Pro", img: iphone11Pro, tag: "Kamera Triple" },
+  { name: "iPhone 13", img: iphone13, tag: "Baterai Tahan Lama" },
+  { name: "iPhone 13 Pro", img: iphone13Pro, tag: "Layar ProMotion" },
 ];
 
 // ─── UVP cards ────────────────────────────────────────────────────────────────
@@ -229,10 +230,19 @@ export default function LandingPage() {
   const [stockPrices, setStockPrices] = useState<StockPriceInfo[]>([]);
   const [flashSale, setFlashSale] = useState<FlashSaleSettings | null>(null);
   const [flashEndTime, setFlashEndTime] = useState<Date | null>(null);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const { h, m, s, expired: flashExpired } = useCountdown(flashEndTime);
   const [activeUvp, setActiveUvp] = useState(0);
   const [activeBranch, setActiveBranch] = useState(0);
   const uvpImgRef = useRef<HTMLDivElement>(null);
+
+  // Auto-rotate UVP cards every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveUvp(prev => (prev + 1) % UVP_CARDS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const flashSaleStarted = flashSale ? new Date(flashSale.start_time).getTime() <= Date.now() : false;
   const flashSaleActive = flashSale?.is_active && !flashExpired && flashSaleStarted;
@@ -296,6 +306,23 @@ export default function LandingPage() {
               }))
             );
           }
+        }
+
+        // Fetch category counts for Koleksi Pilihan
+        const { data: allStock } = await supabase
+          .from("stock_units")
+          .select("product_id")
+          .eq("stock_status", "available");
+        if (allStock && data) {
+          const counts: Record<string, number> = {};
+          for (const cat of IPHONE_CATEGORIES) {
+            const matchingProducts = data.filter((p: Product) =>
+              p.display_name.toLowerCase().includes(cat.name.toLowerCase())
+            );
+            const matchingProductIds = new Set(matchingProducts.map((p: Product) => p.product_id));
+            counts[cat.name] = allStock.filter(s => matchingProductIds.has(s.product_id)).length;
+          }
+          setCategoryCounts(counts);
         }
       }
     })();
@@ -379,14 +406,14 @@ export default function LandingPage() {
             {/* Stats — Large, prominent with animated counter */}
             <div className="flex items-center gap-6 sm:gap-10 pt-4">
               {[
-                { target: 5000, suffix: "+", label: t("Pelanggan Puas", "Happy Customers") },
-                { target: 10000, suffix: "+", label: t("Unit Terjual", "Units Sold") },
-                { target: 4.9, suffix: "★", label: t("Rating Toko", "Store Rating"), isDecimal: true },
+                { target: 500, suffix: "+", label: t("Pelanggan Puas", "Happy Customers") },
+                { target: 300, suffix: "+", label: t("Unit Terjual", "Units Sold") },
+                { target: 4.9, suffix: "", label: t("Rating Toko", "Store Rating"), isDecimal: true },
               ].map((stat) => (
                 <div key={stat.label} className="text-center sm:text-left">
                   <p className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none">
                     {stat.isDecimal ? (
-                      <span>4.9<span className="text-2xl sm:text-3xl">★</span></span>
+                      <span><span className="text-2xl sm:text-3xl" style={{ color: "hsl(45 93% 50%)" }}>★</span>4.9</span>
                     ) : (
                       <AnimatedCounter target={stat.target} suffix={stat.suffix} />
                     )}
@@ -496,8 +523,7 @@ export default function LandingPage() {
                   </span>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-bold text-white mt-2">
-                  {t("Penawaran Terbatas,", "Limited Offer,")}<br />
-                  <span style={{ color: "hsl(38 92% 55%)" }}>{t("Stok Cepat Habis.", "Selling Fast.")}</span>
+                  {t("Penawaran Terbatas, ", "Limited Offer, ")}<span style={{ color: "hsl(38 92% 55%)" }}>{t("Stok Cepat Habis.", "Selling Fast.")}</span>
                 </h2>
                 <p className="text-sm" style={{ color: "hsl(0 0% 45%)" }}>
                   {t(`Harga spesial berlaku selama ${flashSale?.duration_hours ?? 6} jam`, `Special prices valid for ${flashSale?.duration_hours ?? 6} hours`)}
@@ -539,23 +565,18 @@ export default function LandingPage() {
       ══════════════════════════════════════════════════════════════ */}
       <section className="py-14 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-end justify-between mb-6">
-            <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-1">{t("Koleksi Pilihan", "Curated Collection")}</p>
-              <h2 className="text-2xl font-bold">{t("iPhone Tersedia", "Available iPhones")}</h2>
-              <p className="text-sm text-muted-foreground mt-0.5">{t("Unit terpilih, kualitas terjamin, harga terbaik", "Hand-picked units, guaranteed quality, best prices")}</p>
-            </div>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => navigate("/katalog")}>
-              {t("Lihat Semua", "View All")} <ChevronRight className="w-3.5 h-3.5" />
-            </Button>
+          <div className="mb-6">
+            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-1">{t("Koleksi Pilihan", "Curated Collection")}</p>
+            <h2 className="text-2xl font-bold">{t("iPhone Tersedia", "Available iPhones")}</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">{t("Unit terpilih, kualitas terjamin, harga terbaik", "Hand-picked units, guaranteed quality, best prices")}</p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
             {IPHONE_CATEGORIES.map((cat) => (
               <div
                 key={cat.name}
                 onClick={() => navigate(`/katalog?search=${encodeURIComponent(cat.name)}`)}
-                className="rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+                className="rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1 min-w-[200px] shrink-0"
                 style={{ background: "hsl(0 0% 8%)", border: "1px solid hsl(0 0% 15%)" }}
               >
                 <div
@@ -572,7 +593,9 @@ export default function LandingPage() {
                 <div style={{ height: 1, background: "hsl(0 0% 15%)" }} />
                 <div className="px-4 py-3.5">
                   <p className="font-semibold text-sm" style={{ color: "hsl(0 0% 92%)" }}>{cat.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "hsl(0 0% 40%)" }}>{t("Rilis", "Released")} {cat.year}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "hsl(0 0% 40%)" }}>
+                    {categoryCounts[cat.name] ? `${categoryCounts[cat.name]} ${t("unit tersedia", "units available")}` : t("Lihat unit", "View units")}
+                  </p>
                 </div>
               </div>
             ))}
@@ -822,6 +845,16 @@ export default function LandingPage() {
                   className="w-9 h-9 rounded-lg bg-foreground/5 hover:bg-foreground hover:text-background flex items-center justify-center transition-colors">
                   <Instagram className="w-4 h-4" />
                 </a>
+                <a href="https://www.tiktok.com/@ivalora_gadget" target="_blank" rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-lg bg-foreground/5 hover:bg-foreground hover:text-background flex items-center justify-center transition-colors"
+                  title="TikTok">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.88-2.88 2.89 2.89 0 0 1 2.88-2.88c.28 0 .56.04.82.11v-3.5a6.37 6.37 0 0 0-.82-.05A6.34 6.34 0 0 0 3.15 15.2 6.34 6.34 0 0 0 9.49 21.54a6.34 6.34 0 0 0 6.34-6.34V8.72a8.16 8.16 0 0 0 3.76.92V6.69Z"/></svg>
+                </a>
+                <a href="https://chat.whatsapp.com/FJrLaNwX2jZCMn4hGMWTUW" target="_blank" rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-lg bg-foreground/5 hover:bg-foreground hover:text-background flex items-center justify-center transition-colors"
+                  title="WA Community">
+                  <MessageCircle className="w-4 h-4" />
+                </a>
               </div>
             </div>
             <div className="space-y-3">
@@ -829,8 +862,6 @@ export default function LandingPage() {
               {[
                 { label: t("Beranda", "Home"), href: "/" },
                 { label: t("Katalog Produk", "Product Catalog"), href: "/katalog" },
-                { label: t("Tentang Kami", "About Us"), href: "#tentang" },
-                { label: t("Hubungi Kami", "Contact Us"), href: "#kontak" },
               ].map((l) => (
                 <div key={l.label}>
                   <Link to={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l.label}</Link>
@@ -851,7 +882,7 @@ export default function LandingPage() {
               </a>
               <a href="https://www.tokopedia.com/ivalora" target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <span className="font-bold text-sm" style={{ color: "hsl(142 71% 38%)" }}>T</span>
+                <img src={logoTokopedia} alt="Tokopedia" className="h-4 w-auto" />
                 Tokopedia
               </a>
             </div>
@@ -906,24 +937,24 @@ function ProductCard({
           </div>
         )}
         {isFlashSale && (
-          <span className="absolute top-2.5 left-2.5 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg flex items-center gap-1"
+          <span className="absolute top-2.5 left-2.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg flex items-center gap-1"
             style={{ background: "hsl(15 90% 55%)", color: "hsl(0 0% 100%)" }}>
-            <Zap className="w-2.5 h-2.5" /> FLASH
+            <Zap className="w-3 h-3" /> FLASH
           </span>
         )}
         {product.promo_badge && !isFlashSale && (
-          <span className="absolute top-2.5 left-2.5 bg-destructive text-destructive-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg">
+          <span className="absolute top-2.5 left-2.5 bg-destructive text-destructive-foreground text-xs font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg">
             {product.promo_badge}
           </span>
         )}
         {product.free_shipping && (
-          <span className="absolute bottom-2.5 left-2.5 text-[10px] font-bold px-2 py-1 rounded-lg"
+          <span className="absolute bottom-2.5 left-2.5 text-xs font-bold px-2.5 py-1.5 rounded-lg"
             style={{ background: "hsl(142 71% 45%)", color: "hsl(0 0% 100%)" }}>
             FREE ONGKIR
           </span>
         )}
         {isFlashSale && displayPrice && flashOriginal && (
-          <span className="absolute top-2.5 right-2.5 text-[10px] font-black px-1.5 py-0.5 rounded-md"
+          <span className="absolute top-2.5 right-2.5 text-xs font-black px-2 py-1 rounded-md"
             style={{ background: "hsl(0 72% 50%)", color: "hsl(0 0% 100%)" }}>
             HEMAT {Math.round(((flashOriginal - displayPrice) / flashOriginal) * 100)}%
           </span>

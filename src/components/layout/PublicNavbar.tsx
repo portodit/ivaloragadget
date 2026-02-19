@@ -2,16 +2,16 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Menu, X, ChevronDown, ShoppingCart, User, MapPin, ClipboardList, Settings, LogOut } from "lucide-react";
 import logoHorizontal from "@/assets/logo-horizontal.svg";
+import logoIcon from "@/assets/logo-icon.svg";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/contexts/LocaleContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { getCart } from "@/pages/CartPage";
 
 const navLinks = [
   { label: "Beranda", labelEn: "Home", href: "/" },
   { label: "Katalog", labelEn: "Catalog", href: "/katalog" },
-  { label: "Tentang Kami", labelEn: "About", href: "#tentang" },
-  { label: "Kontak", labelEn: "Contact", href: "#kontak" },
 ];
 
 export function PublicNavbar() {
@@ -23,7 +23,14 @@ export function PublicNavbar() {
   const [currOpen, setCurrOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const navigate = useNavigate();
+  const [cartCount, setCartCount] = useState(getCart().length);
 
+  useEffect(() => {
+    const sync = () => setCartCount(getCart().length);
+    window.addEventListener("cart-update", sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener("cart-update", sync); window.removeEventListener("storage", sync); };
+  }, []);
   const fullName = user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "";
   const initials = fullName
     .split(" ")
@@ -83,7 +90,7 @@ export function PublicNavbar() {
           <div className="max-w-6xl mx-auto px-5 h-16 flex items-center">
             {/* Logo */}
             <Link to="/" className="flex items-center shrink-0 mr-8">
-              <img src={logoHorizontal} alt="Ivalora" className="h-7 w-auto" />
+              <img src={scrolled ? logoIcon : logoHorizontal} alt="Ivalora" className={scrolled ? "h-8 w-auto" : "h-7 w-auto"} />
             </Link>
 
             {/* Nav links — centered */}
@@ -147,11 +154,16 @@ export function PublicNavbar() {
 
               {/* Cart icon */}
               <button
-                onClick={() => navigate("/katalog")}
-                className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                onClick={() => navigate("/keranjang")}
+                className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground relative"
                 title={lang === "en" ? "Cart" : "Keranjang"}
               >
                 <ShoppingCart className="w-4.5 h-4.5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                    {cartCount > 9 ? "9+" : cartCount}
+                  </span>
+                )}
               </button>
 
               <div className="hidden md:flex items-center gap-2 ml-1">
