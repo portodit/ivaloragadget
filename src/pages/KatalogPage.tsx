@@ -22,7 +22,7 @@ import {
   Archive, RefreshCw, ImageOff, Star, Tag, AlertCircle,
   ExternalLink, Globe, ShoppingCart, Store, X, Upload,
   Ticket, Percent, DollarSign, Trash2, ChevronRight,
-  Package, Camera, Check,
+  Package, Camera, Check, Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -240,7 +240,7 @@ export default function KatalogPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
 
-  const [showDiscountManager, setShowDiscountManager] = useState(false);
+  // Discount modal removed - now a separate page
 
   // ── Fetch data ─────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
@@ -249,7 +249,6 @@ export default function KatalogPage() {
       const [catRes, masterRes, stockRes, discRes] = await Promise.all([
         db.from("catalog_products").select("*").order("updated_at", { ascending: false }),
         db.from("master_products").select("*").eq("is_active", true).is("deleted_at", null),
-        // Only AVAILABLE units - price shown from stock, not catalog
         db.from("stock_units").select("product_id, selling_price, condition_status").eq("stock_status", "available"),
         db.from("discount_codes").select("*").order("created_at", { ascending: false }),
       ]);
@@ -289,7 +288,13 @@ export default function KatalogPage() {
 
       const masterMap: Record<string, MasterProduct> = {};
       masters.forEach(m => (masterMap[m.id] = m));
-      setCatalogs(rawCatalogs.map(c => ({ ...c, master: masterMap[c.product_id] })));
+      
+      // For grouped catalogs, find all master products matching the group
+      setCatalogs(rawCatalogs.map(c => {
+        // Find the master product for backward compat
+        const master = c.product_id ? masterMap[c.product_id] : undefined;
+        return { ...c, master };
+      }));
       setMasterProducts(masters);
       setDiscountCodes(discRes.data ?? []);
     } finally {
@@ -311,13 +316,29 @@ export default function KatalogPage() {
     return matchSearch && matchStatus && matchCategory;
   });
 
-  // Products not yet in catalog (with available stock)
-  const inCatalogIds = new Set(catalogs.map(c => c.product_id));
-  // Only products with at least 1 available unit can be added
-  const availableStockProductIds = new Set(stockAgg.filter(a => a.total > 0).map(a => a.product_id));
-  const availableToAdd = masterProducts.filter(m => !inCatalogIds.has(m.id) && availableStockProductIds.has(m.id));
+  // Products not yet in catalog — group by series+warranty_type
+  const catalogGroups = new Set(catalogs.map(c => `${c.master?.series ?? (c as any).catalog_series}||${c.master?.warranty_type ?? (c as any).catalog_warranty_type}`));
+  const availableToAdd = masterProducts.filter(m => !catalogGroups.has(`${m.series}||${m.warranty_type}`));
 
-  const getAgg = (product_id: string) => stockAgg.find(a => a.product_id === product_id);
+  // Get aggregate for a catalog item — sum across all matching master products
+  const getAgg = (cat: CatalogProduct) => {
+    const series = (cat as any).catalog_series ?? cat.master?.series;
+    const wType = (cat as any).catalog_warranty_type ?? cat.master?.warranty_type;
+    if (!series || !wType) return cat.product_id ? stockAgg.find(a => a.product_id === cat.product_id) : undefined;
+    
+    const matchingMasters = masterProducts.filter(m => m.series === series && m.warranty_type === wType);
+    const combined: StockAggregate = { product_id: "", total: 0, no_minus: 0, minus: 0, min_price: null, avg_price: null, max_price: null };
+    for (const m of matchingMasters) {
+      const a = stockAgg.find(s => s.product_id === m.id);
+      if (!a) continue;
+      combined.total += a.total;
+      combined.no_minus += a.no_minus;
+      combined.minus += a.minus;
+      if (a.min_price != null) combined.min_price = combined.min_price === null ? a.min_price : Math.min(combined.min_price, a.min_price);
+      if (a.max_price != null) combined.max_price = combined.max_price === null ? a.max_price : Math.max(combined.max_price, a.max_price);
+    }
+    return combined;
+  };
 
   // ── Toggle publish ──────────────────────────────────────────────────────────
   async function toggleStatus(cat: CatalogProduct) {
@@ -349,11 +370,19 @@ export default function KatalogPage() {
   }
 
   // ── Summary stats ───────────────────────────────────────────────────────────
+  // Total SKU = all active master products
+  // Aktif = master products that are part of a catalog
+  const catalogMasterIds = new Set<string>();
+  catalogs.forEach(c => {
+    const series = (c as any).catalog_series ?? c.master?.series;
+    const wType = (c as any).catalog_warranty_type ?? c.master?.warranty_type;
+    masterProducts.filter(m => m.series === series && m.warranty_type === wType).forEach(m => catalogMasterIds.add(m.id));
+  });
   const stats = {
-    total: catalogs.length,
-    published: catalogs.filter(c => c.catalog_status === "published").length,
+    totalSku: masterProducts.length,
+    skuInCatalog: catalogMasterIds.size,
     draft: catalogs.filter(c => c.catalog_status === "draft").length,
-    outOfStock: catalogs.filter(c => (getAgg(c.product_id)?.total ?? 0) === 0).length,
+    outOfStock: catalogs.filter(c => (getAgg(c)?.total ?? 0) === 0).length,
   };
 
   return (
@@ -369,11 +398,16 @@ export default function KatalogPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {isSuperAdmin && (
-              <Button variant="outline" onClick={() => setShowDiscountManager(true)} className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => navigate("/admin/katalog/bonus")} className="flex items-center gap-2">
+                <Gift className="w-4 h-4" /> Kelola Bonus
+              </Button>
+            )}
+            {isSuperAdmin && (
+              <Button variant="outline" onClick={() => navigate("/admin/katalog/diskon")} className="flex items-center gap-2">
                 <Ticket className="w-4 h-4" /> Kelola Diskon
               </Button>
             )}
-          {isSuperAdmin && (
+            {isSuperAdmin && (
               <Button onClick={() => navigate("/admin/katalog/tambah")} className="flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Tambah ke Katalog
               </Button>
@@ -384,10 +418,10 @@ export default function KatalogPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Total SKU", value: stats.total, icon: BookOpen },
-            { label: "Aktif", value: stats.published, icon: Globe },
-            { label: "Draft", value: stats.draft, icon: Archive },
-            { label: "Stok Habis", value: stats.outOfStock, icon: AlertCircle },
+             { label: "Total SKU Tersedia", value: stats.totalSku, icon: BookOpen },
+             { label: "SKU di Katalog", value: stats.skuInCatalog, icon: Globe },
+             { label: "Draft", value: stats.draft, icon: Archive },
+             { label: "Stok Habis", value: stats.outOfStock, icon: AlertCircle },
           ].map(s => (
             <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-foreground/5 flex items-center justify-center shrink-0">
@@ -487,7 +521,7 @@ export default function KatalogPage() {
         {!loading && viewMode === "grid" && filtered.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map(cat => {
-              const agg = getAgg(cat.product_id);
+               const agg = getAgg(cat);
               const outOfStock = (agg?.total ?? 0) === 0;
               return (
                 <div key={cat.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
@@ -596,7 +630,7 @@ export default function KatalogPage() {
                 </thead>
                 <tbody>
                   {filtered.map(cat => {
-                    const agg = getAgg(cat.product_id);
+                    const agg = getAgg(cat);
                     const outOfStock = (agg?.total ?? 0) === 0;
                     return (
                       <tr key={cat.id} className="border-b border-border last:border-0 hover:bg-accent/30 transition-colors">
@@ -666,15 +700,6 @@ export default function KatalogPage() {
         </p>
       </div>
 
-      {showDiscountManager && (
-        <DiscountManagerModal
-          discountCodes={discountCodes}
-          onClose={() => setShowDiscountManager(false)}
-          onSaved={fetchAll}
-          user={user}
-          role={role}
-        />
-      )}
     </DashboardLayout>
   );
 }

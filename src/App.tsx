@@ -38,6 +38,8 @@ import PengaturanPage from "./pages/PengaturanPage";
 import ActivityLogPage from "./pages/ActivityLogPage";
 import KatalogPage from "./pages/KatalogPage";
 import KatalogFormPage from "./pages/katalog/KatalogFormPage";
+import BonusProductsPage from "./pages/katalog/BonusProductsPage";
+import DiscountCodesPage from "./pages/katalog/DiscountCodesPage";
 import FlashSalePage from "./pages/FlashSalePage";
 
 const queryClient = new QueryClient();
@@ -85,6 +87,8 @@ const App = () => (
             <Route path="/admin/katalog" element={<ProtectedRoute><KatalogPage /></ProtectedRoute>} />
             <Route path="/admin/katalog/tambah" element={<ProtectedRoute requireRole="super_admin"><KatalogFormPage /></ProtectedRoute>} />
             <Route path="/admin/katalog/edit/:id" element={<ProtectedRoute><KatalogFormPage /></ProtectedRoute>} />
+            <Route path="/admin/katalog/bonus" element={<ProtectedRoute requireRole="super_admin"><BonusProductsPage /></ProtectedRoute>} />
+            <Route path="/admin/katalog/diskon" element={<ProtectedRoute requireRole="super_admin"><DiscountCodesPage /></ProtectedRoute>} />
             <Route path="/admin/flash-sale" element={<ProtectedRoute requireRole="super_admin"><FlashSalePage /></ProtectedRoute>} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
