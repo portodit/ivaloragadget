@@ -361,21 +361,27 @@ export default function ProductDetailPage() {
     return () => clearInterval(iv);
   }, [catalog, flashSaleSettings]);
 
-  // Derive all available colors and storages from siblings
+  // Derive siblings from selected warranty type (instant switch, no navigation)
+  const currentSiblings = useMemo(() => {
+    if (!selectedWarrantyType || allCatalogsCache.length === 0) return siblingCatalogs;
+    return allCatalogsCache.filter(c => c.master_products.warranty_type === selectedWarrantyType);
+  }, [allCatalogsCache, selectedWarrantyType, siblingCatalogs]);
+
+  // Derive all available colors and storages from current warranty siblings
   const allColors = useMemo(() => {
-    return Array.from(new Set(siblingCatalogs.map(s => s.master_products.color)));
-  }, [siblingCatalogs]);
+    return Array.from(new Set(currentSiblings.map(s => s.master_products.color)));
+  }, [currentSiblings]);
 
   const allStorages = useMemo(() => {
-    return Array.from(new Set(siblingCatalogs.map(s => s.master_products.storage_gb))).sort((a, b) => a - b);
-  }, [siblingCatalogs]);
+    return Array.from(new Set(currentSiblings.map(s => s.master_products.storage_gb))).sort((a, b) => a - b);
+  }, [currentSiblings]);
 
   // Find the catalog matching current selected color + storage
   const activeCatalog = useMemo(() => {
-    return siblingCatalogs.find(s =>
+    return currentSiblings.find(s =>
       s.master_products.color === selectedColor && s.master_products.storage_gb === selectedStorage
-    ) ?? catalog;
-  }, [siblingCatalogs, selectedColor, selectedStorage, catalog]);
+    ) ?? currentSiblings[0] ?? catalog;
+  }, [currentSiblings, selectedColor, selectedStorage, catalog]);
 
   // Units for the currently selected variant
   const activeUnits = useMemo(() => {
@@ -385,14 +391,14 @@ export default function ProductDetailPage() {
 
   // Check if a specific color+storage combination has stock
   const hasStockFor = (color: string, storage: number) => {
-    const cat = siblingCatalogs.find(s => s.master_products.color === color && s.master_products.storage_gb === storage);
+    const cat = currentSiblings.find(s => s.master_products.color === color && s.master_products.storage_gb === storage);
     if (!cat) return false;
     return allUnits.some(u => u.product_id === cat.product_id);
   };
 
   // Check if a specific color+storage combination has a catalog entry
   const hasCatalogFor = (color: string, storage: number) => {
-    return siblingCatalogs.some(s => s.master_products.color === color && s.master_products.storage_gb === storage);
+    return currentSiblings.some(s => s.master_products.color === color && s.master_products.storage_gb === storage);
   };
 
   if (loading) {
@@ -440,15 +446,12 @@ export default function ProductDetailPage() {
 
   const heroDiscount = minPrice ? calcDiscountedPrice(minPrice, activeCatalog, flashSaleSettings) : null;
 
-  // Warranty groups for dropdown (other warranty types for this series)
-  const warrantyOptions = [
-    { warrantyType: catalog.master_products.warranty_type, slug: null as string | null },
-    ...otherWarrantySlugs,
-  ];
+  // Warranty groups for dropdown (all warranty types for this series)
+  const warrantyOptions = Array.from(new Set(allCatalogsCache.map(c => c.master_products.warranty_type)));
 
   // Flash sale info — check if all siblings have flash sale or just specific ones
-  const flashSaleCatalogs = siblingCatalogs.filter(s => s.is_flash_sale);
-  const allHaveFlashSale = flashSaleCatalogs.length === siblingCatalogs.length;
+  const flashSaleCatalogs = currentSiblings.filter(s => s.is_flash_sale);
+  const allHaveFlashSale = flashSaleCatalogs.length === currentSiblings.length;
   const someHaveFlashSale = flashSaleCatalogs.length > 0 && !allHaveFlashSale;
 
   function handleAddToCart() {
@@ -495,7 +498,7 @@ export default function ProductDetailPage() {
     setSelectedColor(color);
     setSelectedUnitId(null);
     // Update image if the new variant has a thumbnail
-    const match = siblingCatalogs.find(s => s.master_products.color === color && s.master_products.storage_gb === selectedStorage);
+    const match = currentSiblings.find(s => s.master_products.color === color && s.master_products.storage_gb === selectedStorage);
     if (match?.thumbnail_url) setActiveImg(match.thumbnail_url);
     else if (match) setActiveImg(null);
   }
@@ -503,13 +506,13 @@ export default function ProductDetailPage() {
   function handleStorageChange(gb: number) {
     setSelectedStorage(gb);
     setSelectedUnitId(null);
-    const match = siblingCatalogs.find(s => s.master_products.color === selectedColor && s.master_products.storage_gb === gb);
+    const match = currentSiblings.find(s => s.master_products.color === selectedColor && s.master_products.storage_gb === gb);
     if (match?.thumbnail_url) setActiveImg(match.thumbnail_url);
   }
 
   // Page title = series name
   const seriesName = catalog.master_products.series;
-  const pageTitle = `${seriesName} ${WARRANTY_SHORT[catalog.master_products.warranty_type] ?? catalog.master_products.warranty_type}`;
+  const pageTitle = `${seriesName} ${WARRANTY_SHORT[selectedWarrantyType || catalog.master_products.warranty_type] ?? (selectedWarrantyType || catalog.master_products.warranty_type)}`;
 
   // Specs
   const specsRows: { label: string; value: string | null | undefined }[] = [
@@ -693,24 +696,32 @@ export default function ProductDetailPage() {
                 </div>
               )}
 
-              {/* ① Pilih Tipe Garansi — navigates to different page */}
+              {/* ① Pilih Tipe iPhone — state-based, no navigation */}
               {warrantyOptions.length > 1 ? (
                 <div className="space-y-1.5">
-                  <p className="text-sm font-medium text-foreground">Tipe Garansi</p>
+                  <p className="text-sm font-medium text-foreground">Tipe iPhone</p>
                   <Select
-                    value={catalog.master_products.warranty_type}
+                    value={selectedWarrantyType}
                     onValueChange={(val) => {
-                      const match = otherWarrantySlugs.find(o => o.warrantyType === val);
-                      if (match) navigate(`/produk/${match.slug}`);
+                      setSelectedWarrantyType(val);
+                      setSelectedUnitId(null);
+                      // Pick first available color+storage for new warranty type
+                      const newSiblings = allCatalogsCache.filter(c => c.master_products.warranty_type === val);
+                      if (newSiblings.length > 0) {
+                        const first = newSiblings[0];
+                        setSelectedColor(first.master_products.color);
+                        setSelectedStorage(first.master_products.storage_gb);
+                        if (first.thumbnail_url) setActiveImg(first.thumbnail_url);
+                      }
                     }}
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {warrantyOptions.map(({ warrantyType }) => (
-                        <SelectItem key={warrantyType} value={warrantyType}>
-                          {WARRANTY_FRIENDLY[warrantyType] ?? WARRANTY_LABELS[warrantyType] ?? warrantyType}
+                      {warrantyOptions.map((wt) => (
+                        <SelectItem key={wt} value={wt}>
+                          {WARRANTY_FRIENDLY[wt] ?? WARRANTY_LABELS[wt] ?? wt}
                         </SelectItem>
                       ))}
                     </SelectContent>
