@@ -243,11 +243,14 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
                 {warrantyLabels.find((w) => w.key === editProduct!.warranty_type)?.label ?? editProduct!.warranty_type}
               </div>
             ) : (
-              <Select value={watchedWarranty} onValueChange={(v) => setValue("warranty_type", v as WarrantyType)}>
+              <Select value={watchedWarranty || undefined} onValueChange={(v) => setValue("warranty_type", v as WarrantyType)}>
                 <SelectTrigger className="h-10">
                   <SelectValue placeholder="Pilih tipe iPhone" />
                 </SelectTrigger>
                 <SelectContent>
+                  {activeWarrantyLabels.length === 0 && (
+                    <SelectItem value="_empty" disabled>Belum ada tipe tersedia</SelectItem>
+                  )}
                   {activeWarrantyLabels.map((w) => (
                     <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
                   ))}
