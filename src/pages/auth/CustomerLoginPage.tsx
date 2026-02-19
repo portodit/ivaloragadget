@@ -106,14 +106,10 @@ export default function CustomerLoginPage() {
             </Button>
           </form>
 
-          <div className="text-center space-y-3">
+          <div className="text-center">
             <p className="text-sm text-muted-foreground">
               Belum punya akun?{" "}
               <Link to="/register" className="font-semibold text-foreground hover:underline underline-offset-4">Daftar sekarang</Link>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Admin?{" "}
-              <Link to="/admin/login" className="text-muted-foreground hover:text-foreground underline-offset-4 underline">Masuk ke panel admin</Link>
             </p>
           </div>
         </div>

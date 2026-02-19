@@ -276,14 +276,10 @@ export default function CustomerRegisterPage() {
             </Button>
           </form>
 
-          <div className="text-center space-y-2">
+          <div className="text-center">
             <p className="text-sm text-muted-foreground">
               Sudah punya akun?{" "}
               <Link to="/login" className="font-semibold text-foreground hover:underline underline-offset-4">Masuk</Link>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Admin?{" "}
-              <Link to="/admin/register" className="text-muted-foreground hover:text-foreground underline underline-offset-4">Daftar admin</Link>
             </p>
           </div>
         </div>

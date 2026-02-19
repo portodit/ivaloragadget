@@ -1,27 +1,27 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Shield, BadgeCheck, Wrench, Store, Star, ChevronRight,
-  MapPin, Clock, Phone, MessageCircle, ArrowRight, Play,
-  Package, Truck, HeartHandshake, Instagram, ShoppingBag,
+  Star, ChevronRight, MapPin, Clock, Phone, MessageCircle,
+  ArrowRight, ShoppingBag, Instagram, Zap, Shield, Banknote, CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import { supabase } from "@/integrations/supabase/client";
-import logoFull from "@/assets/logo-full.svg";
 import logoHorizontal from "@/assets/logo-horizontal.svg";
 import iphone11Pro from "@/assets/iphone-11-pro.png";
 import iphone13 from "@/assets/iphone-13.png";
 import iphone13Pro from "@/assets/iphone-13-pro.png";
 import iphone11 from "@/assets/iphone-11.png";
 import logoShopee from "@/assets/logo-shopee.png";
+import uvpQuality from "@/assets/uvp-quality.png";
+import uvpGaransi from "@/assets/uvp-garansi.png";
+import uvpHarga from "@/assets/uvp-harga.png";
+import uvpCicilan from "@/assets/uvp-cicilan.png";
 
-// ─── helpers ────────────────────────────────────────────────────────────────
 function formatRupiah(n: number) {
   return "Rp " + n.toLocaleString("id-ID");
 }
 
-// ─── types ──────────────────────────────────────────────────────────────────
 interface Product {
   id: string;
   display_name: string;
@@ -30,27 +30,96 @@ interface Product {
   override_display_price: number | null;
   highlight_product: boolean;
   promo_badge: string | null;
+  promo_label: string | null;
   rating_score: number | null;
   free_shipping: boolean;
   spec_warranty_duration: string | null;
 }
 
-// ─── UVP Cards ──────────────────────────────────────────────────────────────
-const UVP = [
-  { icon: Shield, title: "IMEI Resmi & Aman", desc: "Setiap unit dicek IMEI-nya sebelum pengiriman — tidak masuk daftar hitam." },
-  { icon: BadgeCheck, title: "Garansi 1 Bulan", desc: "Garansi toko berlaku 1 bulan untuk kerusakan internal sejak tanggal pembelian." },
-  { icon: Wrench, title: "QC 30+ Checkpoint", desc: "Prosedur quality control ketat di lebih dari 30 titik sebelum produk dijual." },
-  { icon: Store, title: "Offline Store & Marketplace", desc: "Toko fisik di Surabaya dan hadir di Shopee & Tokopedia sebagai official store." },
+// ─── Hero slides ─────────────────────────────────────────────────────────────
+const HERO_SLIDES = [
+  {
+    img: iphone13Pro,
+    tag: "iPhone 13 Pro",
+    headline: "Pusat Jual Beli",
+    accent: "iPhone Terpercaya",
+    sub: "Unit bergaransi, IMEI aman, dan telah melalui quality control ketat sebelum sampai ke tangan Anda.",
+  },
+  {
+    img: iphone13,
+    tag: "iPhone 13",
+    headline: "Stok Terlengkap",
+    accent: "Surabaya & Sekitarnya",
+    sub: "Dari iPhone 11 hingga seri terbaru, semua tersedia dengan pilihan warna dan kapasitas lengkap.",
+  },
+  {
+    img: iphone11Pro,
+    tag: "iPhone 11 Pro",
+    headline: "Harga Transparan,",
+    accent: "Tanpa Biaya Tersembunyi",
+    sub: "Harga tertera sudah final. Kondisi unit dijelaskan jujur — tidak ada yang kami sembunyikan.",
+  },
+  {
+    img: iphone11,
+    tag: "iPhone 11",
+    headline: "Belanja Tenang,",
+    accent: "Garansi Toko 1 Bulan",
+    sub: "Setiap pembelian dilindungi garansi toko. Jika ada masalah, tim kami siap menangani langsung.",
+  },
 ];
 
-// ─── Testimonials ────────────────────────────────────────────────────────────
+// ─── iPhone category cards ────────────────────────────────────────────────────
+const IPHONE_CATEGORIES = [
+  { name: "iPhone 11", img: iphone11, year: "2019", tag: "Hemat & Handal" },
+  { name: "iPhone 11 Pro", img: iphone11Pro, year: "2019", tag: "Kamera Triple" },
+  { name: "iPhone 13", img: iphone13, year: "2021", tag: "Baterai Tahan Lama" },
+  { name: "iPhone 13 Pro", img: iphone13Pro, year: "2021", tag: "Layar ProMotion" },
+];
+
+// ─── UVP cards ────────────────────────────────────────────────────────────────
+const UVP_CARDS = [
+  {
+    icon: Shield,
+    emoji: "✅",
+    title: "Premium Quality",
+    short: "QC ketat di 30+ checkpoint",
+    desc: "Setiap unit melewati pengecekan menyeluruh sebelum dijual. Fungsi utama dipastikan normal dan kondisi dijelaskan secara transparan — kamu tahu persis apa yang kamu beli.",
+    img: uvpQuality,
+  },
+  {
+    icon: Shield,
+    emoji: "🛡️",
+    title: "Free Garansi Unit",
+    short: "Garansi toko berlaku penuh",
+    desc: "Setiap pembelian dilengkapi garansi sesuai ketentuan toko. Jika ada kendala selama masa garansi, unit bisa dikonsultasikan dan ditangani langsung oleh tim Ivalora.",
+    img: uvpGaransi,
+  },
+  {
+    icon: Banknote,
+    emoji: "💰",
+    title: "Jaminan Harga Terbaik",
+    short: "Harga pasar, transparan, no hidden fee",
+    desc: "Harga disesuaikan kondisi unit dan mengikuti harga pasar terkini. Tanpa biaya tersembunyi, plus tersedia opsi tukar tambah untuk memudahkan upgrade perangkat.",
+    img: uvpHarga,
+  },
+  {
+    icon: CreditCard,
+    emoji: "💳",
+    title: "Cicilan Mudah & Aman",
+    short: "Tersedia via Shopee & Tokopedia",
+    desc: "Pembelian tersedia melalui marketplace resmi seperti Shopee dan Tokopedia dengan sistem pembayaran aman, termasuk opsi cicilan sesuai ketentuan platform.",
+    img: uvpCicilan,
+  },
+];
+
+// ─── Testimonials ─────────────────────────────────────────────────────────────
 const TESTIMONIALS = [
-  { name: "Rizky A.", city: "Surabaya", rating: 5, text: "Unit iPhone 13 Pro yang saya beli kondisinya mulus banget, IMEI clear, garansi toko juga ada. Proses cepat dan aman!" },
-  { name: "Dewi S.", city: "Jakarta", rating: 5, text: "Belanja online dari Shopee, pengiriman kilat dan packing aman. HP sesuai deskripsi, sangat rekomended!" },
-  { name: "Budi H.", city: "Sidoarjo", rating: 5, text: "Sudah 3x beli di Ivalora, selalu puas. Harga kompetitif, unit bersih, dan admin responsif banget." },
+  { name: "Rizky A.", city: "Surabaya", rating: 5, text: "iPhone 13 Pro yang saya beli kondisinya mulus banget. IMEI bersih, garansi toko ada, dan prosesnya cepat. Recommended banget!" },
+  { name: "Dewi S.", city: "Jakarta", rating: 5, text: "Order via Shopee, packing aman dan pengiriman kilat. HP kondisinya persis seperti deskripsi, tidak ada yang mengecewakan." },
+  { name: "Budi H.", city: "Sidoarjo", rating: 5, text: "Sudah 3x beli di sini, selalu puas. Harga kompetitif, unit bersih, admin fast response. Nggak perlu cari yang lain." },
 ];
 
-// ─── Countdown Timer ─────────────────────────────────────────────────────────
+// ─── Countdown ───────────────────────────────────────────────────────────────
 function useCountdown(endHour: number) {
   const getRemaining = () => {
     const now = new Date();
@@ -58,10 +127,11 @@ function useCountdown(endHour: number) {
     end.setHours(endHour, 0, 0, 0);
     if (end <= now) end.setDate(end.getDate() + 1);
     const diff = end.getTime() - now.getTime();
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    return { h, m, s };
+    return {
+      h: Math.floor(diff / 3600000),
+      m: Math.floor((diff % 3600000) / 60000),
+      s: Math.floor((diff % 60000) / 1000),
+    };
   };
   const [time, setTime] = useState(getRemaining());
   useEffect(() => {
@@ -74,26 +144,34 @@ function useCountdown(endHour: number) {
 function CountdownBlock({ val, label }: { val: number; label: string }) {
   return (
     <div className="flex flex-col items-center">
-      <div className="bg-foreground text-background rounded-xl w-14 h-14 flex items-center justify-center text-2xl font-bold tabular-nums">
+      <div
+        className="rounded-xl w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-xl sm:text-2xl font-bold tabular-nums"
+        style={{ background: "hsl(0 0% 15%)", color: "hsl(38 92% 50%)" }}
+      >
         {String(val).padStart(2, "0")}
       </div>
-      <span className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider">{label}</span>
+      <span className="text-[9px] sm:text-[10px] mt-1 uppercase tracking-wider" style={{ color: "hsl(0 0% 50%)" }}>
+        {label}
+      </span>
     </div>
   );
 }
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// ─── MAIN ────────────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [highlight, setHighlight] = useState<Product[]>([]);
-  const { h, m, s } = useCountdown(22); // Flash sale ends at 22:00
+  const { h, m, s } = useCountdown(22);
+  const [heroIdx, setHeroIdx] = useState(0);
+  const [activeUvp, setActiveUvp] = useState(0);
+  const uvpImgRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("catalog_products")
-        .select("id, display_name, slug, thumbnail_url, override_display_price, highlight_product, promo_badge, rating_score, free_shipping, spec_warranty_duration")
+        .select("id, display_name, slug, thumbnail_url, override_display_price, highlight_product, promo_badge, promo_label, rating_score, free_shipping, spec_warranty_duration")
         .eq("catalog_status", "published")
         .eq("publish_to_web", true)
         .limit(12);
@@ -104,107 +182,249 @@ export default function LandingPage() {
     })();
   }, []);
 
-  const heroImages = [iphone13Pro, iphone13, iphone11Pro, iphone11];
-  const [heroIdx, setHeroIdx] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setHeroIdx((i) => (i + 1) % heroImages.length), 3500);
+    const t = setInterval(() => setHeroIdx((i) => (i + 1) % HERO_SLIDES.length), 4000);
     return () => clearInterval(t);
   }, []);
 
+  const slide = HERO_SLIDES[heroIdx];
+
   return (
-    <div className="min-h-screen bg-background text-foreground font-[Poppins,sans-serif]">
+    <div className="min-h-screen bg-background text-foreground">
       <PublicNavbar />
 
       {/* ══════════════════════════════════════════════════════════════
-          HERO
+          HERO — Black gradient, Apple-style
       ══════════════════════════════════════════════════════════════ */}
-      <section className="relative overflow-hidden bg-foreground text-background min-h-[90vh] flex items-center">
-        {/* Grid texture overlay */}
-        <div
-          className="absolute inset-0 opacity-[0.04]"
+      <section
+        className="relative overflow-hidden flex items-center min-h-[92vh]"
+        style={{ background: "linear-gradient(160deg, hsl(0 0% 6%) 0%, hsl(220 20% 8%) 50%, hsl(0 0% 4%) 100%)" }}
+      >
+        {/* Subtle noise texture */}
+        <div className="absolute inset-0 opacity-[0.025]"
           style={{
-            backgroundImage: "linear-gradient(hsl(0 0% 100% / 0.1) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100% / 0.1) 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
+            backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
           }}
         />
+        {/* Glow accent — top right */}
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full opacity-[0.06] blur-[120px]"
+          style={{ background: "hsl(210 100% 60%)" }} />
+        {/* Bottom left glow */}
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full opacity-[0.04] blur-[100px]"
+          style={{ background: "hsl(38 92% 50%)" }} />
 
-        {/* Glow blobs */}
-        <div className="absolute top-1/4 left-1/3 w-96 h-96 rounded-full opacity-10 blur-3xl" style={{ background: "hsl(var(--hero-glow))" }} />
-        <div className="absolute bottom-0 right-1/4 w-72 h-72 rounded-full opacity-5 blur-3xl bg-primary-foreground" />
-
-        <div className="max-w-6xl mx-auto px-6 w-full grid lg:grid-cols-2 gap-12 items-center py-20 lg:py-0">
+        <div className="max-w-6xl mx-auto px-6 w-full grid lg:grid-cols-2 gap-12 items-center py-28 lg:py-0">
           {/* Text */}
-          <div className="space-y-8 relative z-10">
-            <div className="inline-flex items-center gap-2 bg-primary-foreground/10 rounded-full px-4 py-1.5 text-xs font-medium text-primary-foreground/70 border border-primary-foreground/10">
-              <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--status-available))] animate-pulse" />
-              Stok tersedia · Surabaya
+          <div className="space-y-8 relative z-10 order-2 lg:order-1">
+            {/* Series tag */}
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-widest transition-all duration-500"
+              style={{ background: "hsl(0 0% 100% / 0.06)", border: "1px solid hsl(0 0% 100% / 0.1)", color: "hsl(0 0% 70%)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(142 71% 45%)" }} />
+              {slide.tag} · Stok Tersedia
             </div>
-            <div className="space-y-4">
-              <h1 className="text-4xl md:text-5xl xl:text-6xl font-bold leading-[1.1] tracking-tight">
-                Pusat Jual Beli<br />
-                <span className="text-transparent bg-clip-text" style={{ backgroundImage: "linear-gradient(90deg, hsl(var(--hero-glow)), hsl(var(--hero-glow-2)))" }}>
-                  iPhone Terpercaya
+
+            <div className="space-y-3">
+              <h1 className="text-4xl md:text-5xl xl:text-6xl font-bold leading-[1.08] tracking-tight text-white">
+                {slide.headline}<br />
+                <span className="text-transparent bg-clip-text"
+                  style={{ backgroundImage: "linear-gradient(90deg, hsl(210 100% 70%), hsl(197 100% 75%))" }}>
+                  {slide.accent}
                 </span>
               </h1>
-              <p className="text-base md:text-lg text-primary-foreground/60 max-w-lg leading-relaxed">
-                Unit bergaransi, IMEI aman, dan telah melalui Quality Control sebelum dikirim ke tangan Anda.
+              <p className="text-base md:text-lg leading-relaxed max-w-md" style={{ color: "hsl(0 0% 55%)" }}>
+                {slide.sub}
               </p>
             </div>
+
             <div className="flex flex-wrap gap-3">
               <Button
                 size="lg"
-                className="bg-white text-foreground hover:bg-white/90 font-semibold rounded-xl gap-2 px-6"
+                className="font-semibold rounded-xl gap-2 px-7 h-12"
+                style={{ background: "hsl(0 0% 100%)", color: "hsl(0 0% 8%)" }}
                 onClick={() => navigate("/katalog")}
               >
                 Lihat Produk <ArrowRight className="w-4 h-4" />
               </Button>
               <Button
                 size="lg"
-                variant="outline"
-                className="border-white/20 text-white bg-transparent hover:bg-white/10 rounded-xl gap-2 px-6"
+                className="rounded-xl gap-2 px-7 h-12 font-medium"
+                style={{ background: "hsl(0 0% 100% / 0.08)", border: "1px solid hsl(0 0% 100% / 0.12)", color: "hsl(0 0% 85%)" }}
                 onClick={() => window.open("https://wa.me/6285890024760", "_blank")}
               >
                 <MessageCircle className="w-4 h-4" /> Chat Admin
               </Button>
             </div>
 
-            {/* Quick stats */}
-            <div className="flex items-center gap-6 pt-2">
+            {/* Stats */}
+            <div className="flex items-center gap-8 pt-2">
               {[
                 { val: "5.000+", label: "Pelanggan" },
                 { val: "10.000+", label: "Unit Terjual" },
                 { val: "4.9★", label: "Rating Toko" },
               ].map((stat) => (
-                <div key={stat.label} className="text-center">
+                <div key={stat.label}>
                   <p className="text-xl font-bold text-white">{stat.val}</p>
-                  <p className="text-xs text-white/50">{stat.label}</p>
+                  <p className="text-xs" style={{ color: "hsl(0 0% 45%)" }}>{stat.label}</p>
                 </div>
+              ))}
+            </div>
+
+            {/* Slide dots */}
+            <div className="flex items-center gap-2">
+              {HERO_SLIDES.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setHeroIdx(i)}
+                  className="rounded-full transition-all duration-300"
+                  style={{
+                    width: i === heroIdx ? 28 : 8,
+                    height: 8,
+                    background: i === heroIdx ? "hsl(0 0% 100%)" : "hsl(0 0% 30%)",
+                  }}
+                />
               ))}
             </div>
           </div>
 
-          {/* iPhone image carousel */}
-          <div className="relative flex justify-center items-end h-[460px] lg:h-auto">
+          {/* Phone image */}
+          <div className="relative flex justify-center items-center h-[400px] md:h-[500px] order-1 lg:order-2">
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-72 h-72 rounded-full opacity-10 blur-3xl" style={{ background: "hsl(var(--hero-glow))" }} />
+              <div className="w-64 h-64 rounded-full blur-[80px] opacity-20"
+                style={{ background: "hsl(210 100% 60%)" }} />
             </div>
-            {heroImages.map((img, i) => (
+            {HERO_SLIDES.map((sl, i) => (
               <img
                 key={i}
-                src={img}
-                alt="iPhone"
-                className={`absolute bottom-0 max-h-[420px] w-auto object-contain drop-shadow-2xl transition-all duration-700 ease-in-out ${
-                  i === heroIdx ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4"
-                }`}
+                src={sl.img}
+                alt={sl.tag}
+                className="absolute bottom-0 max-h-[460px] w-auto object-contain transition-all duration-700 ease-in-out"
+                style={{
+                  opacity: i === heroIdx ? 1 : 0,
+                  transform: i === heroIdx ? "scale(1) translateY(0)" : "scale(0.95) translateY(16px)",
+                  filter: "drop-shadow(0 40px 60px hsl(210 100% 30% / 0.3))",
+                }}
               />
             ))}
-            {/* Dots */}
-            <div className="absolute bottom-4 flex gap-1.5">
-              {heroImages.map((_, i) => (
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════════
+          IPHONE CATEGORY — Horizontal scroll
+      ══════════════════════════════════════════════════════════════ */}
+      <section className="py-14 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-1">Koleksi Pilihan</p>
+              <h2 className="text-2xl font-bold">iPhone Tersedia</h2>
+            </div>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" onClick={() => navigate("/katalog")}>
+              Lihat Semua <ChevronRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+
+          <div className="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1 scrollbar-hide snap-x snap-mandatory">
+            {IPHONE_CATEGORIES.map((cat) => (
+              <div
+                key={cat.name}
+                onClick={() => navigate("/katalog")}
+                className="snap-start shrink-0 w-52 md:w-60 rounded-2xl overflow-hidden border border-border cursor-pointer group hover:border-foreground/30 transition-all duration-300 hover:shadow-lg bg-card"
+              >
+                {/* Image bg */}
+                <div className="relative h-52 bg-secondary/40 flex items-end justify-center overflow-hidden">
+                  <div className="absolute inset-0"
+                    style={{ background: "linear-gradient(180deg, transparent 40%, hsl(0 0% 0% / 0.5) 100%)" }} />
+                  <img
+                    src={cat.img}
+                    alt={cat.name}
+                    className="absolute bottom-0 h-44 w-auto object-contain group-hover:scale-105 transition-transform duration-500"
+                    style={{ filter: "drop-shadow(0 10px 20px hsl(0 0% 0% / 0.3))" }}
+                  />
+                  <div className="relative z-10 w-full p-3">
+                    <span className="inline-block text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md text-white"
+                      style={{ background: "hsl(0 0% 100% / 0.15)", border: "1px solid hsl(0 0% 100% / 0.2)" }}>
+                      {cat.tag}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <p className="font-semibold text-sm text-foreground">{cat.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Rilis {cat.year}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════════
+          WHY IVALORA — 2-column interactive cards
+      ══════════════════════════════════════════════════════════════ */}
+      <section className="py-20 px-6" style={{ background: "hsl(0 0% 98%)" }}>
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-12">
+            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">Kenapa Ivalora?</p>
+            <h2 className="text-3xl md:text-4xl font-bold leading-tight">
+              Belanja iPhone yang<br />
+              <span className="text-transparent bg-clip-text"
+                style={{ backgroundImage: "linear-gradient(90deg, hsl(0 0% 10%), hsl(0 0% 40%))" }}>
+                Jujur dan Terukur
+              </span>
+            </h2>
+          </div>
+
+          <div className="grid lg:grid-cols-[2fr_3fr] gap-6 items-start">
+            {/* Left — stacked cards */}
+            <div className="space-y-3">
+              {UVP_CARDS.map((card, i) => (
                 <button
-                  key={i}
-                  onClick={() => setHeroIdx(i)}
-                  className={`rounded-full transition-all duration-300 ${i === heroIdx ? "w-6 h-2 bg-white" : "w-2 h-2 bg-white/30"}`}
+                  key={card.title}
+                  onClick={() => setActiveUvp(i)}
+                  className="w-full text-left rounded-2xl p-5 border transition-all duration-200"
+                  style={{
+                    background: activeUvp === i ? "hsl(0 0% 8%)" : "hsl(0 0% 100%)",
+                    borderColor: activeUvp === i ? "hsl(0 0% 8%)" : "hsl(214 32% 91%)",
+                    boxShadow: activeUvp === i ? "0 8px 24px hsl(0 0% 0% / 0.15)" : "none",
+                  }}
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="text-2xl leading-none mt-0.5">{card.emoji}</span>
+                    <div>
+                      <p className="font-semibold text-sm"
+                        style={{ color: activeUvp === i ? "hsl(0 0% 100%)" : "hsl(0 0% 10%)" }}>
+                        {card.title}
+                      </p>
+                      <p className="text-xs mt-1 leading-relaxed"
+                        style={{ color: activeUvp === i ? "hsl(0 0% 60%)" : "hsl(215 16% 47%)" }}>
+                        {card.short}
+                      </p>
+                      {activeUvp === i && (
+                        <p className="text-xs mt-3 leading-relaxed" style={{ color: "hsl(0 0% 65%)" }}>
+                          {card.desc}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Right — photo */}
+            <div
+              ref={uvpImgRef}
+              className="rounded-2xl overflow-hidden sticky top-24 relative"
+              style={{ aspectRatio: "16/10", background: "hsl(214 32% 91%)" }}
+            >
+              {UVP_CARDS.map((card, i) => (
+                <img
+                  key={card.title}
+                  src={card.img}
+                  alt={card.title}
+                  className="absolute inset-0 w-full h-full object-cover transition-all duration-500"
+                  style={{ opacity: activeUvp === i ? 1 : 0 }}
                 />
               ))}
             </div>
@@ -213,152 +433,124 @@ export default function LandingPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════
-          UVP CARDS (floating below hero)
+          FLASH SALE — redesigned
       ══════════════════════════════════════════════════════════════ */}
-      <section className="relative z-10 -mt-8 px-6 max-w-6xl mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {UVP.map(({ icon: Icon, title, desc }) => (
-            <div
-              key={title}
-              className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-foreground/5 flex items-center justify-center mb-3 group-hover:bg-foreground group-hover:text-background transition-colors">
-                <Icon className="w-5 h-5" />
-              </div>
-              <p className="font-semibold text-sm text-foreground">{title}</p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed hidden md:block">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════
-          FLASH SALE
-      ══════════════════════════════════════════════════════════════ */}
-      <section className="py-16 px-6 max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-2xl font-bold text-foreground">⚡ Flash Sale</h2>
-              {/* Countdown */}
-              <div className="flex items-center gap-2">
-                <CountdownBlock val={h} label="Jam" />
-                <span className="text-foreground font-bold text-xl mb-4">:</span>
-                <CountdownBlock val={m} label="Mnt" />
-                <span className="text-foreground font-bold text-xl mb-4">:</span>
-                <CountdownBlock val={s} label="Dtk" />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">Penawaran terbatas, stok cepat habis</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => navigate("/katalog")} className="gap-1.5 rounded-xl">
-            Lihat Semua <ChevronRight className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-
-        {/* Product cards horizontal scroll */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {(highlight.length ? highlight : products.slice(0, 4)).map((p) => (
-            <ProductCard key={p.id} product={p} badge="FLASH SALE" />
-          ))}
-          {highlight.length === 0 && products.length === 0 && (
-            Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-          )}
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════
-          BEST SELLER / NEW ARRIVAL TABS
-      ══════════════════════════════════════════════════════════════ */}
-      <section className="py-8 px-6 max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">Produk Unggulan</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Unit bersih, QC ketat, harga terbaik</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => navigate("/katalog")} className="gap-1.5 rounded-xl">
-            Semua Produk <ChevronRight className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {products.length > 0
-            ? products.map((p) => <ProductCard key={p.id} product={p} />)
-            : Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
-          }
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════
-          KENAPA BELI DI IVALORA
-      ══════════════════════════════════════════════════════════════ */}
-      <section className="py-20 px-6 bg-foreground text-background">
+      <section className="py-16 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-14">
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-3">Kenapa Ivalora?</p>
-            <h2 className="text-3xl md:text-4xl font-bold">Belanja Lebih Tenang,<br />Dapat Unit Lebih Jelas</h2>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: Shield, title: "Transparansi Kondisi", desc: "Setiap unit dilengkapi keterangan kondisi lengkap — tidak ada yang disembunyikan." },
-              { icon: Package, title: "Real Unit Preview", desc: "Foto produk nyata bukan render. Apa yang kamu lihat, itu yang kamu terima." },
-              { icon: HeartHandshake, title: "CS Responsif", desc: "Admin aktif dan siap membantu setiap hari dari pagi hingga malam." },
-              { icon: Store, title: "Official Marketplace", desc: "Tersedia di Shopee dan Tokopedia dengan rating toko bintang 5." },
-            ].map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="border border-white/10 rounded-2xl p-6 hover:border-white/30 transition-colors">
-                <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center mb-4">
-                  <Icon className="w-5 h-5 text-white" />
+          {/* Header */}
+          <div
+            className="rounded-2xl p-6 md:p-8 mb-8 relative overflow-hidden"
+            style={{ background: "linear-gradient(135deg, hsl(0 0% 7%) 0%, hsl(220 25% 10%) 100%)" }}
+          >
+            <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-[80px] opacity-10"
+              style={{ background: "hsl(38 92% 50%)" }} />
+            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">⚡</span>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white">Flash Sale</h2>
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md"
+                    style={{ background: "hsl(38 92% 50%)", color: "hsl(0 0% 10%)" }}
+                  >
+                    HARI INI
+                  </span>
                 </div>
-                <h3 className="font-semibold text-white mb-2">{title}</h3>
-                <p className="text-sm text-white/50 leading-relaxed">{desc}</p>
+                <p className="text-sm" style={{ color: "hsl(0 0% 50%)" }}>Penawaran terbatas, stok cepat habis</p>
               </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <CountdownBlock val={h} label="Jam" />
+                  <span className="text-xl font-bold text-white pb-3">:</span>
+                  <CountdownBlock val={m} label="Mnt" />
+                  <span className="text-xl font-bold text-white pb-3">:</span>
+                  <CountdownBlock val={s} label="Dtk" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Product grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {(highlight.length ? highlight : products.slice(0, 4)).map((p) => (
+              <ProductCard key={p.id} product={p} isFlashSale />
             ))}
+            {highlight.length === 0 && products.length === 0 &&
+              Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+            }
+          </div>
+
+          <div className="text-center mt-8">
+            <Button variant="outline" className="rounded-xl gap-2 px-8" onClick={() => navigate("/katalog")}>
+              Lihat Semua Produk <ArrowRight className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════════════════════════════════════════════
-          E-COMMERCE CHANNELS
+          PRODUK UNGGULAN
       ══════════════════════════════════════════════════════════════ */}
-      <section className="py-20 px-6 max-w-6xl mx-auto">
-        <div className="text-center mb-10">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-2">Tersedia di</p>
+      <section className="py-8 pb-20 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+            <div>
+              <h2 className="text-2xl font-bold">Produk Unggulan</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">Unit terpilih, kualitas terjamin, harga terbaik</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate("/katalog")} className="gap-1.5 rounded-xl">
+              Semua Produk <ChevronRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {products.length > 0
+              ? products.map((p) => <ProductCard key={p.id} product={p} />)
+              : Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
+            }
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════════
+          MARKETPLACE
+      ══════════════════════════════════════════════════════════════ */}
+      <section className="py-16 px-6 border-t border-border">
+        <div className="max-w-4xl mx-auto text-center mb-10">
+          <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">Tersedia di</p>
           <h2 className="text-2xl font-bold">Official Marketplace Store</h2>
+          <p className="text-sm text-muted-foreground mt-2">Belanja online dengan proteksi penuh dari platform terpercaya</p>
         </div>
         <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-          {/* Shopee */}
-          <div className="border border-border rounded-2xl p-7 flex flex-col items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="border border-border rounded-2xl p-7 flex flex-col items-center gap-4 hover:shadow-md transition-shadow bg-card">
             <img src={logoShopee} alt="Shopee" className="h-10 object-contain" />
             <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-1" style={{ color: "hsl(var(--star))" }}>
-                {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+              <div className="flex items-center justify-center gap-1 mb-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-current" style={{ color: "hsl(var(--star))" }} />
+                ))}
               </div>
-              <p className="text-sm text-muted-foreground">Rating Toko 5.0 · Official Store</p>
+              <p className="text-sm text-muted-foreground">Rating 5.0 · Official Store</p>
             </div>
-            <Button
-              className="w-full rounded-xl gap-2"
-              onClick={() => window.open("https://shopee.co.id/ivalora_gadget", "_blank")}
-            >
+            <Button className="w-full rounded-xl gap-2"
+              onClick={() => window.open("https://shopee.co.id/ivalora_gadget", "_blank")}>
               Kunjungi Toko Shopee <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </div>
-
-          {/* Tokopedia */}
-          <div className="border border-border rounded-2xl p-7 flex flex-col items-center gap-4 hover:shadow-md transition-shadow">
+          <div className="border border-border rounded-2xl p-7 flex flex-col items-center gap-4 hover:shadow-md transition-shadow bg-card">
             <div className="h-10 flex items-center">
-              <span className="text-2xl font-extrabold text-[hsl(var(--status-available))]">tokopedia</span>
+              <span className="text-2xl font-extrabold" style={{ color: "hsl(142 71% 38%)" }}>tokopedia</span>
             </div>
             <div className="text-center">
-              <div className="flex items-center justify-center gap-1 mb-1" style={{ color: "hsl(var(--star))" }}>
-                {Array.from({ length: 5 }).map((_, i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+              <div className="flex items-center justify-center gap-1 mb-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-current" style={{ color: "hsl(var(--star))" }} />
+                ))}
               </div>
-              <p className="text-sm text-muted-foreground">Rating Toko 5.0 · Power Merchant</p>
+              <p className="text-sm text-muted-foreground">Rating 5.0 · Power Merchant</p>
             </div>
-            <Button
-              variant="outline"
-              className="w-full rounded-xl gap-2 text-[hsl(var(--status-available))] border-[hsl(var(--status-available))] hover:bg-[hsl(var(--status-available-bg))]"
-              onClick={() => window.open("https://www.tokopedia.com/ivalora", "_blank")}
-            >
+            <Button variant="outline" className="w-full rounded-xl gap-2"
+              style={{ color: "hsl(142 71% 38%)", borderColor: "hsl(142 71% 38%)" }}
+              onClick={() => window.open("https://www.tokopedia.com/ivalora", "_blank")}>
               Kunjungi Toko Tokopedia <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </div>
@@ -368,12 +560,15 @@ export default function LandingPage() {
       {/* ══════════════════════════════════════════════════════════════
           OFFLINE STORE
       ══════════════════════════════════════════════════════════════ */}
-      <section className="py-20 px-6 bg-secondary/50" id="tentang">
+      <section className="py-20 px-6 bg-secondary/40" id="tentang">
         <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-10 items-center">
           <div className="space-y-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Toko Fisik</p>
-            <h2 className="text-3xl font-bold leading-tight">Kunjungi Toko Kami<br />di Surabaya</h2>
-            <div className="space-y-4">
+            <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">Toko Fisik</p>
+            <h2 className="text-3xl font-bold leading-tight">Kunjungi Langsung<br />di Surabaya</h2>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Ingin melihat kondisi unit secara langsung sebelum beli? Toko kami terbuka setiap hari — tim kami siap membantu Anda memilih iPhone yang paling sesuai.
+            </p>
+            <div className="space-y-3">
               {[
                 { icon: MapPin, text: "Jl. Raya Sukodono — Sidoarjo, Jawa Timur" },
                 { icon: Clock, text: "Senin – Sabtu: 09.00 – 20.00 WIB" },
@@ -387,16 +582,11 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <Button
-              variant="outline"
-              className="rounded-xl gap-2"
-              onClick={() => window.open("https://maps.app.goo.gl/Qep4kZ3rViH2XWRZ6", "_blank")}
-            >
+            <Button variant="outline" className="rounded-xl gap-2"
+              onClick={() => window.open("https://maps.app.goo.gl/Qep4kZ3rViH2XWRZ6", "_blank")}>
               <MapPin className="w-4 h-4" /> Lihat di Google Maps
             </Button>
           </div>
-
-          {/* Map embed */}
           <div className="rounded-2xl overflow-hidden border border-border shadow-sm h-72 lg:h-80">
             <iframe
               title="Lokasi Ivalora Gadget"
@@ -404,7 +594,7 @@ export default function LandingPage() {
               style={{ border: 0 }}
               loading="lazy"
               allowFullScreen
-              src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&q=-7.293936,112.814863&zoom=16`}
+              src="https://www.google.com/maps/embed/v1/place?key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&q=-7.293936,112.814863&zoom=16"
             />
           </div>
         </div>
@@ -415,15 +605,15 @@ export default function LandingPage() {
       ══════════════════════════════════════════════════════════════ */}
       <section className="py-20 px-6 max-w-6xl mx-auto">
         <div className="text-center mb-12">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-2">Testimoni</p>
-          <h2 className="text-2xl font-bold">Dipercaya 5.000+ Pelanggan</h2>
+          <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">Apa Kata Mereka</p>
+          <h2 className="text-2xl font-bold">Dipercaya 5.000+ Pembeli</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6">
           {TESTIMONIALS.map((t) => (
             <div key={t.name} className="border border-border rounded-2xl p-6 bg-card hover:shadow-md transition-shadow">
               <div className="flex items-center gap-1 mb-3">
                 {Array.from({ length: t.rating }).map((_, i) => (
-                  <Star key={i} className="w-3.5 h-3.5" style={{ fill: "hsl(var(--star))", color: "hsl(var(--star))" }} />
+                  <Star key={i} className="w-3.5 h-3.5 fill-current" style={{ color: "hsl(var(--star))" }} />
                 ))}
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed mb-4">"{t.text}"</p>
@@ -442,27 +632,25 @@ export default function LandingPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════
-          CTA — BUTUH BANTUAN
+          CTA
       ══════════════════════════════════════════════════════════════ */}
-      <section className="py-20 px-6 bg-foreground text-background" id="kontak">
+      <section className="py-20 px-6 text-white" id="kontak"
+        style={{ background: "linear-gradient(135deg, hsl(0 0% 7%) 0%, hsl(220 20% 10%) 100%)" }}>
         <div className="max-w-2xl mx-auto text-center space-y-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/40">Hubungi Kami</p>
-          <h2 className="text-3xl md:text-4xl font-bold">Butuh Bantuan?</h2>
-          <p className="text-white/60 text-base">Tim kami siap membantu Anda memilih iPhone yang tepat sesuai budget dan kebutuhan.</p>
+          <p className="text-xs uppercase tracking-[0.25em]" style={{ color: "hsl(0 0% 40%)" }}>Hubungi Kami</p>
+          <h2 className="text-3xl md:text-4xl font-bold">Ada yang Ingin<br />Ditanyakan?</h2>
+          <p className="text-base leading-relaxed" style={{ color: "hsl(0 0% 55%)" }}>
+            Tim kami aktif setiap hari dan siap membantu Anda menemukan iPhone yang tepat — sesuai budget, kondisi, dan kebutuhan.
+          </p>
           <div className="flex flex-wrap justify-center gap-3">
-            <Button
-              size="lg"
-              className="bg-white text-foreground hover:bg-white/90 rounded-xl gap-2"
-              onClick={() => window.open("https://wa.me/6285890024760", "_blank")}
-            >
-              <MessageCircle className="w-4 h-4" /> WhatsApp
+            <Button size="lg" className="rounded-xl gap-2 font-semibold"
+              style={{ background: "hsl(0 0% 100%)", color: "hsl(0 0% 8%)" }}
+              onClick={() => window.open("https://wa.me/6285890024760", "_blank")}>
+              <MessageCircle className="w-4 h-4" /> Chat via WhatsApp
             </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/20 text-white bg-transparent hover:bg-white/10 rounded-xl gap-2"
-              onClick={() => navigate("/katalog")}
-            >
+            <Button size="lg" className="rounded-xl gap-2"
+              style={{ background: "hsl(0 0% 100% / 0.08)", border: "1px solid hsl(0 0% 100% / 0.12)", color: "hsl(0 0% 80%)" }}
+              onClick={() => navigate("/katalog")}>
               <ShoppingBag className="w-4 h-4" /> Lihat Katalog
             </Button>
           </div>
@@ -475,27 +663,20 @@ export default function LandingPage() {
       <footer className="bg-background border-t border-border py-14 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-4 gap-10 mb-10">
-            {/* Brand */}
             <div className="md:col-span-1 space-y-4">
               <img src={logoHorizontal} alt="Ivalora Gadget" className="h-7" />
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Pusat jual beli iPhone terpercaya di Surabaya. Unit bergaransi, IMEI aman, harga kompetitif.
+                Pusat jual beli iPhone terpercaya di Surabaya. Unit bergaransi, IMEI bersih, harga kompetitif.
               </p>
               <div className="flex items-center gap-3">
                 <a href="https://instagram.com/ivalora_gadget" target="_blank" rel="noopener noreferrer"
                   className="w-9 h-9 rounded-lg bg-foreground/5 hover:bg-foreground hover:text-background flex items-center justify-center transition-colors">
                   <Instagram className="w-4 h-4" />
                 </a>
-                <a href="https://shopee.co.id/ivalora_gadget" target="_blank" rel="noopener noreferrer"
-                  className="w-9 h-9 rounded-lg bg-foreground/5 hover:bg-foreground hover:text-background flex items-center justify-center transition-colors text-xs font-bold">
-                  S
-                </a>
               </div>
             </div>
-
-            {/* Links */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">Navigasi</h4>
+              <h4 className="text-sm font-semibold">Navigasi</h4>
               {[
                 { label: "Beranda", href: "/" },
                 { label: "Katalog Produk", href: "/katalog" },
@@ -507,26 +688,17 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-
-            {/* Customer Service */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">Customer Service</h4>
+              <h4 className="text-sm font-semibold">Customer Service</h4>
               <p className="text-sm text-muted-foreground">0858-9002-4760</p>
-              <p className="text-sm text-muted-foreground">Senin – Sabtu</p>
-              <p className="text-sm text-muted-foreground">09.00 – 20.00 WIB</p>
-              <a
-                href="https://wa.me/6285890024760"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:underline underline-offset-4"
-              >
+              <p className="text-sm text-muted-foreground">Senin – Sabtu, 09.00 – 20.00 WIB</p>
+              <a href="https://wa.me/6285890024760" target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline underline-offset-4">
                 <MessageCircle className="w-3.5 h-3.5" /> Chat di WhatsApp
               </a>
             </div>
-
-            {/* Marketplace */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">Marketplace</h4>
+              <h4 className="text-sm font-semibold">Marketplace</h4>
               <a href="https://shopee.co.id/ivalora_gadget" target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <img src={logoShopee} alt="Shopee" className="h-5 w-auto" />
@@ -534,14 +706,13 @@ export default function LandingPage() {
               </a>
               <a href="https://www.tokopedia.com/ivalora" target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <span className="font-bold text-sm text-[hsl(var(--status-available))]">T</span>
+                <span className="font-bold text-sm" style={{ color: "hsl(142 71% 38%)" }}>T</span>
                 Tokopedia
               </a>
             </div>
           </div>
-
           <div className="border-t border-border pt-6 flex flex-col md:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">© 2025 Ivalora Gadget. All rights reserved.</p>
+            <p className="text-xs text-muted-foreground">© 2026 Ivalora Gadget. All rights reserved.</p>
             <p className="text-xs text-muted-foreground">Surabaya, Jawa Timur, Indonesia</p>
           </div>
         </div>
@@ -550,10 +721,14 @@ export default function LandingPage() {
   );
 }
 
-// ─── Product Card ────────────────────────────────────────────────────────────
-function ProductCard({ product, badge }: { product: Product; badge?: string }) {
+// ─── Product Card ─────────────────────────────────────────────────────────────
+function ProductCard({ product, isFlashSale }: { product: Product; isFlashSale?: boolean }) {
   const navigate = useNavigate();
   const href = product.slug ? `/produk/${product.slug}` : "#";
+
+  // Simulate original price for flash sale (20-30% markup)
+  const salePrice = product.override_display_price;
+  const originalPrice = salePrice ? Math.round(salePrice * 1.22) : null;
 
   return (
     <div
@@ -573,42 +748,61 @@ function ProductCard({ product, badge }: { product: Product; badge?: string }) {
             <ShoppingBag className="w-8 h-8 text-foreground/20" />
           </div>
         )}
-        {badge && (
-          <span className="absolute top-3 left-3 bg-foreground text-background text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg">
-            {badge}
+        {/* Flash sale badge */}
+        {isFlashSale && (
+          <span className="absolute top-2.5 left-2.5 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg flex items-center gap-1"
+            style={{ background: "hsl(0 0% 8%)", color: "hsl(38 92% 50%)" }}>
+            <Zap className="w-2.5 h-2.5" /> FLASH
           </span>
         )}
-        {product.promo_badge && !badge && (
-          <span className="absolute top-3 left-3 bg-destructive text-destructive-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg">
+        {/* Promo badge */}
+        {product.promo_badge && !isFlashSale && (
+          <span className="absolute top-2.5 left-2.5 bg-destructive text-destructive-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg">
             {product.promo_badge}
           </span>
         )}
+        {/* Free shipping */}
         {product.free_shipping && (
-          <span className="absolute top-3 right-3 text-[9px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-1" style={{ background: "hsl(var(--status-available))", color: "hsl(var(--status-available-bg))" }}>
-            <Truck className="w-2.5 h-2.5" /> Gratis
+          <span className="absolute top-2.5 right-2.5 text-[10px] font-bold px-2 py-1 rounded-lg"
+            style={{ background: "hsl(142 71% 45%)", color: "hsl(0 0% 100%)" }}>
+            FREE ONGKIR
           </span>
         )}
       </div>
 
       {/* Info */}
       <div className="p-4 space-y-2">
-        <p className="text-xs font-medium text-muted-foreground line-clamp-1">
-          {product.spec_warranty_duration ?? "Garansi Toko"}
+        <p className="text-[11px] font-medium text-muted-foreground line-clamp-1">
+          {product.spec_warranty_duration ?? "Garansi Toko 1 Bulan"}
         </p>
         <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">
           {product.display_name}
         </p>
         {product.rating_score != null && (
           <div className="flex items-center gap-1">
-            <Star className="w-3 h-3" style={{ fill: "hsl(var(--star))", color: "hsl(var(--star))" }} />
+            <Star className="w-3 h-3 fill-current" style={{ color: "hsl(var(--star))" }} />
             <span className="text-xs text-muted-foreground">{product.rating_score.toFixed(1)}</span>
           </div>
         )}
-        <p className="text-base font-bold text-foreground">
-          {product.override_display_price
-            ? formatRupiah(product.override_display_price)
-            : "Hubungi Admin"}
-        </p>
+        {/* Price */}
+        <div>
+          {salePrice ? (
+            <>
+              {isFlashSale && originalPrice && (
+                <p className="text-xs text-muted-foreground line-through">{formatRupiah(originalPrice)}</p>
+              )}
+              <p className="text-base font-bold text-foreground">{formatRupiah(salePrice)}</p>
+              {isFlashSale && originalPrice && (
+                <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5"
+                  style={{ background: "hsl(0 72% 95%)", color: "hsl(0 72% 40%)" }}>
+                  HEMAT {Math.round(((originalPrice - salePrice) / originalPrice) * 100)}%
+                </span>
+              )}
+            </>
+          ) : (
+            <p className="text-sm font-semibold text-muted-foreground italic">Tanya Harga</p>
+          )}
+        </div>
         <Button
           size="sm"
           className="w-full rounded-xl text-xs mt-1"
