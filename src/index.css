@@ -109,6 +109,13 @@ All colors MUST be HSL.
     --status-inactive: 215 16% 55%;
     --status-inactive-bg: 215 16% 94%;
     --status-inactive-fg: 215 16% 30%;
+
+    /* Landing hero accent */
+    --hero-glow: 210 90% 52%;
+    --hero-glow-2: 197 100% 63%;
+
+    /* Rating stars */
+    --star: 38 92% 50%;
   }
 }
 

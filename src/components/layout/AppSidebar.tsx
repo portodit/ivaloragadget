@@ -31,7 +31,7 @@ type NavItem =
 
 // ── Nav items per role ─────────────────────────────────────────────────────────
 const superAdminNavItems: NavItem[] = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   {
     title: "Manajemen Admin",
     icon: Users,
@@ -63,7 +63,7 @@ const superAdminNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   {
     title: "Produk & Inventory",
     icon: Package,

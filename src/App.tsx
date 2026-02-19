@@ -5,21 +5,26 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+
+// Public pages
+import LandingPage from "./pages/LandingPage";
+import ShopPage from "./pages/ShopPage";
+import ProductDetailPage from "./pages/katalog/ProductDetailPage";
+
+// Customer auth pages
+import CustomerLoginPage from "./pages/auth/CustomerLoginPage";
+import CustomerRegisterPage from "./pages/auth/CustomerRegisterPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 
 // Admin auth pages
 import AdminLoginPage from "./pages/auth/AdminLoginPage";
 import AdminRegisterPage from "./pages/auth/AdminRegisterPage";
 import WaitingApprovalPage from "./pages/auth/WaitingApprovalPage";
-import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 
-// Customer auth pages
-import CustomerLoginPage from "./pages/auth/CustomerLoginPage";
-import CustomerRegisterPage from "./pages/auth/CustomerRegisterPage";
-
-// Dashboard pages
+// Dashboard pages (protected — admin/super_admin only)
+import Index from "./pages/Index";
 import MasterProductsPage from "./pages/MasterProductsPage";
 import StockIMEIPage from "./pages/StockIMEIPage";
 import StokOpnamePage from "./pages/StokOpnamePage";
@@ -31,10 +36,6 @@ import ActivityLogPage from "./pages/ActivityLogPage";
 import KatalogPage from "./pages/KatalogPage";
 import KatalogFormPage from "./pages/katalog/KatalogFormPage";
 
-// Public pages
-import ShopPage from "./pages/ShopPage";
-import ProductDetailPage from "./pages/katalog/ProductDetailPage";
-
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -45,7 +46,8 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* ── Public shop routes ─────────────────────────────── */}
+            {/* ── Public / Landing ──────────────────────────────── */}
+            <Route path="/" element={<LandingPage />} />
             <Route path="/katalog" element={<ShopPage />} />
             <Route path="/produk/:slug" element={<ProductDetailPage />} />
 
@@ -60,8 +62,8 @@ const App = () => (
             <Route path="/admin/register" element={<AdminRegisterPage />} />
             <Route path="/waiting-approval" element={<WaitingApprovalPage />} />
 
-            {/* ── Protected dashboard routes ─────────────────────── */}
-            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            {/* ── Protected dashboard routes (/dashboard/...) ────── */}
+            <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/master-produk" element={<ProtectedRoute><MasterProductsPage /></ProtectedRoute>} />
             <Route path="/stok-imei" element={<ProtectedRoute><StockIMEIPage /></ProtectedRoute>} />
             <Route path="/stok-opname" element={<ProtectedRoute><StokOpnamePage /></ProtectedRoute>} />

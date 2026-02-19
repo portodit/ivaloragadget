@@ -25,6 +25,9 @@ export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
+  // Customer accounts cannot access admin dashboard
+  // (role check happens after status check)
+
   if (status === "pending") {
     return <Navigate to="/waiting-approval" replace />;
   }
@@ -34,7 +37,7 @@ export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
   }
 
   if (requireRole === "super_admin" && role !== "super_admin") {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
