@@ -36,8 +36,7 @@ const schema = z.object({
   series: z.string().trim().min(1, "Seri wajib diisi").max(100),
   storage_gb: z.coerce.number().int().positive("Storage wajib diisi"),
   color: z.string().trim().min(1, "Warna wajib diisi").max(50),
-  warranty_type: z.enum(["resmi_bc", "ibox", "inter", "whitelist", "digimap"] as const),
-  base_price: z.coerce.number().min(0).optional().or(z.literal("")).transform((v) => (v === "" ? null : v || null)),
+  warranty_type: z.string().min(1, "Tipe iPhone wajib dipilih"),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -58,6 +57,8 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
   const isEdit = !!editProduct;
   const coreFieldsReadOnly = isEdit && isUsedInStock;
 
+  const activeWarrantyLabels = warrantyLabels.filter((w) => w.is_active);
+
   const { register, handleSubmit, setValue, watch, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -65,8 +66,7 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
       series: "",
       storage_gb: 128,
       color: "",
-      warranty_type: "resmi_bc",
-      base_price: "" as any,
+      warranty_type: activeWarrantyLabels[0]?.key ?? "",
     },
   });
 
@@ -78,7 +78,6 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
         storage_gb: editProduct.storage_gb,
         color: editProduct.color,
         warranty_type: editProduct.warranty_type,
-        base_price: editProduct.base_price ?? ("" as any),
       });
     } else if (!open) {
       reset({
@@ -86,20 +85,17 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
         series: "",
         storage_gb: 128,
         color: "",
-        warranty_type: "resmi_bc",
-        base_price: "" as any,
+        warranty_type: activeWarrantyLabels[0]?.key ?? "",
       });
       setDuplicateError(false);
     }
-  }, [editProduct, open, reset]);
+  }, [editProduct, open, reset, activeWarrantyLabels]);
 
   const onSubmit = async (data: FormData) => {
     setDuplicateError(false);
     try {
       if (isEdit && editProduct) {
-        const updatePayload: Record<string, unknown> = {
-          base_price: data.base_price ?? null,
-        };
+        const updatePayload: Record<string, unknown> = {};
         if (!coreFieldsReadOnly) {
           updatePayload.category = data.category;
           updatePayload.series = data.series;
@@ -114,14 +110,14 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
         if (error) throw error;
         toast({ title: "Produk berhasil diperbarui" });
       } else {
-        const { error } = await supabase.from("master_products").insert({
-          category: data.category,
+        const insertPayload = {
+          category: data.category as "iphone" | "ipad" | "accessory",
           series: data.series,
           storage_gb: data.storage_gb,
           color: data.color,
-          warranty_type: data.warranty_type,
-          base_price: data.base_price ?? null,
-        });
+          warranty_type: data.warranty_type as "resmi_bc" | "ibox" | "inter" | "whitelist" | "digimap",
+        };
+        const { error } = await supabase.from("master_products").insert(insertPayload);
         if (error) {
           if (error.code === "23505") {
             setDuplicateError(true);
@@ -156,7 +152,7 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
           <Alert className="border-border bg-muted">
             <AlertCircle className="h-4 w-4 text-foreground/60" />
             <AlertDescription className="text-muted-foreground text-xs">
-              SKU ini sudah digunakan di stok. Atribut inti (Kategori, Seri, Storage, Warna, Garansi) tidak dapat diubah untuk menjaga integritas histori.
+              SKU ini sudah digunakan di stok. Atribut inti (Kategori, Seri, Storage, Warna, Tipe) tidak dapat diubah untuk menjaga integritas histori.
             </AlertDescription>
           </Alert>
         )}
@@ -165,7 +161,7 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Kombinasi SKU ini sudah terdaftar. Setiap kombinasi Kategori + Seri + Storage + Warna + Garansi harus unik.
+              Kombinasi SKU ini sudah terdaftar. Setiap kombinasi Kategori + Seri + Storage + Warna + Tipe harus unik.
             </AlertDescription>
           </Alert>
         )}
@@ -239,9 +235,9 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
             {errors.color && <p className="text-xs text-destructive">{errors.color.message}</p>}
           </div>
 
-          {/* Warranty */}
+          {/* Warranty / Tipe iPhone */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jenis Garansi</Label>
+            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tipe iPhone</Label>
             {coreFieldsReadOnly ? (
               <div className="h-10 flex items-center px-3 rounded-md border bg-muted text-sm">
                 {warrantyLabels.find((w) => w.key === editProduct!.warranty_type)?.label ?? editProduct!.warranty_type}
@@ -249,37 +245,16 @@ export function ProductFormModal({ open, onClose, onSuccess, editProduct, isUsed
             ) : (
               <Select value={watchedWarranty} onValueChange={(v) => setValue("warranty_type", v as WarrantyType)}>
                 <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Pilih jenis garansi" />
+                  <SelectValue placeholder="Pilih tipe iPhone" />
                 </SelectTrigger>
                 <SelectContent>
-                  {warrantyLabels
-                    .filter((w) => w.is_active)
-                    .map((w) => (
-                      <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
-                    ))}
+                  {activeWarrantyLabels.map((w) => (
+                    <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
             {errors.warranty_type && <p className="text-xs text-destructive">{errors.warranty_type.message}</p>}
-          </div>
-
-
-          {/* Base price — always editable */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Harga Referensi <span className="normal-case font-normal">(Opsional)</span>
-            </Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
-              <Input
-                type="number"
-                placeholder="Masukkan harga referensi dalam rupiah"
-                min={0}
-                className="pl-10"
-                {...register("base_price")}
-              />
-            </div>
-            {errors.base_price && <p className="text-xs text-destructive">{errors.base_price.message}</p>}
           </div>
 
           <div className="flex gap-3 pt-2">

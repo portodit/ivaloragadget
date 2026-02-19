@@ -33,8 +33,7 @@ import {
   PackageOpen,
   Eye,
   Pencil,
-  ToggleLeft,
-  ToggleRight,
+  Trash2,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
@@ -165,29 +164,58 @@ export default function MasterProductsPage() {
     setShowDetail(true);
   };
 
-  const handleToggleActive = (product: MasterProduct) => {
+  const handleDeleteProduct = (product: MasterProduct) => {
     setDeactivateProduct(product);
+    setDeleteCheckLoading(true);
+    setCannotDeleteReason(null);
     setShowDeactivate(true);
+    // Check dependencies
+    checkDeleteDependencies(product.id).then(reason => {
+      setCannotDeleteReason(reason);
+      setDeleteCheckLoading(false);
+    });
   };
 
-  const handleConfirmToggle = async () => {
-    if (!deactivateProduct) return;
+  const [deleteCheckLoading, setDeleteCheckLoading] = useState(false);
+  const [cannotDeleteReason, setCannotDeleteReason] = useState<string | null>(null);
+
+  async function checkDeleteDependencies(productId: string): Promise<string | null> {
+    // Check stock_units
+    const { count: stockCount } = await supabase
+      .from("stock_units")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId);
+    if (stockCount && stockCount > 0) {
+      return `SKU ini memiliki ${stockCount} unit stok terkait. Hapus semua unit stok terlebih dahulu.`;
+    }
+    // Check catalog_products
+    const { count: catalogCount } = await supabase
+      .from("catalog_products")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId);
+    if (catalogCount && catalogCount > 0) {
+      return `SKU ini digunakan di ${catalogCount} katalog produk. Hapus katalog terkait terlebih dahulu.`;
+    }
+    return null;
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deactivateProduct || cannotDeleteReason) return;
     setDeactivateLoading(true);
     try {
+      // Soft delete
       const { error } = await supabase
         .from("master_products")
-        .update({ is_active: !deactivateProduct.is_active })
+        .update({ deleted_at: new Date().toISOString(), is_active: false })
         .eq("id", deactivateProduct.id);
       if (error) throw error;
-      toast({
-        title: deactivateProduct.is_active ? "SKU dinonaktifkan" : "SKU diaktifkan kembali",
-      });
+      toast({ title: "Master produk berhasil dihapus" });
       setShowDeactivate(false);
       setDeactivateProduct(null);
       fetchProducts();
     } catch (e: unknown) {
       toast({
-        title: "Gagal mengubah status",
+        title: "Gagal menghapus",
         description: e instanceof Error ? e.message : "Terjadi kesalahan",
         variant: "destructive",
       });
@@ -200,8 +228,6 @@ export default function MasterProductsPage() {
 
   // ─── Render helpers ───────────────────────────────────────
   const formatStorage = (gb: number) => gb >= 1024 ? `${gb / 1024} TB` : `${gb} GB`;
-  const formatPrice = (n: number | null) =>
-    n ? `Rp ${n.toLocaleString("id-ID")}` : <span className="text-muted-foreground text-xs italic">—</span>;
 
   const renderSkeleton = () =>
     Array.from({ length: 6 }).map((_, i) => (
@@ -219,7 +245,7 @@ export default function MasterProductsPage() {
         <div>
           <h1 className="text-xl font-bold text-foreground">Master Data Produk</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Kelola varian produk berdasarkan kombinasi kategori, seri, storage, warna, dan garansi
+            Kelola varian produk berdasarkan kombinasi kategori, seri, storage, warna, dan tipe
           </p>
         </div>
         <div className="flex gap-2 shrink-0 self-start sm:self-auto">
@@ -229,8 +255,8 @@ export default function MasterProductsPage() {
             onClick={() => setShowWarrantyModal(true)}
           >
             <Tag className="w-4 h-4" />
-            <span className="hidden sm:inline">Kelola Label Garansi</span>
-            <span className="sm:hidden">Garansi</span>
+            <span className="hidden sm:inline">Kelola Tipe iPhone</span>
+            <span className="sm:hidden">Tipe</span>
           </Button>
           <Button
             className="gap-2"
@@ -268,10 +294,10 @@ export default function MasterProductsPage() {
           </Select>
           <Select value={filterWarranty} onValueChange={setFilterWarranty}>
             <SelectTrigger className="h-9 w-44">
-              <SelectValue placeholder="Garansi" />
+              <SelectValue placeholder="Tipe" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua Garansi</SelectItem>
+              <SelectItem value="all">Semua Tipe</SelectItem>
               {warrantyLabels.map((w) => (
                 <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
               ))}
@@ -336,7 +362,7 @@ export default function MasterProductsPage() {
                 <TableHead className="font-semibold text-xs uppercase tracking-widest">Seri</TableHead>
                 <TableHead className="font-semibold text-xs uppercase tracking-widest w-24 text-center">Storage</TableHead>
                 <TableHead className="font-semibold text-xs uppercase tracking-widest">Warna</TableHead>
-                <TableHead className="font-semibold text-xs uppercase tracking-widest">Garansi</TableHead>
+                <TableHead className="font-semibold text-xs uppercase tracking-widest">Tipe</TableHead>
                 <TableHead className="font-semibold text-xs uppercase tracking-widest w-20 text-center">Status</TableHead>
                 <TableHead className="font-semibold text-xs uppercase tracking-widest w-32 text-center">Aksi</TableHead>
               </TableRow>
@@ -428,14 +454,11 @@ export default function MasterProductsPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="w-8 h-8"
-                          title={p.is_active ? "Nonaktifkan" : "Aktifkan"}
-                          onClick={() => handleToggleActive(p)}
+                          className="w-8 h-8 text-destructive hover:text-destructive"
+                          title="Hapus"
+                          onClick={() => handleDeleteProduct(p)}
                         >
-                          {p.is_active
-                            ? <ToggleLeft className="w-3.5 h-3.5 text-destructive" />
-                            : <ToggleRight className="w-3.5 h-3.5" />
-                          }
+                          <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
                     </TableCell>
@@ -499,11 +522,11 @@ export default function MasterProductsPage() {
 
       <DeactivateModal
         open={showDeactivate}
-        onClose={() => { setShowDeactivate(false); setDeactivateProduct(null); }}
-        onConfirm={handleConfirmToggle}
+        onClose={() => { setShowDeactivate(false); setDeactivateProduct(null); setCannotDeleteReason(null); }}
+        onConfirm={handleConfirmDelete}
         product={deactivateProduct}
-        hasAvailableStock={false}
-        loading={deactivateLoading}
+        loading={deactivateLoading || deleteCheckLoading}
+        cannotDeleteReason={cannotDeleteReason}
       />
 
       <WarrantyLabelModal
@@ -558,9 +581,9 @@ export default function MasterProductsPage() {
               </div>
             </div>
 
-            {/* Garansi */}
+            {/* Tipe iPhone */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Garansi</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tipe iPhone</p>
               <div className="flex flex-wrap gap-2">
                 {[{ key: "all", label: "Semua" }, ...warrantyLabels].map((w) => (
                   <button

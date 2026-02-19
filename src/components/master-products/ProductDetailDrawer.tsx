@@ -73,15 +73,7 @@ export function ProductDetailDrawer({ open, onClose, product, stockSummary, load
             <InfoRow label="Seri" value={product.series} />
             <InfoRow label="Storage" value={product.storage_gb >= 1024 ? `${product.storage_gb / 1024} TB` : `${product.storage_gb} GB`} />
             <InfoRow label="Warna" value={product.color} />
-            <InfoRow label="Garansi" value={warrantyLabelMap?.[product.warranty_type] ?? product.warranty_type} />
-            <InfoRow
-              label="Harga Referensi"
-              value={
-                product.base_price
-                  ? `Rp ${product.base_price.toLocaleString("id-ID")}`
-                  : <span className="text-muted-foreground text-xs italic">Tidak diset</span>
-              }
-            />
+            <InfoRow label="Tipe iPhone" value={warrantyLabelMap?.[product.warranty_type] ?? product.warranty_type} />
             <InfoRow
               label="Dibuat"
               value={new Date(product.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}

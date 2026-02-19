@@ -24,8 +24,7 @@ import {
   Plus,
   Pencil,
   Tag,
-  ToggleLeft,
-  ToggleRight,
+  Trash2,
   GripVertical,
 } from "lucide-react";
 
@@ -62,16 +61,18 @@ interface Props {
 function AddEditForm({
   editItem,
   existingKeys,
+  existingLabels,
   onSuccess,
   onCancel,
 }: {
   editItem: WarrantyLabel | null;
   existingKeys: string[];
+  existingLabels: { key: string; label: string }[];
   onSuccess: () => void;
   onCancel: () => void;
 }) {
   const { toast } = useToast();
-  const [duplicateError, setDuplicateError] = useState(false);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const isEdit = !!editItem;
 
   const {
@@ -95,11 +96,28 @@ function AddEditForm({
       label: editItem?.label ?? "",
       description: editItem?.description ?? "",
     });
-    setDuplicateError(false);
+    setDuplicateError(null);
   }, [editItem, reset]);
 
   const onSubmit = async (data: FormData) => {
-    setDuplicateError(false);
+    setDuplicateError(null);
+
+    // Check key uniqueness
+    if (!isEdit && existingKeys.includes(data.key)) {
+      setDuplicateError(`Key "${data.key}" sudah digunakan. Gunakan key yang berbeda.`);
+      return;
+    }
+
+    // Check label uniqueness (case-insensitive)
+    const labelLower = data.label.toLowerCase();
+    const duplicateLabel = existingLabels.find(
+      (l) => l.label.toLowerCase() === labelLower && l.key !== (editItem?.key ?? "")
+    );
+    if (duplicateLabel) {
+      setDuplicateError(`Label "${data.label}" sudah ada (key: ${duplicateLabel.key}). Gunakan nama label yang berbeda.`);
+      return;
+    }
+
     try {
       if (isEdit && editItem) {
         const { error } = await supabase
@@ -110,13 +128,8 @@ function AddEditForm({
           })
           .eq("id", editItem.id);
         if (error) throw error;
-        toast({ title: "Label garansi berhasil diperbarui" });
+        toast({ title: "Tipe iPhone berhasil diperbarui" });
       } else {
-        // Check key uniqueness client-side for better UX
-        if (existingKeys.includes(data.key)) {
-          setDuplicateError(true);
-          return;
-        }
         const { error } = await supabase.from("warranty_labels").insert({
           key: data.key,
           label: data.label,
@@ -125,12 +138,12 @@ function AddEditForm({
         });
         if (error) {
           if (error.code === "23505") {
-            setDuplicateError(true);
+            setDuplicateError(`Key "${data.key}" sudah digunakan.`);
             return;
           }
           throw error;
         }
-        toast({ title: "Label garansi berhasil ditambahkan" });
+        toast({ title: "Tipe iPhone berhasil ditambahkan" });
       }
       onSuccess();
     } catch (err: unknown) {
@@ -145,14 +158,14 @@ function AddEditForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-4 rounded-xl border border-border bg-muted/30">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        {isEdit ? "Edit Label Garansi" : "Tambah Label Garansi Baru"}
+        {isEdit ? "Edit Tipe iPhone" : "Tambah Tipe iPhone Baru"}
       </p>
 
       {duplicateError && (
         <Alert variant="destructive" className="py-2">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Key "{watch("key")}" sudah digunakan. Gunakan key yang berbeda.
+            {duplicateError}
           </AlertDescription>
         </Alert>
       )}
@@ -171,7 +184,7 @@ function AddEditForm({
           />
           {errors.key && <p className="text-xs text-destructive">{errors.key.message}</p>}
           {!isEdit && (
-            <p className="text-[10px] text-muted-foreground">Huruf kecil, angka, underscore saja</p>
+            <p className="text-[10px] text-muted-foreground">Huruf kecil, angka, underscore saja. Harus unik.</p>
           )}
         </div>
 
@@ -194,7 +207,7 @@ function AddEditForm({
           Deskripsi <span className="normal-case font-normal">(Opsional)</span>
         </Label>
         <Textarea
-          placeholder="Masukkan deskripsi singkat label garansi ini"
+          placeholder="Masukkan deskripsi singkat tipe ini"
           rows={2}
           className="resize-none"
           {...register("description")}
@@ -214,7 +227,7 @@ function AddEditForm({
           ) : isEdit ? (
             "Simpan Perubahan"
           ) : (
-            "Tambah Label"
+            "Tambah Tipe"
           )}
         </Button>
       </div>
@@ -229,7 +242,7 @@ export function WarrantyLabelModal({ open, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<WarrantyLabel | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchLabels = async () => {
     setLoading(true);
@@ -246,19 +259,49 @@ export function WarrantyLabelModal({ open, onClose }: Props) {
     if (open) fetchLabels();
   }, [open]);
 
-  const handleToggle = async (item: WarrantyLabel) => {
-    setTogglingId(item.id);
-    const { error } = await supabase
-      .from("warranty_labels")
-      .update({ is_active: !item.is_active })
-      .eq("id", item.id);
-    if (error) {
-      toast({ title: "Gagal mengubah status", variant: "destructive" });
-    } else {
-      toast({ title: item.is_active ? "Label dinonaktifkan" : "Label diaktifkan" });
+  const handleDelete = async (item: WarrantyLabel) => {
+    setDeletingId(item.id);
+    try {
+      // Check dependencies: stock_units
+      const { count: stockCount } = await supabase
+        .from("stock_units")
+        .select("id", { count: "exact", head: true })
+        .eq("product_id", item.key); // Actually need to check via master_products
+
+      // Check: any master_products using this warranty_type?
+      const { count: masterCount } = await supabase
+        .from("master_products")
+        .select("id", { count: "exact", head: true })
+        .eq("warranty_type", item.key as "resmi_bc" | "ibox" | "inter" | "whitelist" | "digimap")
+        .is("deleted_at", null);
+
+      if (masterCount && masterCount > 0) {
+        toast({
+          title: "Tidak dapat menghapus",
+          description: `Tipe "${item.label}" masih digunakan oleh ${masterCount} master produk. Hapus atau ubah master produk terkait terlebih dahulu.`,
+          variant: "destructive",
+        });
+        setDeletingId(null);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("warranty_labels")
+        .delete()
+        .eq("id", item.id);
+
+      if (error) throw error;
+      toast({ title: `Tipe "${item.label}" berhasil dihapus` });
       fetchLabels();
+    } catch (err: unknown) {
+      toast({
+        title: "Gagal menghapus",
+        description: err instanceof Error ? err.message : "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
     }
-    setTogglingId(null);
   };
 
   const handleFormSuccess = () => {
@@ -273,6 +316,7 @@ export function WarrantyLabelModal({ open, onClose }: Props) {
   };
 
   const existingKeys = labels.map((l) => l.key);
+  const existingLabelsForValidation = labels.map((l) => ({ key: l.key, label: l.label }));
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -280,10 +324,10 @@ export function WarrantyLabelModal({ open, onClose }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             <Tag className="w-4 h-4" />
-            Kelola Label Garansi
+            Kelola Tipe iPhone
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Tambah atau kelola label jenis garansi yang tersedia untuk produk.
+            Tambah atau kelola tipe iPhone yang tersedia untuk produk.
           </DialogDescription>
         </DialogHeader>
 
@@ -296,12 +340,13 @@ export function WarrantyLabelModal({ open, onClose }: Props) {
             onClick={() => { setEditItem(null); setShowForm(true); }}
           >
             <Plus className="w-3.5 h-3.5" />
-            Tambah Label Baru
+            Tambah Tipe Baru
           </Button>
         ) : (
           <AddEditForm
             editItem={editItem}
             existingKeys={existingKeys}
+            existingLabels={existingLabelsForValidation}
             onSuccess={handleFormSuccess}
             onCancel={() => { setShowForm(false); setEditItem(null); }}
           />
@@ -321,7 +366,7 @@ export function WarrantyLabelModal({ open, onClose }: Props) {
           ) : labels.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
               <Tag className="w-8 h-8 mx-auto opacity-30 mb-2" />
-              <p className="text-sm">Belum ada label garansi</p>
+              <p className="text-sm">Belum ada tipe iPhone</p>
             </div>
           ) : (
             labels.map((item) => (
@@ -360,17 +405,15 @@ export function WarrantyLabelModal({ open, onClose }: Props) {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="w-7 h-7"
-                    title={item.is_active ? "Nonaktifkan" : "Aktifkan"}
-                    disabled={togglingId === item.id}
-                    onClick={() => handleToggle(item)}
+                    className="w-7 h-7 text-destructive hover:text-destructive"
+                    title="Hapus"
+                    disabled={deletingId === item.id}
+                    onClick={() => handleDelete(item)}
                   >
-                    {togglingId === item.id ? (
+                    {deletingId === item.id ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : item.is_active ? (
-                      <ToggleLeft className="w-3.5 h-3.5 text-destructive" />
                     ) : (
-                      <ToggleRight className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     )}
                   </Button>
                 </div>
