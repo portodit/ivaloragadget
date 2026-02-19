@@ -96,8 +96,12 @@ check_dns() {
   fi
 
   echo ""
-  read -p "Lanjut tanpa DNS? SSL akan di-skip. (y/n): " dns_continue
-  if [[ ! "$dns_continue" =~ ^[Yy] ]]; then
+  echo -e "${CYAN}Pilihan:${NC}"
+  echo "  1) Lanjut tanpa DNS (SSL di-skip, bisa diaktifkan nanti)"
+  echo "  2) Batalkan instalasi (setup DNS dulu)"
+  read -p "Pilih (1/2) [1]: " dns_continue
+  dns_continue="${dns_continue:-1}"
+  if [ "$dns_continue" = "2" ]; then
     echo "Dibatalkan. Setup DNS dulu, lalu jalankan ulang script ini."
     exit 0
   fi
