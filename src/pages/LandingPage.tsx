@@ -52,12 +52,19 @@ interface Product {
   free_shipping: boolean;
   spec_warranty_duration: string | null;
   product_id: string;
+  is_flash_sale?: boolean;
 }
 
 interface StockPriceInfo {
   product_id: string;
   min_price: number | null;
   max_price: number | null;
+}
+
+interface FlashSaleSettings {
+  is_active: boolean;
+  start_time: string;
+  duration_hours: number;
 }
 
 // ─── iPhone category cards ────────────────────────────────────────────────────
@@ -133,24 +140,23 @@ const TESTIMONIALS = [
 ];
 
 // ─── Countdown ───────────────────────────────────────────────────────────────
-function useCountdown(endHour: number) {
+function useCountdown(endTime: Date | null) {
   const getRemaining = () => {
-    const now = new Date();
-    const end = new Date();
-    end.setHours(endHour, 0, 0, 0);
-    if (end <= now) end.setDate(end.getDate() + 1);
-    const diff = end.getTime() - now.getTime();
+    if (!endTime) return { h: 0, m: 0, s: 0, expired: true };
+    const diff = endTime.getTime() - Date.now();
+    if (diff <= 0) return { h: 0, m: 0, s: 0, expired: true };
     return {
       h: Math.floor(diff / 3600000),
       m: Math.floor((diff % 3600000) / 60000),
       s: Math.floor((diff % 60000) / 1000),
+      expired: false,
     };
   };
   const [time, setTime] = useState(getRemaining());
   useEffect(() => {
     const t = setInterval(() => setTime(getRemaining()), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [endTime]);
   return time;
 }
 
@@ -219,25 +225,50 @@ export default function LandingPage() {
   const { lang } = useLocale();
   const [products, setProducts] = useState<Product[]>([]);
   const [highlight, setHighlight] = useState<Product[]>([]);
+  const [flashSaleProducts, setFlashSaleProducts] = useState<Product[]>([]);
   const [stockPrices, setStockPrices] = useState<StockPriceInfo[]>([]);
-  const { h, m, s } = useCountdown(22);
+  const [flashSale, setFlashSale] = useState<FlashSaleSettings | null>(null);
+  const [flashEndTime, setFlashEndTime] = useState<Date | null>(null);
+  const { h, m, s, expired: flashExpired } = useCountdown(flashEndTime);
   const [activeUvp, setActiveUvp] = useState(0);
   const [activeBranch, setActiveBranch] = useState(0);
   const uvpImgRef = useRef<HTMLDivElement>(null);
 
+  const flashSaleActive = flashSale?.is_active && !flashExpired;
+
   useEffect(() => {
     (async () => {
+      // Fetch flash sale settings
+      const { data: fsData } = await supabase
+        .from("flash_sale_settings")
+        .select("is_active, start_time, duration_hours")
+        .limit(1)
+        .single();
+
+      if (fsData) {
+        setFlashSale(fsData as FlashSaleSettings);
+        if (fsData.is_active) {
+          const start = new Date(fsData.start_time);
+          const end = new Date(start.getTime() + fsData.duration_hours * 3600000);
+          if (end.getTime() > Date.now()) {
+            setFlashEndTime(end);
+          }
+        }
+      }
+
+      // Fetch products
       const { data } = await supabase
         .from("catalog_products")
-        .select("id, display_name, slug, thumbnail_url, override_display_price, highlight_product, promo_badge, promo_label, rating_score, free_shipping, spec_warranty_duration, product_id")
+        .select("id, display_name, slug, thumbnail_url, override_display_price, highlight_product, promo_badge, promo_label, rating_score, free_shipping, spec_warranty_duration, product_id, is_flash_sale")
         .eq("catalog_status", "published")
         .eq("publish_to_web", true)
         .limit(12);
       if (data) {
-        setHighlight(data.filter((p) => p.highlight_product).slice(0, 4));
+        setHighlight(data.filter((p: Product) => p.highlight_product).slice(0, 4));
+        setFlashSaleProducts(data.filter((p: Product) => p.is_flash_sale));
         setProducts(data.slice(0, 8));
 
-        const productIds = data.map((p) => p.product_id);
+        const productIds = data.map((p: Product) => p.product_id);
         if (productIds.length > 0) {
           const { data: stockData } = await supabase
             .from("stock_units")
@@ -436,8 +467,9 @@ export default function LandingPage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════
-          FLASH SALE (MOVED UP — after Kenapa Ivalora)
+          FLASH SALE — Only shown when active
       ══════════════════════════════════════════════════════════════ */}
+      {flashSaleActive && (
       <section className="py-16 px-6">
         <div className="max-w-6xl mx-auto">
           <div
@@ -468,7 +500,7 @@ export default function LandingPage() {
                   <span style={{ color: "hsl(38 92% 55%)" }}>{t("Stok Cepat Habis.", "Selling Fast.")}</span>
                 </h2>
                 <p className="text-sm" style={{ color: "hsl(0 0% 45%)" }}>
-                  {t("Harga spesial berlaku sampai pukul 22:00 WIB", "Special prices valid until 10:00 PM WIB")}
+                  {t(`Harga spesial berlaku selama ${flashSale?.duration_hours ?? 6} jam`, `Special prices valid for ${flashSale?.duration_hours ?? 6} hours`)}
                 </p>
               </div>
               <div className="flex flex-col items-start sm:items-end gap-2">
@@ -485,10 +517,10 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {(highlight.length ? highlight : products.slice(0, 4)).map((p) => (
+            {(flashSaleProducts.length ? flashSaleProducts : highlight.length ? highlight : products.slice(0, 4)).map((p) => (
               <ProductCard key={p.id} product={p} isFlashSale stockPrices={stockPrices} formatPrice={formatPrice} />
             ))}
-            {highlight.length === 0 && products.length === 0 &&
+            {flashSaleProducts.length === 0 && highlight.length === 0 && products.length === 0 &&
               Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
             }
           </div>
@@ -500,6 +532,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════
           KOLEKSI PILIHAN — (MOVED DOWN — after Flash Sale)
@@ -521,7 +554,7 @@ export default function LandingPage() {
             {IPHONE_CATEGORIES.map((cat) => (
               <div
                 key={cat.name}
-                onClick={() => navigate("/katalog")}
+                onClick={() => navigate(`/katalog?search=${encodeURIComponent(cat.name)}`)}
                 className="rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
                 style={{ background: "hsl(0 0% 8%)", border: "1px solid hsl(0 0% 15%)" }}
               >
@@ -632,10 +665,10 @@ export default function LandingPage() {
           <div className="mb-10">
             <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mb-2">{t("Toko Fisik", "Physical Store")}</p>
             <h2 className="text-3xl font-bold leading-tight">
-              {t("Temui Kami Langsung.", "Meet Us In Person.")}<br />
+              {t("Temui Kami Langsung. ", "Meet Us In Person. ")}
               <span style={{ color: "hsl(0 0% 45%)" }}>{t("Lihat, Coba, Baru Beli.", "See, Try, Then Buy.")}</span>
             </h2>
-            <p className="text-muted-foreground text-sm leading-relaxed mt-3 max-w-3xl">
+            <p className="text-muted-foreground text-sm leading-relaxed mt-3">
               {t(
                 "Ingin melihat kondisi unit secara langsung sebelum memutuskan? Datangi toko kami — tim kami siap membantu tanpa tekanan.",
                 "Want to see the unit's condition in person? Visit our store — our team is ready to help without pressure."
