@@ -32,7 +32,7 @@ export default function ProfilPage() {
     .toUpperCase();
 
   const displayRole =
-    role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin" : "—";
+    role === "super_admin" ? "Super Admin" : role === "admin_branch" ? "Admin Cabang" : role === "employee" ? "Employee" : "—";
 
   async function handleSaveProfile() {
     if (!name.trim()) return;

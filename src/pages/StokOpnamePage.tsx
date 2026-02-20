@@ -156,7 +156,7 @@ function SessionListView({
   const [deleting, setDeleting] = useState(false);
 
   const fetchAdmins = useCallback(async () => {
-    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+    const { data: roles } = await supabase.from("user_roles").select("user_id").in("role", ["admin_branch", "employee"]);
     if (!roles || roles.length === 0) { setAdminList([]); return; }
     const ids = roles.map((r) => r.user_id);
     const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", ids).eq("status", "active");
@@ -1818,7 +1818,7 @@ function DetailView({
   }, [sessionId]);
 
   const fetchAdmins = useCallback(async () => {
-    const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+    const { data: roles } = await supabase.from("user_roles").select("user_id").in("role", ["admin_branch", "employee"]);
     if (!roles || roles.length === 0) { setAdminList([]); return; }
     const { data: profiles } = await supabase.from("user_profiles").select("id, full_name, email").in("id", roles.map((r) => r.user_id)).eq("status", "active");
     setAdminList((profiles ?? []) as AdminProfile[]);

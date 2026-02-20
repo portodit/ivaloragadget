@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     if (action === "approve") {
       await supabaseAdmin
         .from("user_roles")
-        .upsert({ user_id: target_user_id, role: "admin" }, { onConflict: "user_id,role" });
+        .upsert({ user_id: target_user_id, role: "admin_branch" }, { onConflict: "user_id,role" });
     }
 
     return new Response(

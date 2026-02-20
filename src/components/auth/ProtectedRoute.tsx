@@ -3,10 +3,12 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requireRole?: "super_admin" | "admin";
+  requireRole?: "super_admin" | "admin_branch" | "employee";
+  /** Allow multiple roles */
+  allowRoles?: Array<"super_admin" | "admin_branch" | "employee">;
 }
 
-export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireRole, allowRoles }: ProtectedRouteProps) {
   const { user, status, role, isLoading } = useAuth();
   const location = useLocation();
 
@@ -25,9 +27,6 @@ export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
-  // Customer accounts cannot access admin dashboard
-  // (role check happens after status check)
-
   if (status === "pending") {
     return <Navigate to="/admin/waiting-approval" replace />;
   }
@@ -36,8 +35,15 @@ export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
     return <Navigate to="/admin/login" state={{ blocked: true, status }} replace />;
   }
 
-  if (requireRole === "super_admin" && role !== "super_admin") {
+  // Role-based access
+  if (requireRole && role !== requireRole && role !== "super_admin") {
     return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  if (allowRoles && allowRoles.length > 0) {
+    if (role !== "super_admin" && (!role || !allowRoles.includes(role as any))) {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;

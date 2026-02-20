@@ -30,7 +30,7 @@ export function UnitDetailDrawer({ unit, onClose, onUpdate }: UnitDetailDrawerPr
   const [editOpen, setEditOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const isSuperAdmin = role === "super_admin";
-  const isAdmin = role === "admin";
+  const isAdmin = role === "admin_branch";
 
   useEffect(() => {
     if (!unit) return;

@@ -16,7 +16,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type AccountStatus = "pending" | "active" | "suspended" | "rejected";
-type AppRole = "super_admin" | "admin" | null;
+type AppRole = "super_admin" | "admin_branch" | "employee" | null;
 
 interface AdminUser {
   id: string;
@@ -44,7 +44,8 @@ const STATUS_STYLES: Record<AccountStatus, { bg: string; text: string; dot: stri
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
-  admin: "Admin",
+  admin_branch: "Admin Cabang",
+  employee: "Employee",
 };
 
 function StatusBadge({ status }: { status: AccountStatus }) {
@@ -224,7 +225,7 @@ function DaftarAdminTab() {
       } else {
         // upsert by user_id uniqueness — delete then insert to avoid conflict issues
         await supabase.from("user_roles").delete().eq("user_id", targetUser.id);
-        await supabase.from("user_roles").insert({ user_id: targetUser.id, role: extra as "super_admin" | "admin" });
+        await supabase.from("user_roles").insert({ user_id: targetUser.id, role: extra as "super_admin" | "admin_branch" | "employee" });
       }
       toast({ title: "Perubahan role berhasil disimpan." });
       await logActivity("role_change", targetUser, { old_role: targetUser.role ?? "none", new_role: extra });
@@ -282,7 +283,8 @@ function DaftarAdminTab() {
           >
             <option value="all">Semua Role</option>
             <option value="super_admin">Super Admin</option>
-            <option value="admin">Admin</option>
+            <option value="admin_branch">Admin Cabang</option>
+            <option value="employee">Employee</option>
             <option value="none">Tanpa Role</option>
           </select>
           <select
@@ -480,7 +482,7 @@ function CreateAccountModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "super_admin">("admin");
+  const [role, setRole] = useState<"admin_branch" | "employee" | "super_admin">("admin_branch");
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async () => {
@@ -500,7 +502,7 @@ function CreateAccountModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     if (error) {
       toast({ title: "Gagal membuat akun", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Akun berhasil dibuat.", description: `${email} sudah bisa login sebagai ${role === "super_admin" ? "Super Admin" : "Admin"}.` });
+      toast({ title: "Akun berhasil dibuat.", description: `${email} sudah bisa login sebagai ${ROLE_LABELS[role] ?? role}.` });
       onSuccess();
     }
   };
@@ -527,8 +529,8 @@ function CreateAccountModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 
         <div className="px-6 py-5 space-y-4">
           {/* Role selector */}
-          <div className="grid grid-cols-2 gap-2">
-            {(["admin", "super_admin"] as const).map((r) => (
+          <div className="grid grid-cols-3 gap-2">
+            {(["admin_branch", "employee", "super_admin"] as const).map((r) => (
               <button
                 key={r}
                 type="button"
@@ -541,7 +543,7 @@ function CreateAccountModal({ onClose, onSuccess }: { onClose: () => void; onSuc
                 )}
               >
                 <Shield className={cn("w-3.5 h-3.5 shrink-0", role === r ? "text-primary" : "text-muted-foreground")} />
-                {r === "super_admin" ? "Super Admin" : "Admin"}
+                {ROLE_LABELS[r] ?? r}
               </button>
             ))}
           </div>
@@ -702,7 +704,7 @@ function ApprovalAdminTab() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <RoleBadge role="admin" />
+                <RoleBadge role="admin_branch" />
                 <Button
                   size="sm"
                   variant="outline"
@@ -899,12 +901,13 @@ function ChangeRoleModal({
   onClose: () => void;
   onSave: (role: string) => void;
 }) {
-  const [selected, setSelected] = useState<string>(user.role ?? "admin");
+  const [selected, setSelected] = useState<string>(user.role ?? "admin_branch");
   const [saving, setSaving] = useState(false);
 
   const options = [
     { value: "super_admin", label: "Super Admin", desc: "Akses penuh ke seluruh modul sistem." },
-    { value: "admin", label: "Admin", desc: "Akses operasional—stok, opname, katalog." },
+    { value: "admin_branch", label: "Admin Cabang", desc: "Akses operasional—stok, opname, katalog per cabang." },
+    { value: "employee", label: "Employee", desc: "Akses terbatas untuk operasional harian di cabang." },
   ];
 
   return (

@@ -593,7 +593,7 @@ export default function KatalogPage() {
                         <Eye className="w-3.5 h-3.5" /> Lihat
                       </button>
                     )}
-                    {(isSuperAdmin || role === "admin") && (
+                    {(isSuperAdmin || role === "admin_branch") && (
                        <button onClick={() => navigate(`/admin/katalog/edit/${cat.id}`)}
                         className="flex-1 flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
                         <Edit3 className="w-3.5 h-3.5" /> Edit
@@ -674,7 +674,7 @@ export default function KatalogPage() {
                                 <Eye className="w-4 h-4" />
                               </button>
                             )}
-                            {(isSuperAdmin || role === "admin") && (
+                            {(isSuperAdmin || role === "admin_branch") && (
                               <button onClick={() => navigate(`/admin/katalog/edit/${cat.id}`)} className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
                                 <Edit3 className="w-4 h-4" />
                               </button>
