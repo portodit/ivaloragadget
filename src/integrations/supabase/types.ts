@@ -596,6 +596,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           cron_time: string
+          days_of_week: number[]
           id: string
           is_active: boolean
           notes: string | null
@@ -607,6 +608,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cron_time: string
+          days_of_week?: number[]
           id?: string
           is_active?: boolean
           notes?: string | null
@@ -618,6 +620,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cron_time?: string
+          days_of_week?: number[]
           id?: string
           is_active?: boolean
           notes?: string | null
