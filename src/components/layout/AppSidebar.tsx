@@ -18,6 +18,7 @@ import {
   UserCheck,
   Activity,
   Zap,
+  Building2,
 } from "lucide-react";
 import logoHorizontal from "@/assets/logo-horizontal.png";
 import logoIcon from "@/assets/logo-icon.svg";
@@ -39,6 +40,11 @@ const superAdminNavItems: NavItem[] = [
       { title: "Manajemen Customer", url: "/admin/manajemen-customer", icon: UserCheck },
       { title: "Manajemen Admin", url: "/admin/manajemen-admin/daftar", icon: Users },
     ],
+  },
+  {
+    title: "Manajemen Cabang",
+    url: "/admin/cabang",
+    icon: Building2,
   },
   {
     title: "Produk & Inventory",
@@ -63,7 +69,38 @@ const superAdminNavItems: NavItem[] = [
   { title: "Log Aktivitas", url: "/admin/log-aktivitas", icon: Activity },
 ];
 
-const adminNavItems: NavItem[] = [
+const adminBranchNavItems: NavItem[] = [
+  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+  {
+    title: "Manajemen Akun",
+    icon: Users,
+    children: [
+      { title: "Staff Cabang", url: "/admin/manajemen-admin/daftar", icon: Users },
+    ],
+  },
+  {
+    title: "Produk & Inventory",
+    icon: Package,
+    children: [
+      { title: "Master Produk", url: "/admin/master-produk", icon: Database },
+      { title: "Stok IMEI", url: "/admin/stok-imei", icon: Barcode },
+      { title: "Stok Opname", url: "/admin/stok-opname", icon: ClipboardList },
+      { title: "Katalog", url: "/admin/katalog", icon: BookOpen },
+      { title: "Flash Sale", url: "/admin/flash-sale", icon: Zap },
+    ],
+  },
+  {
+    title: "Penjualan",
+    icon: ShoppingCart,
+    children: [
+      { title: "POS", url: "/admin/pos", icon: Monitor },
+      { title: "Transaksi", url: "/admin/transaksi", icon: Receipt },
+    ],
+  },
+  { title: "Laporan & Analitika", url: "/admin/laporan", icon: BarChart3 },
+];
+
+const employeeNavItems: NavItem[] = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   {
     title: "Produk & Inventory",
@@ -98,9 +135,11 @@ export function AppSidebar({ mobileSidebarOpen = false, onMobileClose }: AppSide
     "Penjualan",
   ]);
   const { role } = useAuth();
-  const isSuperAdmin = role === "super_admin";
 
-  const navItems = isSuperAdmin ? superAdminNavItems : adminNavItems;
+  const navItems =
+    role === "super_admin" ? superAdminNavItems :
+    role === "admin_branch" ? adminBranchNavItems :
+    employeeNavItems;
 
   const toggleGroup = (title: string) => {
     setOpenGroups((prev) =>

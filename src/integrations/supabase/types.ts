@@ -20,6 +20,7 @@ export type Database = {
           actor_email: string | null
           actor_id: string | null
           actor_role: string | null
+          branch_id: string | null
           created_at: string
           id: string
           metadata: Json | null
@@ -31,6 +32,7 @@ export type Database = {
           actor_email?: string | null
           actor_id?: string | null
           actor_role?: string | null
+          branch_id?: string | null
           created_at?: string
           id?: string
           metadata?: Json | null
@@ -42,13 +44,22 @@ export type Database = {
           actor_email?: string | null
           actor_id?: string | null
           actor_role?: string | null
+          branch_id?: string | null
           created_at?: string
           id?: string
           metadata?: Json | null
           target_email?: string | null
           target_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bonus_products: {
         Row: {
@@ -80,6 +91,54 @@ export type Database = {
           name?: string
           sort_order?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      branches: {
+        Row: {
+          city: string | null
+          code: string
+          created_at: string
+          district: string | null
+          full_address: string | null
+          id: string
+          is_active: boolean
+          name: string
+          phone: string | null
+          postal_code: string | null
+          province: string | null
+          updated_at: string
+          village: string | null
+        }
+        Insert: {
+          city?: string | null
+          code: string
+          created_at?: string
+          district?: string | null
+          full_address?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          phone?: string | null
+          postal_code?: string | null
+          province?: string | null
+          updated_at?: string
+          village?: string | null
+        }
+        Update: {
+          city?: string | null
+          code?: string
+          created_at?: string
+          district?: string | null
+          full_address?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone?: string | null
+          postal_code?: string | null
+          province?: string | null
+          updated_at?: string
+          village?: string | null
         }
         Relationships: []
       }
@@ -122,6 +181,7 @@ export type Database = {
       catalog_products: {
         Row: {
           bonus_items: Json | null
+          branch_id: string | null
           catalog_series: string | null
           catalog_status: Database["public"]["Enums"]["catalog_status"]
           catalog_warranty_type: string | null
@@ -174,6 +234,7 @@ export type Database = {
         }
         Insert: {
           bonus_items?: Json | null
+          branch_id?: string | null
           catalog_series?: string | null
           catalog_status?: Database["public"]["Enums"]["catalog_status"]
           catalog_warranty_type?: string | null
@@ -226,6 +287,7 @@ export type Database = {
         }
         Update: {
           bonus_items?: Json | null
+          branch_id?: string | null
           catalog_series?: string | null
           catalog_status?: Database["public"]["Enums"]["catalog_status"]
           catalog_warranty_type?: string | null
@@ -277,6 +339,13 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "catalog_products_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "catalog_products_product_id_fkey"
             columns: ["product_id"]
@@ -360,6 +429,7 @@ export type Database = {
       }
       flash_sale_settings: {
         Row: {
+          branch_id: string | null
           created_at: string
           default_discount_type: string | null
           default_discount_value: number | null
@@ -371,6 +441,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           default_discount_type?: string | null
           default_discount_value?: number | null
@@ -382,6 +453,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           default_discount_type?: string | null
           default_discount_value?: number | null
@@ -392,7 +464,15 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "flash_sale_settings_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       master_products: {
         Row: {
@@ -512,6 +592,7 @@ export type Database = {
       }
       opname_schedules: {
         Row: {
+          branch_id: string | null
           created_at: string
           created_by: string | null
           cron_time: string
@@ -522,6 +603,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           created_by?: string | null
           cron_time: string
@@ -532,6 +614,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           created_by?: string | null
           cron_time?: string
@@ -541,7 +624,15 @@ export type Database = {
           schedule_type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "opname_schedules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       opname_session_assignments: {
         Row: {
@@ -579,6 +670,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          branch_id: string | null
           completed_at: string | null
           created_at: string
           created_by: string | null
@@ -598,6 +690,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          branch_id?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -617,6 +710,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          branch_id?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
@@ -633,7 +727,15 @@ export type Database = {
           total_unregistered?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "opname_sessions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       opname_snapshot_items: {
         Row: {
@@ -756,6 +858,7 @@ export type Database = {
       stock_units: {
         Row: {
           batch_code: string | null
+          branch_id: string | null
           condition_status: Database["public"]["Enums"]["condition_status"]
           cost_price: number | null
           created_at: string
@@ -780,6 +883,7 @@ export type Database = {
         }
         Insert: {
           batch_code?: string | null
+          branch_id?: string | null
           condition_status?: Database["public"]["Enums"]["condition_status"]
           cost_price?: number | null
           created_at?: string
@@ -804,6 +908,7 @@ export type Database = {
         }
         Update: {
           batch_code?: string | null
+          branch_id?: string | null
           condition_status?: Database["public"]["Enums"]["condition_status"]
           cost_price?: number | null
           created_at?: string
@@ -827,6 +932,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_units_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "stock_units_product_id_fkey"
             columns: ["product_id"]
@@ -860,6 +972,41 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      user_branches: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          branch_id: string
+          id: string
+          is_default: boolean
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          branch_id: string
+          id?: string
+          is_default?: boolean
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          branch_id?: string
+          id?: string
+          is_default?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_branches_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_profiles: {
         Row: {
@@ -1005,11 +1152,16 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["account_status"]
       }
+      get_user_branch_ids: { Args: { _user_id: string }; Returns: string[] }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      user_has_branch_access: {
+        Args: { _branch_id: string; _user_id: string }
         Returns: boolean
       }
     }

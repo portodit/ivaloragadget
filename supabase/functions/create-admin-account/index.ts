@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
 
     const { full_name, email, password, role } = await req.json();
 
-    if (!email || !password || !role || !["super_admin", "admin"].includes(role)) {
+    if (!email || !password || !role || !["super_admin", "admin_branch", "employee"].includes(role)) {
       return new Response(JSON.stringify({ error: "Invalid payload" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
