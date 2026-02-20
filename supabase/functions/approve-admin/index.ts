@@ -70,11 +70,42 @@ Deno.serve(async (req) => {
 
     if (updateError) throw updateError;
 
-    // If approving, ensure admin role is assigned
+    // If approving, assign role and branch from user metadata
     if (action === "approve") {
+      // Get user metadata to find requested role and branch
+      const { data: { user: targetUser } } = await supabaseAdmin.auth.admin.getUserById(target_user_id);
+      const metadata = targetUser?.user_metadata ?? {};
+      const requestedRole = metadata.requested_role;
+      const requestedBranchId = metadata.requested_branch_id;
+
+      // Determine role: use requested_role if valid, fallback to admin_branch
+      const validRoles = ["admin_branch", "employee"];
+      const role = validRoles.includes(requestedRole) ? requestedRole : "admin_branch";
+
+      // Assign role
       await supabaseAdmin
         .from("user_roles")
-        .upsert({ user_id: target_user_id, role: "admin_branch" }, { onConflict: "user_id,role" });
+        .upsert({ user_id: target_user_id, role }, { onConflict: "user_id,role" });
+
+      // Assign branch if provided
+      if (requestedBranchId) {
+        // Verify branch exists
+        const { data: branch } = await supabaseAdmin
+          .from("branches")
+          .select("id")
+          .eq("id", requestedBranchId)
+          .eq("is_active", true)
+          .single();
+
+        if (branch) {
+          await supabaseAdmin
+            .from("user_branches")
+            .upsert(
+              { user_id: target_user_id, branch_id: requestedBranchId, is_default: true, assigned_by: caller.id },
+              { onConflict: "user_id,branch_id" }
+            );
+        }
+      }
     }
 
     return new Response(
